@@ -1,0 +1,236 @@
+# VS Code Dark+ Inspired Color Scheme for dircolors
+# Optimized for dark terminal backgrounds with high visibility
+#
+# Color codes (ANSI):
+# 00=none 01=bold 04=underscore 05=blink 07=reverse 08=concealed
+# Text colors: 30=black 31=red 32=green 33=yellow 34=blue 35=magenta 36=cyan 37=white
+# Bright text: 90=bright-black 91=bright-red 92=bright-green 93=bright-yellow
+#              94=bright-blue 95=bright-magenta 96=bright-cyan 97=bright-white
+# Background: 40=black 41=red 42=green 43=yellow 44=blue 45=magenta 46=cyan 47=white
+
+# Terminal type
+TERM Eterm
+TERM ansi
+TERM *color*
+TERM con[0-9]*x[0-9]*
+TERM cons25
+TERM console
+TERM cygwin
+TERM dtterm
+TERM gnome
+TERM hurd
+TERM jfbterm
+TERM konsole
+TERM kterm
+TERM linux
+TERM linux-c
+TERM mlterm
+TERM putty
+TERM rxvt*
+TERM screen*
+TERM st
+TERM terminator
+TERM tmux*
+TERM vt100
+TERM xterm*
+
+# Basic file types
+NORMAL 00                # normal file
+FILE 00                  # regular file
+RESET 0                  # reset to normal color
+DIR 01;96               # directory - BRIGHT CYAN (highly visible on dark)
+LINK 01;95              # symbolic link - BRIGHT MAGENTA
+MULTIHARDLINK 00        # multiple hard links
+FIFO 01;33              # pipe - BRIGHT YELLOW
+SOCK 01;35              # socket - MAGENTA
+DOOR 01;35              # door
+BLK 01;33               # block device
+CHR 01;33               # character device
+ORPHAN 01;31            # orphaned symlink - BRIGHT RED
+MISSING 01;31           # missing file - BRIGHT RED
+SETUID 37;41            # file with setuid bit - WHITE ON RED
+SETGID 30;43            # file with setgid bit - BLACK ON YELLOW
+CAPABILITY 30;41        # file with capability
+STICKY_OTHER_WRITABLE 01;92  # sticky directory writable by others - BRIGHT GREEN
+OTHER_WRITABLE 01;93    # directory writable by others - BRIGHT YELLOW
+STICKY 01;94            # sticky directory - BRIGHT BLUE
+EXEC 01;92              # executable - BRIGHT GREEN
+
+# Archives and compressed files (bright yellow/orange)
+.tar 01;33
+.tgz 01;33
+.arc 01;33
+.arj 01;33
+.taz 01;33
+.lha 01;33
+.lz4 01;33
+.lzh 01;33
+.lzma 01;33
+.tlz 01;33
+.txz 01;33
+.tzo 01;33
+.t7z 01;33
+.zip 01;33
+.z 01;33
+.dz 01;33
+.gz 01;33
+.lrz 01;33
+.lz 01;33
+.lzo 01;33
+.xz 01;33
+.zst 01;33
+.tzst 01;33
+.bz2 01;33
+.bz 01;33
+.tbz 01;33
+.tbz2 01;33
+.tz 01;33
+.deb 01;33
+.rpm 01;33
+.jar 01;33
+.war 01;33
+.ear 01;33
+.sar 01;33
+.rar 01;33
+.alz 01;33
+.ace 01;33
+.zoo 01;33
+.cpio 01;33
+.7z 01;33
+.rz 01;33
+.cab 01;33
+.wim 01;33
+.swm 01;33
+.dwm 01;33
+.esd 01;33
+
+# Image formats (bright red/pink)
+.jpg 01;91
+.jpeg 01;91
+.mjpg 01;91
+.mjpeg 01;91
+.gif 01;91
+.bmp 01;91
+.pbm 01;91
+.pgm 01;91
+.ppm 01;91
+.tga 01;91
+.xbm 01;91
+.xpm 01;91
+.tif 01;91
+.tiff 01;91
+.png 01;91
+.svg 01;91
+.svgz 01;91
+.mng 01;91
+.pcx 01;91
+.mov 01;91
+.mpg 01;91
+.mpeg 01;91
+.m2v 01;91
+.mkv 01;91
+.webm 01;91
+.webp 01;91
+.ogm 01;91
+.mp4 01;91
+.m4v 01;91
+.mp4v 01;91
+.vob 01;91
+.qt 01;91
+.nuv 01;91
+.wmv 01;91
+.asf 01;91
+.rm 01;91
+.rmvb 01;91
+.flc 01;91
+.avi 01;91
+.fli 01;91
+.flv 01;91
+.gl 01;91
+.dl 01;91
+.xcf 01;91
+.xwd 01;91
+.yuv 01;91
+.cgm 01;91
+.emf 01;91
+.ogv 01;91
+.ogx 01;91
+.ico 01;91
+
+# Audio formats (bright cyan)
+.aac 01;96
+.au 01;96
+.flac 01;96
+.m4a 01;96
+.mid 01;96
+.midi 01;96
+.mka 01;96
+.mp3 01;96
+.mpc 01;96
+.ogg 01;96
+.ra 01;96
+.wav 01;96
+.oga 01;96
+.opus 01;96
+.spx 01;96
+.xspf 01;96
+
+# Document formats (bright yellow)
+.pdf 01;93
+.doc 01;93
+.docx 01;93
+.xls 01;93
+.xlsx 01;93
+.ppt 01;93
+.pptx 01;93
+.odt 01;93
+.ods 01;93
+.odp 01;93
+.txt 00;93
+.md 00;93
+.markdown 00;93
+
+# Source code (bright white/default with slight emphasis)
+.c 00;97
+.cpp 00;97
+.cc 00;97
+.h 00;97
+.hpp 00;97
+.py 00;97
+.rb 00;97
+.js 00;97
+.ts 00;97
+.jsx 00;97
+.tsx 00;97
+.go 00;97
+.rs 00;97
+.java 00;97
+.php 00;97
+.sh 00;97
+.bash 00;97
+.zsh 00;97
+
+# Config files (cyan)
+.conf 00;36
+.config 00;36
+.cfg 00;36
+.ini 00;36
+.yml 00;36
+.yaml 00;36
+.json 00;36
+.toml 00;36
+.xml 00;36
+
+# Build and lock files (dim)
+.lock 00;90
+.log 00;90
+.tmp 00;90
+.bak 00;90
+.swp 00;90
+.old 00;90
+
+# Git files (magenta)
+.git 00;35
+.gitignore 00;35
+.gitmodules 00;35
+.gitattributes 00;35

@@ -1,0 +1,141 @@
+# Starship Prompt Configuration
+# https://starship.rs/config/
+
+# Timeout for commands
+command_timeout = 1000
+
+# Add newline before prompt
+add_newline = true
+
+# Format
+format = """
+[╭─](bright-blue)$username$hostname$directory$git_branch$git_status$docker_context$python$nodejs$rust$golang$java
+[╰─](bright-blue)$character"""
+
+# Character
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[➜](bold red)"
+vicmd_symbol = "[V](bold green)"
+
+# Username
+[username]
+show_always = false
+style_user = "bold yellow"
+style_root = "bold red"
+format = "[$user]($style)@"
+
+# Hostname
+[hostname]
+ssh_only = true
+style = "bold green"
+format = "[$hostname]($style) in "
+
+# Directory
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold bright-cyan"
+format = "[$path]($style)[$read_only]($read_only_style) "
+read_only = " 🔒"
+
+# Git Branch
+[git_branch]
+symbol = " "
+style = "bold bright-magenta"
+format = "on [$symbol$branch]($style) "
+
+# Git Status
+[git_status]
+style = "bold red"
+format = "([\\[$all_status$ahead_behind\\]]($style) )"
+conflicted = "🏳"
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+untracked = "?${count}"
+stashed = "$${count}"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
+
+# Programming Languages
+[python]
+symbol = " "
+style = "bright-yellow"
+format = "via [$symbol$version]($style) "
+
+[nodejs]
+symbol = " "
+style = "bright-green"
+format = "via [$symbol$version]($style) "
+
+[rust]
+symbol = " "
+style = "bright-red"
+format = "via [$symbol$version]($style) "
+
+[golang]
+symbol = " "
+style = "bright-cyan"
+format = "via [$symbol$version]($style) "
+
+[java]
+symbol = " "
+style = "bright-red"
+format = "via [$symbol$version]($style) "
+
+[ruby]
+symbol = " "
+style = "bright-red"
+format = "via [$symbol$version]($style) "
+
+# Docker
+[docker_context]
+symbol = " "
+style = "bright-blue"
+format = "via [$symbol$context]($style) "
+only_with_files = true
+
+# Kubernetes
+[kubernetes]
+disabled = false
+symbol = "☸ "
+style = "bright-cyan"
+format = "on [$symbol$context( \\($namespace\\))]($style) "
+
+# Command Duration
+[cmd_duration]
+min_time = 2000
+style = "bright-yellow"
+format = "took [$duration]($style) "
+
+# Time
+[time]
+disabled = true
+style = "white"
+format = "at [$time]($style) "
+
+# Status
+[status]
+disabled = false
+style = "red"
+format = "[$symbol$status]($style) "
+
+# Package Version
+[package]
+disabled = true
+
+# AWS
+[aws]
+symbol = "☁️  "
+style = "bright-yellow"
+format = "on [$symbol$profile(\\($region\\))]($style) "
+
+# Battery
+[battery]
+full_symbol = "🔋"
+charging_symbol = "⚡"
+discharging_symbol = "💀"
+disabled = true

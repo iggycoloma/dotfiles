@@ -1,0 +1,34 @@
+# Local configuration files (not to be committed)
+*.local
+
+# Backup directories created during installation
+.dotfiles_backup_*/
+
+# Editor and IDE files
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing artifacts
+*.log
+*.tmp
+
+# Zsh compiled files
+*.zwc
+
+# Any private or sensitive data
+secrets/
+private/
+
+# User-specific bin scripts (if any)
+bin/private/

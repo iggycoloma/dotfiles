@@ -1,0 +1,103 @@
+# Global gitignore patterns
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Editor and IDE Files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vim/
+.nvim/
+
+# Temporary Files
+*.tmp
+*.temp
+*.log
+*.cache
+*.bak
+*.backup
+
+# Environment Files
+.env
+.env.local
+.env.*.local
+.envrc
+
+# Build Artifacts
+dist/
+build/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Dependency Directories
+node_modules/
+vendor/
+.pnp/
+.pnp.js
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+.venv/
+venv/
+ENV/
+
+# Ruby
+.bundle/
+.ruby-version
+.ruby-gemset
+
+# Go
+*.test
+*.out
+
+# Rust
+target/
+Cargo.lock
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# C/C++
+*.out
+*.o
+*.a
+
+# Package Files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Miscellaneous
+.direnv/
+.envrc
+tags
+TAGS
