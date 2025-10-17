@@ -111,6 +111,52 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
     fi
 
+    # Claude Code configuration
+    if [[ -d "$DOTFILES_DIR/claude-code" ]]; then
+        log_info "Setting up Claude Code configuration..."
+
+        if [[ -f "$DOTFILES_DIR/claude-code/settings.json" ]]; then
+            create_symlink "$DOTFILES_DIR/claude-code/settings.json" "$HOME/.claude/settings.json"
+        else
+            log_warn "Claude Code settings.json not found, skipping"
+        fi
+
+        if [[ -f "$DOTFILES_DIR/claude-code/statusline.sh" ]]; then
+            # Ensure statusline is executable before creating symlink
+            chmod +x "$DOTFILES_DIR/claude-code/statusline.sh"
+            create_symlink "$DOTFILES_DIR/claude-code/statusline.sh" "$HOME/.claude/statusline.sh"
+        else
+            log_warn "Claude Code statusline.sh not found, skipping"
+        fi
+
+        if [[ -d "$DOTFILES_DIR/claude-code/hooks" ]]; then
+            # Ensure all hooks are executable before creating symlink
+            for file in "$DOTFILES_DIR/claude-code/hooks"/*.sh; do
+                [ -f "$file" ] || continue
+                chmod +x "$file"
+            done
+            create_symlink "$DOTFILES_DIR/claude-code/hooks" "$HOME/.claude/hooks"
+        else
+            log_warn "Claude Code hooks directory not found, skipping"
+        fi
+
+        if [[ -d "$DOTFILES_DIR/claude-code/agents" ]]; then
+            create_symlink "$DOTFILES_DIR/claude-code/agents" "$HOME/.claude/agents"
+        else
+            log_warn "Claude Code agents directory not found, skipping"
+        fi
+
+        if [[ -d "$DOTFILES_DIR/claude-code/commands" ]]; then
+            create_symlink "$DOTFILES_DIR/claude-code/commands" "$HOME/.claude/commands"
+        else
+            log_warn "Claude Code commands directory not found, skipping"
+        fi
+
+        log_success "Claude Code configuration complete"
+    else
+        log_info "Claude Code directory not found, skipping Claude Code setup"
+    fi
+
     # Tmux configuration (skip in containers)
     if [[ -f "$DOTFILES_DIR/tmux/.tmux.conf" ]]; then
         source "$DOTFILES_DIR/bootstrap/detect.sh"

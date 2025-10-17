@@ -70,6 +70,13 @@ dotfiles/
 │   ├── .gitconfig         # Git configuration
 │   └── .gitignore_global  # Global gitignore patterns
 │
+├── claude-code/            # Claude Code configuration
+│   ├── agents/            # Specialized agents
+│   ├── commands/          # Slash commands
+│   ├── hooks/             # Pre/post hooks
+│   ├── settings.json      # Claude Code settings
+│   └── statusline.sh      # Custom statusline
+│
 ├── starship.toml          # Starship prompt configuration
 │
 └── tmux/
@@ -166,6 +173,16 @@ z proj        # Jump to ~/projects
 z doc down    # Jump to ~/Documents/downloads
 zi            # Interactive directory selection
 ```
+
+### Claude Code Integration
+
+Comprehensive Claude Code setup included:
+
+- **Agents**: Specialized sub-agents for code review, debugging, testing, refactoring, security audits
+- **Commands**: Slash commands for common workflows (`/commit`, `/test`, `/debug`, `/refactor`, `/pr-create`)
+- **Hooks**: Validation hooks for commit messages, code formatting, security checks
+
+See `claude-code/` directory READMEs for full documentation.
 
 ### Intelligent Shell Completion
 
