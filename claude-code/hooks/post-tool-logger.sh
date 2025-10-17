@@ -10,8 +10,8 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Read hook input
-read -r input
+# Read hook input (handle EOF without newline)
+read -r input || true
 
 # Extract core fields
 SESSION_ID=$(echo "$input" | jq -r '.session_id // "unknown"')
@@ -103,22 +103,26 @@ case "$TOOL_NAME" in
         COMMAND=$(echo "$TOOL_INPUT" | jq -r '.command // ""')
         DESCRIPTION=$(echo "$TOOL_INPUT" | jq -r '.description // ""')
 
-        # Extract response details
+        # Extract response details with safe defaults
         STDOUT=$(echo "$TOOL_RESPONSE" | jq -r '.stdout // ""')
         STDERR=$(echo "$TOOL_RESPONSE" | jq -r '.stderr // ""')
-        EXIT_CODE=$(echo "$TOOL_RESPONSE" | jq -r '.exitCode // null')
+        EXIT_CODE=$(echo "$TOOL_RESPONSE" | jq '.exitCode // null')  # Keep as JSON, not raw string
 
         # Truncate output
         TRUNCATED_STDOUT=$(truncate_lines "$STDOUT" 500 200 100)
         TRUNCATED_STDERR=$(truncate_lines "$STDERR" 100 50 50)
 
+        # Get line counts safely
+        STDOUT_LINES=$(echo "$STDOUT" | wc -l | tr -d ' ')
+        STDERR_LINES=$(echo "$STDERR" | wc -l | tr -d ' ')
+
         # Rebuild response with truncation metadata
         TRUNCATED_RESPONSE=$(jq -n \
             --arg stdout "$TRUNCATED_STDOUT" \
             --arg stderr "$TRUNCATED_STDERR" \
-            --argjson exitCode "$EXIT_CODE" \
-            --argjson stdout_lines "$(echo "$STDOUT" | wc -l)" \
-            --argjson stderr_lines "$(echo "$STDERR" | wc -l)" \
+            --argjson exitCode "${EXIT_CODE:-null}" \
+            --argjson stdout_lines "$STDOUT_LINES" \
+            --argjson stderr_lines "$STDERR_LINES" \
             '{
                 stdout: $stdout,
                 stderr: $stderr,
@@ -210,9 +214,29 @@ case "$TOOL_NAME" in
         ;;
 
     *)
-        # For other tools: basic truncation
-        TRUNCATED_INPUT=$(echo "$TOOL_INPUT" | jq -c 'if (. | tostring | length) > 1000 then . | tostring | .[0:500] + "...[truncated]" else . end')
-        TRUNCATED_RESPONSE=$(echo "$TOOL_RESPONSE" | jq -c 'if (. | tostring | length) > 1000 then . | tostring | .[0:500] + "...[truncated]" else . end')
+        # For other tools: smart truncation that preserves JSON validity
+        INPUT_SIZE=$(echo "$TOOL_INPUT" | jq -c . | wc -c | tr -d ' ')
+        RESPONSE_SIZE=$(echo "$TOOL_RESPONSE" | jq -c . | wc -c | tr -d ' ')
+
+        if [[ $INPUT_SIZE -gt 2000 ]]; then
+            INPUT_PREVIEW=$(echo "$TOOL_INPUT" | jq -c . | head -c 500)
+            TRUNCATED_INPUT=$(jq -n \
+                --arg preview "${INPUT_PREVIEW}..." \
+                --argjson size "$INPUT_SIZE" \
+                '{_truncated: true, _size: $size, _preview: $preview}')
+        else
+            TRUNCATED_INPUT="$TOOL_INPUT"
+        fi
+
+        if [[ $RESPONSE_SIZE -gt 2000 ]]; then
+            RESPONSE_PREVIEW=$(echo "$TOOL_RESPONSE" | jq -c . | head -c 500)
+            TRUNCATED_RESPONSE=$(jq -n \
+                --arg preview "${RESPONSE_PREVIEW}..." \
+                --argjson size "$RESPONSE_SIZE" \
+                '{_truncated: true, _size: $size, _preview: $preview}')
+        else
+            TRUNCATED_RESPONSE="$TOOL_RESPONSE"
+        fi
         ;;
 esac
 
@@ -222,8 +246,17 @@ esac
 
 LOG_FILE="$HOME/.claude/logs/session-${SESSION_ID}.jsonl"
 
-# Build log entry
-LOG_ENTRY=$(jq -n \
+# Validate that we have valid JSON before building log entry
+if ! echo "$TRUNCATED_INPUT" | jq empty 2>/dev/null; then
+    TRUNCATED_INPUT=$(jq -n --arg error "Invalid JSON in input" --arg original "$TRUNCATED_INPUT" '{_error: $error, _original: $original}')
+fi
+
+if ! echo "$TRUNCATED_RESPONSE" | jq empty 2>/dev/null; then
+    TRUNCATED_RESPONSE=$(jq -n --arg error "Invalid JSON in response" --arg original "$TRUNCATED_RESPONSE" '{_error: $error, _original: $original}')
+fi
+
+# Build log entry with error handling
+if ! LOG_ENTRY=$(jq -nc \
     --arg timestamp "$TIMESTAMP" \
     --arg session_id "$SESSION_ID" \
     --arg tool_name "$TOOL_NAME" \
@@ -239,7 +272,24 @@ LOG_ENTRY=$(jq -n \
         tool_response: $tool_response,
         cwd: $cwd,
         git_branch: $git_branch
-    }')
+    }' 2>/dev/null); then
+    # Fallback: create minimal log entry on failure
+    LOG_ENTRY=$(jq -nc \
+        --arg timestamp "$TIMESTAMP" \
+        --arg session_id "$SESSION_ID" \
+        --arg tool_name "$TOOL_NAME" \
+        --arg error "Failed to create full log entry" \
+        --arg input_preview "${TRUNCATED_INPUT:0:200}" \
+        --arg response_preview "${TRUNCATED_RESPONSE:0:200}" \
+        '{
+            timestamp: $timestamp,
+            session_id: $session_id,
+            tool_name: $tool_name,
+            _error: $error,
+            _input_preview: $input_preview,
+            _response_preview: $response_preview
+        }')
+fi
 
 # Append to log file (atomic write)
 echo "$LOG_ENTRY" >> "$LOG_FILE"

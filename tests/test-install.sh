@@ -7,6 +7,9 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 FAILED=0
 PASSED=0
 
+# Ensure ~/.local/bin is in PATH (where we install tools)
+export PATH="$HOME/.local/bin:$PATH"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,12 +19,12 @@ NC='\033[0m'
 
 log_pass() {
     echo -e "${GREEN}✓${NC} $1"
-    ((PASSED++))
+    ((PASSED++)) || true
 }
 
 log_fail() {
     echo -e "${RED}✗${NC} $1"
-    ((FAILED++))
+    ((FAILED++)) || true
 }
 
 log_info() {
@@ -122,25 +125,56 @@ test_command "starship"
 test_command "delta"
 
 log_section "Optional Host Tools"
-if ! (grep -q "CODESPACES\|REMOTE_CONTAINERS" /proc/1/environ 2>/dev/null); then
+# Check if we're in a container/codespace environment
+# Use multiple detection methods for cross-platform compatibility
+is_container=false
+if [[ -f /.dockerenv ]] || \
+   [[ -n "${CODESPACES}" ]] || \
+   [[ -n "${REMOTE_CONTAINERS}" ]] || \
+   [[ -n "${CI}" ]] || \
+   (grep -q "CODESPACES\|REMOTE_CONTAINERS" /proc/1/environ 2>/dev/null); then
+    is_container=true
+fi
+
+if [[ "$is_container" == "false" ]]; then
     test_command "tmux"
     test_command "lazygit"
+else
+    log_info "Skipping host-only tools in container environment"
 fi
 
 log_section "Shell Startup Test"
 log_info "Testing bash startup..."
-if timeout 5 bash -i -c 'echo "Bash OK"' &>/dev/null; then
-    log_pass "Bash starts successfully"
+# Use timeout if available, otherwise use a simple test
+if command -v timeout &>/dev/null; then
+    if timeout 5 bash -i -c 'echo "Bash OK"' &>/dev/null; then
+        log_pass "Bash starts successfully"
+    else
+        log_fail "Bash startup failed or timed out"
+    fi
 else
-    log_fail "Bash startup failed or timed out"
+    # Fallback for systems without timeout (like some Alpine setups)
+    if bash -i -c 'echo "Bash OK"' &>/dev/null; then
+        log_pass "Bash starts successfully"
+    else
+        log_fail "Bash startup failed"
+    fi
 fi
 
 if command -v zsh &> /dev/null; then
     log_info "Testing zsh startup..."
-    if timeout 5 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
-        log_pass "Zsh starts successfully"
+    if command -v timeout &>/dev/null; then
+        if timeout 5 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+            log_pass "Zsh starts successfully"
+        else
+            log_fail "Zsh startup failed or timed out"
+        fi
     else
-        log_fail "Zsh startup failed or timed out"
+        if zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+            log_pass "Zsh starts successfully"
+        else
+            log_fail "Zsh startup failed"
+        fi
     fi
 fi
 

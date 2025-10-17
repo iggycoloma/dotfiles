@@ -22,6 +22,7 @@ detect_os() {
         . /etc/os-release
         case "$ID" in
             ubuntu|debian|pop) echo "debian" ;;
+            alpine) echo "alpine" ;;
             fedora|rhel|centos) echo "fedora" ;;
             arch|manjaro) echo "arch" ;;
             *) echo "linux" ;;
@@ -37,6 +38,8 @@ detect_package_manager() {
         echo "brew"
     elif command -v apt-get &> /dev/null; then
         echo "apt"
+    elif command -v apk &> /dev/null; then
+        echo "apk"
     elif command -v dnf &> /dev/null; then
         echo "dnf"
     elif command -v pacman &> /dev/null; then

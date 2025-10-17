@@ -99,6 +99,40 @@ install_apt() {
     fi
 }
 
+# Install via apk (Alpine)
+install_apk() {
+    local minimal=$1
+    local SUDO
+    SUDO=$(get_sudo)
+
+    log_info "Updating apk repositories..."
+    $SUDO apk update
+
+    log_info "Installing core tools..."
+    local packages=("curl" "wget" "git" "bash" "build-base")
+
+    # Add core tools - check availability in Alpine repos
+    # Note: Some tools may have different names or not be available
+    packages+=("fzf" "ripgrep" "fd" "bat" "jq")
+
+    # Add host-specific tools
+    if [[ "$minimal" != "true" ]]; then
+        packages+=("tmux" "htop" "ncdu")
+    fi
+
+    # Install packages (some may not exist, so don't fail)
+    log_info "Installing: ${packages[*]}"
+    for pkg in "${packages[@]}"; do
+        if $SUDO apk add "$pkg" 2>/dev/null; then
+            log_info "✓ Installed $pkg"
+        else
+            log_warn "Package $pkg not available via apk, will try GitHub"
+        fi
+    done
+
+    log_success "APK packages installation complete"
+}
+
 # Install via Homebrew (macOS)
 install_brew() {
     local minimal=$1
@@ -139,7 +173,14 @@ install_from_github() {
 
     local os
     case "$(uname -s)" in
-        Linux) os="unknown-linux-gnu" ;;
+        Linux)
+            # Detect musl vs glibc
+            if ldd --version 2>&1 | grep -q musl; then
+                os="unknown-linux-musl"
+            else
+                os="unknown-linux-gnu"
+            fi
+            ;;
         Darwin) os="apple-darwin" ;;
         *) log_error "Unsupported OS"; return 1 ;;
     esac
@@ -154,38 +195,94 @@ install_from_github() {
             curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$install_dir"
             ;;
         eza)
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            # eza releases: eza_x86_64-unknown-linux-musl.tar.gz or eza_x86_64-unknown-linux-gnu.tar.gz
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*eza_${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" eza
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name eza -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/eza"
+                        rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find eza binary in tarball"
+                        rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to download or extract eza"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find eza release for ${arch}-${os}"
+                return 1
             fi
             ;;
         zoxide)
-            if [[ "$os" == "apple-darwin" ]]; then
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            else
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            # zoxide only provides musl binaries for Linux, but they work on glibc too
+            # Always use musl for Linux systems
+            local zoxide_os="$os"
+            if [[ "$os" == "unknown-linux-gnu" ]]; then
+                zoxide_os="unknown-linux-musl"
             fi
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${zoxide_os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide
+                log_info "Downloading: $download_url"
+                if curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide; then
+                    chmod +x "$install_dir/zoxide"
+                else
+                    log_error "Failed to download or extract zoxide"
+                    return 1
+                fi
+            else
+                log_error "Could not find zoxide release for ${arch}-${zoxide_os}"
+                return 1
             fi
             ;;
         delta)
-            if [[ "$os" == "apple-darwin" ]]; then
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            else
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            fi
+            # delta releases: delta-*-x86_64-unknown-linux-musl.tar.gz or delta-*-x86_64-unknown-linux-gnu.tar.gz
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
                 local tmp_dir=$(mktemp -d)
-                curl -fsSL "$download_url" | tar xz -C "$tmp_dir"
-                find "$tmp_dir" -name delta -type f -executable -exec cp {} "$install_dir/" \;
-                rm -rf "$tmp_dir"
+                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name delta -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/delta"
+                        rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find delta binary in tarball"
+                        rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to download or extract delta"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find delta release for ${arch}-${os}"
+                return 1
             fi
             ;;
         lazygit)
+            # lazygit doesn't have musl binaries, only glibc (skip on pure musl systems)
+            if [[ "$os" == "unknown-linux-musl" ]]; then
+                log_warn "lazygit not available for musl systems, skipping"
+                return 0
+            fi
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*Linux_${arch}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit
+                log_info "Downloading: $download_url"
+                if curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit; then
+                    chmod +x "$install_dir/lazygit"
+                else
+                    log_error "Failed to download or extract lazygit"
+                    return 1
+                fi
+            else
+                log_error "Could not find lazygit release for Linux_${arch}"
+                return 1
             fi
             ;;
         *)
@@ -215,6 +312,9 @@ install_packages() {
     case "$pkg_mgr" in
         apt)
             install_apt "$minimal"
+            ;;
+        apk)
+            install_apk "$minimal"
             ;;
         brew)
             install_brew "$minimal"
