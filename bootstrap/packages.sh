@@ -199,10 +199,19 @@ install_from_github() {
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*eza_${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
-                if curl -fsSL "$download_url" | tar xz -C "$install_dir" eza; then
-                    chmod +x "$install_dir/eza"
+                local tmp_dir=$(mktemp -d)
+                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name eza -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/eza"
+                        rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find eza binary in tarball"
+                        rm -rf "$tmp_dir"
+                        return 1
+                    fi
                 else
                     log_error "Failed to download or extract eza"
+                    rm -rf "$tmp_dir"
                     return 1
                 fi
             else
