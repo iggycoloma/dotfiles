@@ -106,6 +106,11 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/lazygit" "$HOME/.config/lazygit"
     fi
 
+    # Ripgrep configuration
+    if [[ -d "$DOTFILES_DIR/config/ripgrep" ]]; then
+        create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
+    fi
+
     # Tmux configuration (skip in containers)
     if [[ -f "$DOTFILES_DIR/tmux/.tmux.conf" ]]; then
         source "$DOTFILES_DIR/bootstrap/detect.sh"
