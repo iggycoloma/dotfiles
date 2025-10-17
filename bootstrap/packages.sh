@@ -99,6 +99,40 @@ install_apt() {
     fi
 }
 
+# Install via apk (Alpine)
+install_apk() {
+    local minimal=$1
+    local SUDO
+    SUDO=$(get_sudo)
+
+    log_info "Updating apk repositories..."
+    $SUDO apk update
+
+    log_info "Installing core tools..."
+    local packages=("curl" "wget" "git" "bash" "build-base")
+
+    # Add core tools - check availability in Alpine repos
+    # Note: Some tools may have different names or not be available
+    packages+=("fzf" "ripgrep" "fd" "bat" "jq")
+
+    # Add host-specific tools
+    if [[ "$minimal" != "true" ]]; then
+        packages+=("tmux" "htop" "ncdu")
+    fi
+
+    # Install packages (some may not exist, so don't fail)
+    log_info "Installing: ${packages[*]}"
+    for pkg in "${packages[@]}"; do
+        if $SUDO apk add "$pkg" 2>/dev/null; then
+            log_info "✓ Installed $pkg"
+        else
+            log_warn "Package $pkg not available via apk, will try GitHub"
+        fi
+    done
+
+    log_success "APK packages installation complete"
+}
+
 # Install via Homebrew (macOS)
 install_brew() {
     local minimal=$1
@@ -139,7 +173,14 @@ install_from_github() {
 
     local os
     case "$(uname -s)" in
-        Linux) os="unknown-linux-gnu" ;;
+        Linux)
+            # Detect musl vs glibc
+            if ldd --version 2>&1 | grep -q musl; then
+                os="unknown-linux-musl"
+            else
+                os="unknown-linux-gnu"
+            fi
+            ;;
         Darwin) os="apple-darwin" ;;
         *) log_error "Unsupported OS"; return 1 ;;
     esac
@@ -154,27 +195,22 @@ install_from_github() {
             curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$install_dir"
             ;;
         eza)
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            # eza releases: eza_x86_64-unknown-linux-musl.tar.gz or eza_x86_64-unknown-linux-gnu.tar.gz
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*eza_${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
                 curl -fsSL "$download_url" | tar xz -C "$install_dir" eza
             fi
             ;;
         zoxide)
-            if [[ "$os" == "apple-darwin" ]]; then
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            else
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            fi
+            # zoxide releases: zoxide-*-x86_64-unknown-linux-musl.tar.gz
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
                 curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide
             fi
             ;;
         delta)
-            if [[ "$os" == "apple-darwin" ]]; then
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            else
-                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
-            fi
+            # delta releases: delta-*-x86_64-unknown-linux-musl.tar.gz
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
                 local tmp_dir=$(mktemp -d)
                 curl -fsSL "$download_url" | tar xz -C "$tmp_dir"
@@ -183,6 +219,7 @@ install_from_github() {
             fi
             ;;
         lazygit)
+            # lazygit doesn't have musl binaries, only glibc
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*Linux_${arch}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
                 curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit
@@ -215,6 +252,9 @@ install_packages() {
     case "$pkg_mgr" in
         apt)
             install_apt "$minimal"
+            ;;
+        apk)
+            install_apk "$minimal"
             ;;
         brew)
             install_brew "$minimal"

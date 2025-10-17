@@ -7,6 +7,9 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 FAILED=0
 PASSED=0
 
+# Ensure ~/.local/bin is in PATH (where we install tools)
+export PATH="$HOME/.local/bin:$PATH"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
