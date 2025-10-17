@@ -60,6 +60,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/post-tool-logger.sh",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
