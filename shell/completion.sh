@@ -95,7 +95,5 @@ if command -v direnv &> /dev/null; then
     eval "$(direnv hook "$(basename "$SHELL")")"
 fi
 
-# starship prompt
-if command -v starship &> /dev/null; then
-    eval "$(starship init "$(basename "$SHELL")")"
-fi
+# Note: Starship prompt initialization moved to .zshrc
+# This is because it needs COLUMNS to be set, which happens after .zprofile completes
