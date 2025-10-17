@@ -198,31 +198,82 @@ install_from_github() {
             # eza releases: eza_x86_64-unknown-linux-musl.tar.gz or eza_x86_64-unknown-linux-gnu.tar.gz
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*eza_${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" eza
+                log_info "Downloading: $download_url"
+                if curl -fsSL "$download_url" | tar xz -C "$install_dir" eza; then
+                    chmod +x "$install_dir/eza"
+                else
+                    log_error "Failed to download or extract eza"
+                    return 1
+                fi
+            else
+                log_error "Could not find eza release for ${arch}-${os}"
+                return 1
             fi
             ;;
         zoxide)
-            # zoxide releases: zoxide-*-x86_64-unknown-linux-musl.tar.gz
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            # zoxide only provides musl binaries for Linux, but they work on glibc too
+            # Always use musl for Linux systems
+            local zoxide_os="$os"
+            if [[ "$os" == "unknown-linux-gnu" ]]; then
+                zoxide_os="unknown-linux-musl"
+            fi
+            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${zoxide_os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide
+                log_info "Downloading: $download_url"
+                if curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide; then
+                    chmod +x "$install_dir/zoxide"
+                else
+                    log_error "Failed to download or extract zoxide"
+                    return 1
+                fi
+            else
+                log_error "Could not find zoxide release for ${arch}-${zoxide_os}"
+                return 1
             fi
             ;;
         delta)
-            # delta releases: delta-*-x86_64-unknown-linux-musl.tar.gz
+            # delta releases: delta-*-x86_64-unknown-linux-musl.tar.gz or delta-*-x86_64-unknown-linux-gnu.tar.gz
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
                 local tmp_dir=$(mktemp -d)
-                curl -fsSL "$download_url" | tar xz -C "$tmp_dir"
-                find "$tmp_dir" -name delta -type f -executable -exec cp {} "$install_dir/" \;
-                rm -rf "$tmp_dir"
+                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name delta -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/delta"
+                        rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find delta binary in tarball"
+                        rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to download or extract delta"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find delta release for ${arch}-${os}"
+                return 1
             fi
             ;;
         lazygit)
-            # lazygit doesn't have musl binaries, only glibc
+            # lazygit doesn't have musl binaries, only glibc (skip on pure musl systems)
+            if [[ "$os" == "unknown-linux-musl" ]]; then
+                log_warn "lazygit not available for musl systems, skipping"
+                return 0
+            fi
             download_url=$(curl -s "$api_url" | grep "browser_download_url.*Linux_${arch}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
             if [[ -n "$download_url" ]]; then
-                curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit
+                log_info "Downloading: $download_url"
+                if curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit; then
+                    chmod +x "$install_dir/lazygit"
+                else
+                    log_error "Failed to download or extract lazygit"
+                    return 1
+                fi
+            else
+                log_error "Could not find lazygit release for Linux_${arch}"
+                return 1
             fi
             ;;
         *)
