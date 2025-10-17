@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Package installation for dotfiles
 
-# Don't use set -e as we want to handle errors explicitly
-set -u  # Error on undefined variables
-
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
@@ -35,19 +32,25 @@ HOST_TOOLS=(
     ncdu
 )
 
-# Tools installed via GitHub releases (for speed)
-declare -A GITHUB_RELEASES=(
-    ["eza"]="eza-community/eza"
-    ["zoxide"]="ajeetdsouza/zoxide"
-    ["starship"]="starship/starship"
-    ["delta"]="dandavison/delta"
-    ["lazygit"]="jesseduffield/lazygit"
-    ["bottom"]="ClementTsang/bottom"
-    ["duf"]="muesli/duf"
-    ["procs"]="dalance/procs"
-    ["dust"]="bootandy/dust"
-    ["sd"]="chmln/sd"
-)
+# Set -u for error on undefined variables
+set -u
+
+# Get GitHub repo for a tool (bash 3.2 compatible - no associative arrays)
+get_github_repo() {
+    case "$1" in
+        eza) echo "eza-community/eza" ;;
+        zoxide) echo "ajeetdsouza/zoxide" ;;
+        starship) echo "starship/starship" ;;
+        delta) echo "dandavison/delta" ;;
+        lazygit) echo "jesseduffield/lazygit" ;;
+        bottom) echo "ClementTsang/bottom" ;;
+        duf) echo "muesli/duf" ;;
+        procs) echo "dalance/procs" ;;
+        dust) echo "bootandy/dust" ;;
+        sd) echo "chmln/sd" ;;
+        *) echo "" ;;
+    esac
+}
 
 # Install via apt (Debian/Ubuntu)
 install_apt() {
@@ -101,10 +104,10 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "git")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "git" "eza" "zoxide" "starship" "git-delta")
 
     if [[ "$minimal" != "true" ]]; then
-        packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed")
+        packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
     fi
 
     brew install "${packages[@]}"
@@ -157,13 +160,21 @@ install_from_github() {
             fi
             ;;
         zoxide)
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            if [[ "$os" == "apple-darwin" ]]; then
+                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            else
+                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            fi
             if [[ -n "$download_url" ]]; then
                 curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide
             fi
             ;;
         delta)
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            if [[ "$os" == "apple-darwin" ]]; then
+                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            else
+                download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}.*linux.*musl.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            fi
             if [[ -n "$download_url" ]]; then
                 local tmp_dir=$(mktemp -d)
                 curl -fsSL "$download_url" | tar xz -C "$tmp_dir"
@@ -213,19 +224,21 @@ install_packages() {
             ;;
     esac
 
-    # Install additional tools from GitHub
-    log_info "Installing tools from GitHub releases..."
+    # Install additional tools from GitHub (skip if using Homebrew)
+    if [[ "$pkg_mgr" != "brew" ]]; then
+        log_info "Installing tools from GitHub releases..."
 
-    # Always install these from GitHub for latest versions
-    install_from_github "starship" "${GITHUB_RELEASES[starship]}"
-    install_from_github "eza" "${GITHUB_RELEASES[eza]}"
-    install_from_github "zoxide" "${GITHUB_RELEASES[zoxide]}"
-    install_from_github "delta" "${GITHUB_RELEASES[delta]}"
+        # Always install these from GitHub for latest versions
+        install_from_github "starship" "$(get_github_repo starship)"
+        install_from_github "eza" "$(get_github_repo eza)"
+        install_from_github "zoxide" "$(get_github_repo zoxide)"
+        install_from_github "delta" "$(get_github_repo delta)"
 
-    # Host-only GitHub tools
-    if [[ "$minimal" != "true" ]]; then
-        install_from_github "lazygit" "${GITHUB_RELEASES[lazygit]}"
-        install_from_github "bottom" "${GITHUB_RELEASES[bottom]}"
+        # Host-only GitHub tools
+        if [[ "$minimal" != "true" ]]; then
+            install_from_github "lazygit" "$(get_github_repo lazygit)"
+            install_from_github "bottom" "$(get_github_repo bottom)"
+        fi
     fi
 
     # Ensure ~/.local/bin is in PATH for current session

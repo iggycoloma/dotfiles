@@ -49,14 +49,16 @@ if [[ -f "$DOTFILES_DIR/shell/completion.sh" ]]; then
     source "$DOTFILES_DIR/shell/completion.sh"
 fi
 
-# Fallback prompt if starship is not available
-if ! command -v starship &> /dev/null; then
-    # Simple colored prompt with bright colors for visibility on dark backgrounds
-    # Format: bright-green user@host : bright-cyan directory $
-    PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;96m\]\w\[\033[00m\]\$ '
-fi
-
-# Load local bashrc if it exists
+# Load local bashrc if it exists (before prompt)
 if [[ -f "$HOME/.bashrc.local" ]]; then
     source "$HOME/.bashrc.local"
+fi
+
+# Initialize Starship prompt (MUST be last)
+if command -v starship &> /dev/null; then
+    eval "$(starship init bash)"
+else
+    # Fallback prompt if starship is not available
+    # Format: bright-green user@host : bright-cyan directory $
+    PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;96m\]\w\[\033[00m\]\$ '
 fi

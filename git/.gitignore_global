@@ -96,6 +96,12 @@ Cargo.lock
 *.tar
 *.zip
 
+# Claude Code - prevent accidental commit of session data
+.claude/debug/
+.claude/sessions/
+.claude/cache/
+.claude/*.log
+
 # Miscellaneous
 .direnv/
 .envrc

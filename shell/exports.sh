@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
 # Environment variables and exports
+#
+# NOTE: This file is primarily for Bash compatibility.
+# Zsh users: Most of this is handled by .zprofile for login shells.
+# This file is still sourced by .bashrc for Bash users.
+
+# Homebrew initialization (macOS)
+# Must be done early so Homebrew-installed tools are available
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    # Detect Homebrew installation path based on architecture
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then
+        # Apple Silicon (M1/M2/M3)
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [[ -x "/usr/local/bin/brew" ]]; then
+        # Intel Mac
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+fi
 
 # XDG Base Directory Specification
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"

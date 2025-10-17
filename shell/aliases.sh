@@ -161,3 +161,4 @@ alias q='exit'
 if [[ -f "$HOME/.aliases.local" ]]; then
     source "$HOME/.aliases.local"
 fi
+alias cclog="$HOME/.dotfiles/claude-code/hooks/query-tool-logs.sh"
