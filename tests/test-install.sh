@@ -16,12 +16,12 @@ NC='\033[0m'
 
 log_pass() {
     echo -e "${GREEN}✓${NC} $1"
-    ((PASSED++))
+    ((PASSED++)) || true
 }
 
 log_fail() {
     echo -e "${RED}✗${NC} $1"
-    ((FAILED++))
+    ((FAILED++)) || true
 }
 
 log_info() {
