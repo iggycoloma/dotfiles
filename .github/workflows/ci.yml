@@ -80,6 +80,7 @@ jobs:
           bash install.sh
         env:
           CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
 
       - name: Test shell startup (${{ matrix.shell }})
         run: |
@@ -92,6 +93,8 @@ jobs:
       - name: Run test suite
         run: |
           bash tests/test-install.sh
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
 
       - name: Verify core tools installed
         run: |
@@ -124,6 +127,7 @@ jobs:
           bash install.sh
         env:
           CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
 
   test-macos:
     name: Test on macOS ${{ matrix.version }} (${{ matrix.shell }})
@@ -160,6 +164,7 @@ jobs:
           bash install.sh
         env:
           CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
 
       - name: Test shell startup (${{ matrix.shell }})
         run: |
@@ -172,6 +177,8 @@ jobs:
       - name: Run test suite
         run: |
           bash tests/test-install.sh
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
 
       - name: Verify core tools installed
         run: |
@@ -204,6 +211,7 @@ jobs:
           bash install.sh
         env:
           CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
 
   test-summary:
     name: CI Summary
