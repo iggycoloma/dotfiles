@@ -2,32 +2,19 @@
 
 Modern command-line productivity toolkit with automatic VS Code integration for devcontainers and Codespaces.
 
-## Features
-
-- 🚀 **Modern CLI Tools**: fzf, zoxide, ripgrep, fd, bat, eza, delta, and more
-- ⚡ **Fast Prompt**: Starship prompt with git integration
-- 🎨 **Productive Aliases**: Extensive git aliases and command shortcuts
-- 📦 **VS Code Compatible**: Automatic installation in devcontainers and Codespaces
-- 🔧 **Environment Detection**: Smart installation based on local vs container environment
-- 🐚 **Shell Agnostic**: Works with bash and zsh
-- ✨ **Best-in-class Completions**: Comprehensive autocomplete for git, docker, kubectl, and more
-  - Zsh: autosuggestions, syntax highlighting, fuzzy matching
-  - Bash: bash-completion v2 with colored output
-  - Auto-generated completions for 20+ tools
-
 ## Quick Start
 
 ### For VS Code Devcontainers/Codespaces
 
 1. **Fork this repository** on GitHub
 
-2. **Configure VS Code to use your dotfiles**:
-   - Open VS Code Settings (Cmd/Ctrl + ,)
+2. **Configure VS Code**:
+   - Open Settings (Cmd/Ctrl + ,)
    - Search for "dotfiles"
-   - Set "Dotfiles: Repository" to your forked repo URL (e.g., `yourusername/dotfiles`)
-   - Set "Dotfiles: Install Command" to `install.sh` (default)
+   - Set "Dotfiles: Repository" to `yourusername/dotfiles`
+   - Set "Dotfiles: Install Command" to `install.sh`
 
-3. **Create or open a devcontainer** - your dotfiles will be automatically installed!
+3. **Done!** Your dotfiles will automatically install in every new devcontainer/Codespace
 
 ### Manual Installation
 
@@ -35,57 +22,21 @@ Modern command-line productivity toolkit with automatic VS Code integration for 
 # Clone the repository
 git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 
-# Run the installation script
+# Run installation
 cd ~/.dotfiles
 chmod +x install.sh
 ./install.sh
-```
 
-### First-Time Setup
-
-After installation, customize your git configuration:
-
-```bash
-# Edit your name and email
+# Configure git with your details
 git config --global user.name "Your Name"
 git config --global user.email "your.email@example.com"
 ```
 
-## Repository Structure
+Installation takes 2-3 minutes in containers, 5-15 minutes on local machines.
 
-```
-dotfiles/
-├── install.sh              # Main installation script (VS Code compatible)
-├── README.md              # This file
-├── COMPLETIONS.md         # Detailed completion guide
-│
-├── shell/
-│   ├── .bashrc            # Bash configuration
-│   ├── .zshrc             # Zsh configuration
-│   ├── aliases.sh         # Command aliases
-│   ├── functions.sh       # Useful shell functions
-│   └── exports.sh         # Environment variables
-│
-├── git/
-│   ├── .gitconfig         # Git configuration
-│   └── .gitignore_global  # Global gitignore patterns
-│
-├── claude-code/            # Claude Code configuration
-│   ├── agents/            # Specialized agents
-│   ├── commands/          # Slash commands
-│   ├── hooks/             # Pre/post hooks
-│   ├── settings.json      # Claude Code settings
-│   └── statusline.sh      # Custom statusline
-│
-├── starship.toml          # Starship prompt configuration
-│
-└── tmux/
-    └── .tmux.conf         # Tmux configuration (local only)
-```
+## What's Included
 
-## What Gets Installed
-
-### Essential Tools (All Environments)
+### Essential Tools
 
 - **fzf**: Fuzzy finder for files, history, and more
 - **zoxide**: Smart directory jumping (replacement for cd)
@@ -95,35 +46,27 @@ dotfiles/
 - **git-delta**: Beautiful git diffs
 - **starship**: Cross-shell prompt
 - **jq**: JSON processor
+- **eza**: Modern ls replacement (local machines)
+- **lazygit**: Terminal UI for git (local machines)
 
-### Additional Tools (Local Workstations)
+### Shell Completions
 
-- **eza**: Modern ls replacement
-- **lazygit**: Terminal UI for git
-- **tmux**: Terminal multiplexer
-- **htop/btop**: System monitoring
-- **ncdu**: Disk usage analyzer
-- **duf**: Modern df alternative
-- **procs**: Modern ps alternative
-- **dust**: Intuitive du alternative
-- **sd**: Simpler sed alternative
-- **direnv**: Per-directory environment variables
+Intelligent autocomplete for both Bash and Zsh:
 
-### Shell Completions (All Environments)
+**Bash**:
+- bash-completion v2 with colored output
+- Case-insensitive matching
+- Immediate option display
 
-Comprehensive autocompletion support:
-- **bash-completion**: Intelligent completions with colored output
-- **zsh-autosuggestions**: Fish-style history-based suggestions
-- **zsh-syntax-highlighting**: Real-time command validation
-- **Auto-generated completions** for: git, docker, kubectl, gh, terraform, aws, poetry, cargo, and more
+**Zsh**:
+- Visual menu selection with arrow keys
+- Fish-style autosuggestions from history
+- Real-time syntax highlighting
+- Fuzzy matching with typo correction
 
-See [COMPLETIONS.md](COMPLETIONS.md) for detailed information.
-
-## Key Features
+**Auto-generated completions for**: git, docker, kubectl, gh, terraform, aws, poetry, cargo, and more
 
 ### Git Aliases
-
-The dotfiles include extensive git aliases for productivity:
 
 ```bash
 gs      # git status
@@ -137,13 +80,11 @@ gpl     # git pull
 gd      # git diff
 gst     # git stash
 lg      # lazygit (if installed)
-
-# And many more! See shell/aliases.sh
 ```
 
-### Shell Functions
+See `shell/aliases.sh` for the complete list.
 
-Useful functions available in your shell:
+### Shell Functions
 
 ```bash
 mkcd <dir>              # Create directory and cd into it
@@ -158,57 +99,45 @@ backup <file>           # Create timestamped backup
 
 ### FZF Integration
 
-Powerful fuzzy finding with keyboard shortcuts:
+Keyboard shortcuts for fuzzy finding:
 
 - **Ctrl+R**: Search command history
 - **Ctrl+T**: Search files in current directory
 - **Alt+C**: Search and cd into directories
 
-### Zoxide (Smart CD)
-
-Navigate directories intelligently:
+### Directory Navigation
 
 ```bash
-z proj        # Jump to ~/projects
-z doc down    # Jump to ~/Documents/downloads
-zi            # Interactive directory selection
+..              # cd ..
+...             # cd ../..
+z <partial>     # Jump to frecent directory with zoxide
+zi              # Interactive directory selection
 ```
 
-### Claude Code Integration
+## Repository Structure
 
-Comprehensive Claude Code setup included:
-
-- **Agents**: Specialized sub-agents for code review, debugging, testing, refactoring, security audits
-- **Commands**: Slash commands for common workflows (`/commit`, `/test`, `/debug`, `/refactor`, `/pr-create`)
-- **Hooks**: Validation hooks for commit messages, code formatting, security checks
-
-See `claude-code/` directory READMEs for full documentation.
-
-### Intelligent Shell Completion
-
-**Bash features:**
-- Case-insensitive matching
-- Colored file type indicators
-- Immediate option display
-- Typo tolerance
-
-**Zsh features:**
-- Visual menu selection (arrow keys)
-- Fish-style autosuggestions from history
-- Real-time syntax highlighting
-- Fuzzy matching with typo correction
-- Context-aware completions
-
-**Test it:**
-```bash
-git che<Tab>              # Completes to "checkout"
-git checkout <Tab>        # Lists all branches
-docker <Tab>              # Shows all docker commands
-kubectl get <Tab>         # Lists kubernetes resources
-cd /u/l/b<Tab>           # Expands to /usr/local/bin (zsh)
 ```
-
-For more details, see [COMPLETIONS.md](COMPLETIONS.md).
+dotfiles/
+├── install.sh              # Main installation script
+├── README.md              # This file
+├── shell/
+│   ├── .bashrc            # Bash configuration
+│   ├── .zshrc             # Zsh configuration
+│   ├── aliases.sh         # Command aliases
+│   ├── functions.sh       # Useful shell functions
+│   └── exports.sh         # Environment variables
+├── git/
+│   ├── .gitconfig         # Git configuration
+│   └── .gitignore_global  # Global gitignore patterns
+├── claude-code/            # Claude Code configuration
+│   ├── agents/            # Specialized agents
+│   ├── commands/          # Slash commands
+│   ├── hooks/             # Pre/post hooks
+│   └── settings.json      # Claude Code settings
+├── starship.toml          # Starship prompt configuration
+└── tmux/
+    └── .tmux.conf         # Tmux configuration (local only)
+```
 
 ## Customization
 
@@ -221,51 +150,84 @@ Create local configuration files that won't be tracked in git:
 ~/.zshrc.local       # Local zsh configuration
 ~/.exports.local     # Local environment variables
 ~/.gitconfig.local   # Local git configuration
+~/.aliases.local     # Local aliases
+~/.functions.local   # Local functions
+```
+
+### Example: Add Custom Alias
+
+```bash
+# Add to ~/.aliases.local
+echo "alias myproject='cd ~/code/my-project'" >> ~/.aliases.local
+
+# Reload shell
+source ~/.bashrc
 ```
 
 ### Adding Your Own Tools
 
-Edit `install.sh` to add your preferred tools. The script detects:
+Edit `install.sh` to add your preferred tools. The script automatically detects:
 - Operating system (macOS, Ubuntu, Debian, etc.)
 - Environment type (local, devcontainer, codespaces)
 - Available package managers (brew, apt, etc.)
 
-## Environment Variables
+## Shell Completions
 
-Key environment variables set by these dotfiles:
+### Testing Completions
 
+**Bash**:
 ```bash
-EDITOR=nvim              # Or vim/vi
-HISTSIZE=100000         # Large command history
-FZF_DEFAULT_COMMAND     # Use fd/rg for fzf
-BAT_THEME=OneHalfDark   # Dark theme for bat
+git che<Tab>              # Completes to "checkout"
+git checkout <Tab>        # Lists all branches
+docker <Tab>              # Shows all docker commands
 ```
 
-See `shell/exports.sh` for the complete list.
+**Zsh**:
+```bash
+git checkout <Tab>        # Arrow keys to navigate menu
+cd /u/l/b<Tab>           # Expands to /usr/local/bin
+git st                    # Shows "git status" in gray (from history)
+                          # Press → to accept
+```
 
-## Tmux Usage
+### Troubleshooting Completions
 
-If you're on a local machine (tmux is skipped in containers):
+**Bash**:
+```bash
+# Check if bash-completion is loaded
+type _completion_loader
+
+# Reload if needed
+source ~/.bashrc
+```
+
+**Zsh**:
+```bash
+# Rebuild completion cache
+rm ~/.zcompdump*
+exec zsh
+
+# Verify autosuggestions
+echo $ZSH_AUTOSUGGEST_VERSION
+```
+
+## Tmux Usage (Local Machines Only)
 
 ```bash
 # Start new session
 tmux
 
-# Detach: Ctrl+a, d
-# List sessions: tmux ls
-# Attach: tmux attach -t <name>
-
-# Split panes
-# Horizontal: Ctrl+a, |
-# Vertical: Ctrl+a, -
-
-# Navigate panes: Alt+Arrow keys
-# Resize panes: Ctrl+a, H/J/K/L
+# Key bindings
+Ctrl+a, d         # Detach
+Ctrl+a, |         # Split horizontal
+Ctrl+a, -         # Split vertical
+Alt+Arrow keys    # Navigate panes
+Ctrl+a, H/J/K/L   # Resize panes
 ```
 
 ## Starship Prompt
 
-The prompt shows:
+The prompt displays:
 - Username and hostname
 - Current directory (truncated)
 - Git branch and status
@@ -294,26 +256,7 @@ source ~/.bashrc  # or ~/.zshrc
 
 ### Completions not working
 
-**Bash:**
-```bash
-# Check if bash-completion is loaded
-type _completion_loader
-
-# Reload completions
-source ~/.bashrc
-```
-
-**Zsh:**
-```bash
-# Rebuild completion cache
-rm ~/.zcompdump*
-exec zsh
-
-# Test completions
-git che<Tab>  # Should complete to "checkout"
-```
-
-See [COMPLETIONS.md](COMPLETIONS.md) for detailed troubleshooting.
+See Shell Completions section above for detailed troubleshooting steps.
 
 ### Fixing permissions
 
@@ -339,18 +282,34 @@ git pull
 ./install.sh
 ```
 
-## Contributing
+The installation script is idempotent and safe to run multiple times.
 
-Feel free to fork and customize for your own use! Some ideas:
+## Claude Code Integration
 
-- Add your favorite tools to `install.sh`
-- Create language-specific configurations
-- Add custom prompts or themes
-- Share useful functions and aliases
+Comprehensive Claude Code setup included:
+
+- **Agents**: Specialized sub-agents for code review, debugging, testing, refactoring, security audits
+- **Commands**: Slash commands for common workflows (`/commit`, `/test`, `/debug`, `/refactor`, `/pr-create`)
+- **Hooks**: Validation hooks for commit messages, code formatting, security checks
+
+See `claude-code/*/README.md` files for detailed documentation.
+
+## Environment Variables
+
+Key environment variables set by these dotfiles:
+
+```bash
+EDITOR=nvim              # Or vim/vi (first available)
+HISTSIZE=100000         # Large command history
+FZF_DEFAULT_COMMAND     # Use fd/rg for fzf
+BAT_THEME=OneHalfDark   # Dark theme for bat
+```
+
+See `shell/exports.sh` for the complete list.
 
 ## Resources
 
-- [Dotfiles Guide](https://dotfiles.github.io/) - Your unofficial guide to dotfiles on GitHub
+- [Dotfiles Guide](https://dotfiles.github.io/)
 - [Starship Documentation](https://starship.rs/)
 - [FZF GitHub](https://github.com/junegunn/fzf)
 - [Zoxide GitHub](https://github.com/ajeetdsouza/zoxide)
