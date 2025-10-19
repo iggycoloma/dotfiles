@@ -10,8 +10,8 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Read hook input (handle EOF without newline)
-read -r input || true
+# Read hook input (read all stdin, not just first line)
+input=$(cat)
 
 # Extract core fields
 SESSION_ID=$(echo "$input" | jq -r '.session_id // "unknown"')
