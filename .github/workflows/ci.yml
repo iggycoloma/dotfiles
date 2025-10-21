@@ -77,12 +77,15 @@ jobs:
 
       - name: Run installation
         run: |
+          START_TIME=$(date +%s%3N)
           bash install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))ms" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
 
-      - name: Test shell startup (${{ matrix.shell }})
+      - name: Test shell startup (${{ matrix.shell }}) with timing diagnostics
         run: |
           if [ "${{ matrix.shell }}" = "bash" ]; then
             bash -c 'source ~/.bashrc && echo "Bash startup successful"'
@@ -90,19 +93,12 @@ jobs:
             zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
           fi
 
-      - name: Measure shell startup time (${{ matrix.shell }})
-        shell: bash
-        run: |
-          echo "Measuring startup time (with timing diagnostics)..."
-          if [ "${{ matrix.shell }}" = "bash" ]; then
-            time bash -i -c 'exit'
-          elif [ "${{ matrix.shell }}" = "zsh" ]; then
-            time zsh -i -c 'exit'
-          fi
-
       - name: Run test suite
         run: |
+          START_TIME=$(date +%s%3N)
           bash tests/test-install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))ms" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -146,7 +142,10 @@ jobs:
       - name: Test idempotency (run install again)
         run: |
           echo "Running install.sh second time to test idempotency..."
+          START_TIME=$(date +%s%3N)
           bash install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))ms" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
@@ -183,12 +182,15 @@ jobs:
 
       - name: Run installation
         run: |
+          START_TIME=$(date +%s%3N)
           bash install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))ms" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
 
-      - name: Test shell startup (${{ matrix.shell }})
+      - name: Test shell startup (${{ matrix.shell }}) with timing diagnostics
         run: |
           if [ "${{ matrix.shell }}" = "bash" ]; then
             bash -c 'source ~/.bashrc && echo "Bash startup successful"'
@@ -196,19 +198,12 @@ jobs:
             zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
           fi
 
-      - name: Measure shell startup time (${{ matrix.shell }})
-        shell: bash
-        run: |
-          echo "Measuring startup time (with timing diagnostics)..."
-          if [ "${{ matrix.shell }}" = "bash" ]; then
-            time bash -i -c 'exit'
-          elif [ "${{ matrix.shell }}" = "zsh" ]; then
-            time zsh -i -c 'exit'
-          fi
-
       - name: Run test suite
         run: |
+          START_TIME=$(date +%s%3N)
           bash tests/test-install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))ms" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -253,7 +248,10 @@ jobs:
       - name: Test idempotency (run install again)
         run: |
           echo "Running install.sh second time to test idempotency..."
+          START_TIME=$(date +%s%3N)
           bash install.sh
+          END_TIME=$(date +%s%3N)
+          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))ms" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
