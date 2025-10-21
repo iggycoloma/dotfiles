@@ -246,6 +246,9 @@ esac
 
 LOG_FILE="$HOME/.claude/logs/session-${SESSION_ID}.jsonl"
 
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
 # Validate that we have valid JSON before building log entry
 if ! echo "$TRUNCATED_INPUT" | jq empty 2>/dev/null; then
     TRUNCATED_INPUT=$(jq -n --arg error "Invalid JSON in input" --arg original "$TRUNCATED_INPUT" '{_error: $error, _original: $original}')
