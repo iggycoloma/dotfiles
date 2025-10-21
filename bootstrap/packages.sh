@@ -178,14 +178,17 @@ install_apt() {
                 if curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
                     $SUDO apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
                     if command -v add-apt-repository >/dev/null 2>&1; then
-                        if $SUDO add-apt-repository -y ppa:lazygit-team/release 2>&1 | grep -v "already exists" >/dev/null; then
+                        # Use timeout and noninteractive mode to prevent hanging
+                        if timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:lazygit-team/release >/dev/null 2>&1; then
                             log_info "Added lazygit PPA"
-                        fi
-                        $SUDO apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
-                        if $SUDO apt-get install -y lazygit >/dev/null 2>&1; then
-                            log_success "Installed lazygit via apt/ppa"
+                            $SUDO apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
+                            if $SUDO apt-get install -y lazygit >/dev/null 2>&1; then
+                                log_success "Installed lazygit via apt/ppa"
+                            else
+                                log_warn "lazygit not available via apt/ppa (install failed)"
+                            fi
                         else
-                            log_warn "lazygit not available via apt/ppa (install failed)"
+                            log_warn "Failed to add lazygit PPA (timeout or error)"
                         fi
                     else
                         log_warn "add-apt-repository not available; skipping PPA addition"
