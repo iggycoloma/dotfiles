@@ -50,8 +50,8 @@ _select_checksum_url() {
 # Helper: verify checksum if checksums file is available
 # Returns: 0=verified, 1=mismatch (ABORT), 2=unavailable (WARN)
 _verify_checksum() {
-    local file="$1"; shift
-    local checksums_file="$2"; shift
+    local file="$1"
+    local checksums_file="$2"
     local base
     base=$(basename "$file")
     if [[ -s "$checksums_file" ]]; then
