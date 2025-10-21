@@ -100,7 +100,7 @@ only_with_files = true
 
 # Kubernetes
 [kubernetes]
-disabled = false
+disabled = true
 symbol = "☸ "
 style = "bright-cyan"
 format = "on [$symbol$context( \\($namespace\\))]($style) "

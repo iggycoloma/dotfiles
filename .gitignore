@@ -32,3 +32,14 @@ private/
 
 # User-specific bin scripts (if any)
 bin/private/
+
+# Prevent circular symlinks (files with same name as parent directory)
+bin/bin
+claude-code/agents/agents
+claude-code/commands/commands
+claude-code/hooks/hooks
+config/bat/bat
+config/bottom/bottom
+config/lazygit/lazygit
+config/ripgrep/ripgrep
+git/hooks/hooks

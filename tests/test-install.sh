@@ -99,6 +99,10 @@ test_exists "$DOTFILES_DIR/shell/aliases.sh" "aliases.sh"
 test_exists "$DOTFILES_DIR/shell/functions.sh" "functions.sh"
 test_exists "$DOTFILES_DIR/shell/exports.sh" "exports.sh"
 
+log_section "Completions Setup"
+test_exists "$HOME/.config/zsh/completions.zsh" "Zsh completions config"
+test_exists "$HOME/.local/share/bash-completion/completions" "Bash completions directory"
+
 log_section "Git Configuration"
 test_exists "$DOTFILES_DIR/git/.gitconfig" ".gitconfig"
 test_exists "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global"
@@ -189,6 +193,15 @@ if bash -i -c 'test -n "$FZF_DEFAULT_OPTS"' 2>/dev/null; then
     log_pass "FZF_DEFAULT_OPTS is set"
 else
     log_fail "FZF_DEFAULT_OPTS is not set"
+fi
+
+# Starship init smoke test (non-fatal)
+if command -v starship &>/dev/null; then
+    if bash -i -c 'eval "$(starship init bash)" >/dev/null 2>&1'; then
+        log_pass "Starship init script loads in bash"
+    else
+        log_fail "Starship init script failed in bash"
+    fi
 fi
 
 log_section "Git Aliases"

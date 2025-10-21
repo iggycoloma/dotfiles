@@ -16,6 +16,65 @@ log_success() { echo -e "${GREEN}==>${NC} $1"; }
 log_warn() { echo -e "${YELLOW}==>${NC} $1"; }
 log_error() { echo -e "${RED}==>${NC} $1"; }
 
+# Helper: choose a SHA256 tool
+_sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
+
+# Helper: safe JSON selection using jq if available, else grep fallback
+_select_asset_url() {
+    local api_json="$1"; shift
+    local pattern="$1"; shift
+    if command -v jq >/dev/null 2>&1; then
+        echo "$api_json" | jq -r --arg re "$pattern" '.assets[].browser_download_url | select(test($re))' | head -n1
+    else
+        echo "$api_json" | grep -Eo '"browser_download_url"\s*:\s*"[^"]+"' | cut -d '"' -f4 | grep -E "$pattern" | head -n1
+    fi
+}
+
+_select_checksum_url() {
+    local api_json="$1"
+    if command -v jq >/dev/null 2>&1; then
+        echo "$api_json" | jq -r '.assets[].browser_download_url' | grep -Ei '(sha256|checksums)' | head -n1
+    else
+        echo "$api_json" | grep -Eo '"browser_download_url"\s*:\s*"[^"]+"' | cut -d '"' -f4 | grep -Ei '(sha256|checksums)' | head -n1
+    fi
+}
+
+# Helper: verify checksum if checksums file is available
+# Returns: 0=verified, 1=mismatch (ABORT), 2=unavailable (WARN)
+_verify_checksum() {
+    local file="$1"; shift
+    local checksums_file="$2"; shift
+    local base
+    base=$(basename "$file")
+    if [[ -s "$checksums_file" ]]; then
+        local expected
+        # Use -F for literal match and handle common checksum formats
+        expected=$(awk -v file="$base" '$2 == file || $2 == "./"file || $2 == "*"file {print $1; exit}' "$checksums_file")
+        if [[ -n "$expected" ]]; then
+            local actual
+            actual=$(_sha256 "$file")
+            if [[ -n "$actual" && "$actual" == "$expected" ]]; then
+                return 0  # Verified successfully
+            else
+                log_error "Checksum mismatch for ${base}!"
+                log_error "  Expected: $expected"
+                log_error "  Got:      ${actual:-unknown}"
+                return 1  # Mismatch - should abort
+            fi
+        fi
+    fi
+    # Checksum unavailable
+    return 2
+}
+
 # Core tools needed in all environments
 CORE_TOOLS=(
     fzf
@@ -97,6 +156,48 @@ install_apt() {
         mkdir -p "$HOME/.local/bin"
         ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
     fi
+
+    # Attempt to install lazygit via apt/ppa on Debian/Ubuntu hosts (best-effort)
+    if [[ "$minimal" != "true" ]] && ! has_tool lazygit; then
+        local distro_id="" distro_like="" codename=""
+        if [[ -f /etc/os-release ]]; then
+            . /etc/os-release
+            distro_id="${ID:-}"
+            distro_like="${ID_LIKE:-}"
+            codename="${VERSION_CODENAME:-}"
+        fi
+        # First try stock apt (Ubuntu universe / Debian bookworm+)
+        local apt_err
+        apt_err=$($SUDO apt-get install -y lazygit 2>&1) && {
+            log_success "Installed lazygit via apt"
+        } || {
+            if [[ "$distro_id" == "ubuntu" || "$distro_id" == "pop" ]]; then
+                # Then try PPA on Ubuntu/derivatives (only if codename is supported)
+                log_info "Attempting to install lazygit via Ubuntu PPA..."
+                local ppa_release_url="https://ppa.launchpadcontent.net/lazygit-team/release/ubuntu/dists/${codename}/Release"
+                if curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
+                    $SUDO apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
+                    if command -v add-apt-repository >/dev/null 2>&1; then
+                        if $SUDO add-apt-repository -y ppa:lazygit-team/release 2>&1 | grep -v "already exists" >/dev/null; then
+                            log_info "Added lazygit PPA"
+                        fi
+                        $SUDO apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
+                        if $SUDO apt-get install -y lazygit >/dev/null 2>&1; then
+                            log_success "Installed lazygit via apt/ppa"
+                        else
+                            log_warn "lazygit not available via apt/ppa (install failed)"
+                        fi
+                    else
+                        log_warn "add-apt-repository not available; skipping PPA addition"
+                    fi
+                else
+                    log_warn "lazygit PPA does not provide packages for '${codename}'"
+                fi
+            else
+                log_warn "lazygit not available via apt on this distro"
+            fi
+        }
+    fi
 }
 
 # Install via apk (Alpine)
@@ -117,7 +218,7 @@ install_apk() {
 
     # Add host-specific tools
     if [[ "$minimal" != "true" ]]; then
-        packages+=("tmux" "htop" "ncdu")
+        packages+=("tmux" "htop" "ncdu" "lazygit")
     fi
 
     # Install packages (some may not exist, so don't fail)
@@ -162,7 +263,7 @@ install_from_github() {
         return 0
     fi
 
-    log_info "Installing $tool from GitHub..."
+    log_info "Installing $tool from GitHub (with checksum when available)..."
 
     local arch
     case "$(uname -m)" in
@@ -185,33 +286,89 @@ install_from_github() {
         *) log_error "Unsupported OS"; return 1 ;;
     esac
 
-    # Get latest release URL (simplified - could be improved)
+    # Get latest release metadata
     local api_url="https://api.github.com/repos/$repo/releases/latest"
+    local api_json
+    api_json=$(curl -fsSL "$api_url" 2>/dev/null || true)
+    if [[ -z "$api_json" ]]; then
+        log_error "Failed to query GitHub API for $repo"
+        return 1
+    fi
     local download_url
 
     case "$tool" in
         starship)
-            # Starship has an install script
-            curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$install_dir"
+            # Install starship via release tarball (avoid curl|sh)
+            local pattern
+            pattern="starship.*${arch}-${os}.*\\.tar\\.gz$"
+            download_url=$(_select_asset_url "$api_json" "$pattern")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir
+                tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download starship"; return 1; }
+                # Attempt checksum verification when available
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for starship" ;;
+                        1) log_error "Aborting starship install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for starship (proceeding with caution)" ;;
+                    esac
+                else
+                    log_warn "No checksum asset found for starship"
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir" 2>/dev/null && find "$tmp_dir" -name starship -type f -exec cp {} "$install_dir/" \;; then
+                    chmod +x "$install_dir/starship"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                else
+                    log_error "Failed to extract/install starship"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find starship release for ${arch}-${os}"
+                return 1
+            fi
             ;;
         eza)
             # eza releases: eza_x86_64-unknown-linux-musl.tar.gz or eza_x86_64-unknown-linux-gnu.tar.gz
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*eza_${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            download_url=$(_select_asset_url "$api_json" "eza_${arch}-${os}.*\\.tar\\.gz$")
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
                 local tmp_dir=$(mktemp -d)
-                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download eza"; return 1; }
+                # Verify checksum when available
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for eza" ;;
+                        1) log_error "Aborting eza install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for eza (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
                     if find "$tmp_dir" -name eza -type f -exec cp {} "$install_dir/" \;; then
                         chmod +x "$install_dir/eza"
-                        rm -rf "$tmp_dir"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     else
                         log_error "Could not find eza binary in tarball"
-                        rm -rf "$tmp_dir"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                         return 1
                     fi
                 else
-                    log_error "Failed to download or extract eza"
-                    rm -rf "$tmp_dir"
+                    log_error "Failed to extract eza"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     return 1
                 fi
             else
@@ -226,13 +383,36 @@ install_from_github() {
             if [[ "$os" == "unknown-linux-gnu" ]]; then
                 zoxide_os="unknown-linux-musl"
             fi
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${zoxide_os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            download_url=$(_select_asset_url "$api_json" "${arch}-${zoxide_os}.*\\.tar\\.gz$")
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
-                if curl -fsSL "$download_url" | tar xz -C "$install_dir" zoxide; then
-                    chmod +x "$install_dir/zoxide"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download zoxide"; return 1; }
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for zoxide" ;;
+                        1) log_error "Aborting zoxide install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for zoxide (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name zoxide -type f -maxdepth 3 -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/zoxide"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find zoxide binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
                 else
-                    log_error "Failed to download or extract zoxide"
+                    log_error "Failed to extract zoxide"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     return 1
                 fi
             else
@@ -242,22 +422,36 @@ install_from_github() {
             ;;
         delta)
             # delta releases: delta-*-x86_64-unknown-linux-musl.tar.gz or delta-*-x86_64-unknown-linux-gnu.tar.gz
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*${arch}-${os}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            download_url=$(_select_asset_url "$api_json" "${arch}-${os}.*\\.tar\\.gz$")
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
                 local tmp_dir=$(mktemp -d)
-                if curl -fsSL "$download_url" | tar xz -C "$tmp_dir"; then
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download delta"; return 1; }
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for delta" ;;
+                        1) log_error "Aborting delta install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for delta (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
                     if find "$tmp_dir" -name delta -type f -exec cp {} "$install_dir/" \;; then
                         chmod +x "$install_dir/delta"
-                        rm -rf "$tmp_dir"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     else
                         log_error "Could not find delta binary in tarball"
-                        rm -rf "$tmp_dir"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                         return 1
                     fi
                 else
-                    log_error "Failed to download or extract delta"
-                    rm -rf "$tmp_dir"
+                    log_error "Failed to extract delta"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     return 1
                 fi
             else
@@ -271,13 +465,54 @@ install_from_github() {
                 log_warn "lazygit not available for musl systems, skipping"
                 return 0
             fi
-            download_url=$(curl -s "$api_url" | grep "browser_download_url.*Linux_${arch}.*\.tar\.gz" | cut -d '"' -f 4 | head -n 1)
+            # Map architecture naming to lazygit's convention (arm64 instead of aarch64)
+            local lazy_arch="$arch"
+            if [[ "$arch" == "aarch64" ]]; then
+                lazy_arch="arm64"
+            fi
+            download_url=$(_select_asset_url "$api_json" "Linux_${lazy_arch}.*\\.tar\\.gz$")
+            # Fallback: derive latest tag via HTTP redirect if API is restricted
+            if [[ -z "$download_url" ]]; then
+                local latest_url tag
+                latest_url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest" 2>/dev/null || true)
+                tag="${latest_url##*/}"
+                if [[ -n "$tag" ]]; then
+                    download_url="https://github.com/$repo/releases/download/${tag}/lazygit_${tag#v}_Linux_${lazy_arch}.tar.gz"
+                fi
+            fi
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
-                if curl -fsSL "$download_url" | tar xz -C "$install_dir" lazygit; then
-                    chmod +x "$install_dir/lazygit"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download lazygit"; return 1; }
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                # Fallback checksums URL if API path was unavailable
+                if [[ -z "$sums_url" && -n "${tag:-}" ]]; then
+                    sums_url="https://github.com/$repo/releases/download/${tag}/checksums.txt"
+                fi
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for lazygit" ;;
+                        1) log_error "Aborting lazygit install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for lazygit (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name lazygit -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/lazygit"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find lazygit binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
                 else
-                    log_error "Failed to download or extract lazygit"
+                    log_error "Failed to extract lazygit"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
                     return 1
                 fi
             else

@@ -33,15 +33,25 @@ if command -v bat &> /dev/null; then
 fi
 
 if command -v rg &> /dev/null; then
-    alias grep='rg'
-    alias ggrep='/bin/grep'  # original grep
+    if [[ "${DOTFILES_OPINIONATED_ALIASES:-}" == "1" ]]; then
+        alias grep='rg'
+        alias ggrep='command grep'  # original grep without alias expansion
+    else
+        # Keep system grep; provide a convenience alias that won't break scripts
+        alias rgrep='rg'
+    fi
 else
     alias grep='grep --color=auto'
 fi
 
 if command -v fd &> /dev/null; then
-    alias find='fd'
-    alias ffind='/usr/bin/find'  # original find
+    if [[ "${DOTFILES_OPINIONATED_ALIASES:-}" == "1" ]]; then
+        alias find='fd'
+        alias ffind='command find'  # original find without alias expansion
+    else
+        # Keep system find; fd is available directly
+        :
+    fi
 fi
 
 if command -v btm &> /dev/null; then
@@ -138,12 +148,14 @@ alias activate='source venv/bin/activate'
 
 # Quick edits
 alias reload='exec $SHELL -l'
-alias src='source ~/.bashrc || source ~/.zshrc'
+if [[ -n "${ZSH_VERSION:-}" ]]; then
+    alias src='source ~/.zshrc'
+else
+    alias src='source ~/.bashrc'
+fi
 
 # System
-alias ports='netstat -tulanp'
-alias myip='curl -s https://ifconfig.me'
-alias weather='curl wttr.in'
+# ports, myip, weather implemented as functions with timeouts in functions.sh
 
 # Safety nets
 alias rm='rm -i'

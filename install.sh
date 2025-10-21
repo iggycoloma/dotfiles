@@ -73,9 +73,13 @@ fi
 
 log_section "Setting up Completions"
 if source "$DOTFILES_DIR/bootstrap/completions.sh"; then
-    log_success "Completions configured successfully"
+    if setup_completions; then
+        log_success "Completions configured successfully"
+    else
+        log_warn "Some completions may not be available"
+    fi
 else
-    log_warn "Some completions may not be available"
+    log_warn "Completions setup script not found"
 fi
 
 # Final message

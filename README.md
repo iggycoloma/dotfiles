@@ -84,6 +84,28 @@ lg      # lazygit (if installed)
 
 See `shell/aliases.sh` for the complete list.
 
+## Global Git Hooks
+
+These dotfiles enable a single global hooks directory so commit message checks apply to every repository automatically.
+
+- Location: `~/.config/git/hooks` (configured via `core.hooksPath` in `git/.gitconfig: [core] hooksPath = ~/.config/git/hooks`)
+- Installed by: `bootstrap/symlinks.sh` (makes hooks executable and symlinks the directory)
+- Commit template: `~/.gitmessage` (configured via `commit.template`)
+
+Enforced by `commit-msg` (global):
+- Conventional Commits subject format (`<type>(scope): description`)
+- Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- Minimum subject length (≥ 10)
+- No AI tool attribution (e.g., Claude, GPT, Copilot, “AI-generated”)
+- No co-authoring lines (`Co-Authored-By:`/`Co-authored by:`)
+- No emojis in commit messages
+- Merge commits are allowed as-is
+
+Scope and customization:
+- Applies to all repositories once dotfiles are installed; no per-repo setup required
+- Repo-level hooks are supported: if a repository has `.git/hooks/commit-msg.local` (or `.git/hooks/commit-msg`), it runs first, then the global checks
+- To adjust global rules, edit `git/hooks/commit-msg` in this repo and re-run the installer
+
 ### Shell Functions
 
 ```bash
@@ -170,6 +192,16 @@ Edit `install.sh` to add your preferred tools. The script automatically detects:
 - Operating system (macOS, Ubuntu, Debian, etc.)
 - Environment type (local, devcontainer, codespaces)
 - Available package managers (brew, apt, etc.)
+
+### Opinionated Aliases (opt-in)
+
+By default, core utilities like `grep` and `find` are not shadowed to avoid breaking scripts. To enable opinionated aliasing (`grep` -> `rg`, `find` -> `fd`), set:
+
+```bash
+export DOTFILES_OPINIONATED_ALIASES=1
+```
+
+Add this to `~/.exports.local` or your shell profile and reload your shell.
 
 ## Shell Completions
 
