@@ -82,11 +82,13 @@ setup_zsh_completions() {
     # Generate completions for tools
     if has_tool gh; then
         gh completion -s zsh > "$zsh_dir/completions/_gh" 2>/dev/null || true
+        zsh -c "zcompile '$zsh_dir/completions/_gh'" 2>/dev/null || true
         log_success "Generated gh completion"
     fi
 
     if has_tool kubectl; then
         kubectl completion zsh > "$zsh_dir/completions/_kubectl" 2>/dev/null || true
+        zsh -c "zcompile '$zsh_dir/completions/_kubectl'" 2>/dev/null || true
         log_success "Generated kubectl completion"
     fi
 
@@ -100,23 +102,28 @@ setup_zsh_completions() {
 # Add custom completions to fpath
 fpath=("${ZDOTDIR:-$HOME/.config/zsh}/completions" $fpath)
 
-# Load zinit if available (deferred to avoid blocking startup)
+# Load zinit if available (with turbo mode for instant startup)
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 if [[ -d "$ZINIT_HOME" ]]; then
-    # Source zinit lazily to avoid startup delays
     source "${ZINIT_HOME}/zinit.zsh"
 
-    # Load plugins asynchronously with wait (deferred until prompt is shown)
-    zinit ice wait lucid
+    # Load plugins with turbo mode (wait'0' defers until after prompt)
+    # This makes zsh startup instant while plugins load in background
+    zinit ice wait'0' lucid
     zinit light zdharma-continuum/fast-syntax-highlighting
 
-    zinit ice wait lucid
+    zinit ice wait'0' lucid
     zinit light zsh-users/zsh-autosuggestions
 
-    zinit ice wait lucid
+    zinit ice wait'0' lucid
     zinit light zsh-users/zsh-completions
 fi
 EOF
+
+    # Compile completions.zsh for faster loading
+    if command -v zsh &> /dev/null; then
+        zsh -c "zcompile '$zsh_dir/completions.zsh'" 2>/dev/null || true
+    fi
 
     log_success "Zsh completions configured"
 }
