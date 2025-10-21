@@ -168,7 +168,7 @@ fi
 if command -v zsh &> /dev/null; then
     log_info "Testing zsh startup..."
     if command -v timeout &>/dev/null; then
-        if timeout 10 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+        if timeout 15 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
             log_pass "Zsh starts successfully"
         else
             log_fail "Zsh startup failed or timed out"

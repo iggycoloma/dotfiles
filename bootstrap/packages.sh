@@ -166,9 +166,9 @@ install_apt() {
             distro_like="${ID_LIKE:-}"
             codename="${VERSION_CODENAME:-}"
         fi
-        # First try stock apt (Ubuntu universe / Debian bookworm+)
+        # First try stock apt (Ubuntu universe / Debian bookworm+) with timeout
         local apt_err
-        apt_err=$($SUDO apt-get install -y lazygit 2>&1) && {
+        apt_err=$(timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit 2>&1) && {
             log_success "Installed lazygit via apt"
         } || {
             if [[ "$distro_id" == "ubuntu" || "$distro_id" == "pop" ]]; then
@@ -176,13 +176,13 @@ install_apt() {
                 log_info "Attempting to install lazygit via Ubuntu PPA..."
                 local ppa_release_url="https://ppa.launchpadcontent.net/lazygit-team/release/ubuntu/dists/${codename}/Release"
                 if curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
-                    $SUDO apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
+                    timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
                     if command -v add-apt-repository >/dev/null 2>&1; then
                         # Use timeout and noninteractive mode to prevent hanging
                         if timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:lazygit-team/release >/dev/null 2>&1; then
                             log_info "Added lazygit PPA"
-                            $SUDO apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
-                            if $SUDO apt-get install -y lazygit >/dev/null 2>&1; then
+                            timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
+                            if timeout 30 $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit >/dev/null 2>&1; then
                                 log_success "Installed lazygit via apt/ppa"
                             else
                                 log_warn "lazygit not available via apt/ppa (install failed)"
