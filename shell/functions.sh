@@ -34,7 +34,20 @@ killport() {
         echo "Usage: killport <port>"
         return 1
     fi
-    lsof -ti:"$1" | xargs kill -9 2>/dev/null || echo "No process found on port $1"
+    local port="$1"
+    # Prefer fuser when available (often present in containers)
+    if command -v fuser >/dev/null 2>&1; then
+        (fuser -k "${port}/tcp" 2>/dev/null || fuser -k "${port}/udp" 2>/dev/null) && return 0
+    fi
+    # Fallback to lsof
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti:"${port}" 2>/dev/null | xargs -r kill -9 2>/dev/null && return 0
+    fi
+    # Last resort: parse ss output for PIDs
+    if command -v ss >/dev/null 2>&1; then
+        ss -lptnH "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | xargs -r kill -9 2>/dev/null && return 0
+    fi
+    echo "No process found or unable to terminate processes on port ${port}"
 }
 
 # Delete merged git branches
@@ -192,6 +205,37 @@ dlogs() {
     if [[ -n "$container" ]]; then
         docker logs -f "$container"
     fi
+}
+
+# List listening ports and connections (portable)
+ports() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -tulpen 2>/dev/null || ss -tuln
+        return
+    fi
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -tulanp 2>/dev/null || netstat -tuln
+        return
+    fi
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -i -P -n
+        return
+    fi
+    echo "No network utility found (ss/netstat/lsof)"
+    return 1
+}
+
+# External helpers with timeouts
+myip() {
+    local endpoint="${1:-https://ifconfig.me}"
+    curl -m 5 -s "$endpoint" || echo "Unable to fetch IP"
+}
+
+weather() {
+    local loc="${1:-}"
+    local url="https://wttr.in"
+    [[ -n "$loc" ]] && url="$url/$loc"
+    curl -m 7 -s "$url" || echo "Unable to fetch weather"
 }
 
 # Quick chmod shortcuts

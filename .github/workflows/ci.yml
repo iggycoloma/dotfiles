@@ -96,6 +96,11 @@ jobs:
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
+      - name: Verify completions artifacts
+        run: |
+          test -f "$HOME/.config/zsh/completions.zsh" && echo "✓ zsh completions config present" || (echo "✗ zsh completions config missing" && exit 1)
+          test -d "$HOME/.local/share/bash-completion/completions" && echo "✓ bash completions dir present" || (echo "✗ bash completions dir missing" && exit 1)
+
       - name: Verify core tools installed
         run: |
           echo "Checking core tools..."
@@ -121,6 +126,13 @@ jobs:
               alias ll >/dev/null 2>&1 && echo "✓ ll alias available" || echo "✗ ll not found"'
           fi
 
+      - name: Starship init smoke test
+        run: |
+          if command -v starship >/dev/null 2>&1; then
+            bash -lc 'eval "$(starship init bash)" >/dev/null 2>&1 && echo "Starship init OK"'
+          else
+            echo "Starship not installed"
+          fi
       - name: Test idempotency (run install again)
         run: |
           echo "Running install.sh second time to test idempotency..."
@@ -180,6 +192,11 @@ jobs:
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
+      - name: Verify completions artifacts
+        run: |
+          test -f "$HOME/.config/zsh/completions.zsh" && echo "✓ zsh completions config present" || (echo "✗ zsh completions config missing" && exit 1)
+          test -d "$HOME/.local/share/bash-completion/completions" && echo "✓ bash completions dir present" || (echo "✗ bash completions dir missing" && exit 1)
+
       - name: Verify core tools installed
         run: |
           echo "Checking core tools..."
@@ -203,6 +220,14 @@ jobs:
             zsh -c 'source ~/.zshrc && \
               type mkcd >/dev/null 2>&1 && echo "✓ mkcd function available" || echo "✗ mkcd not found"; \
               alias ll >/dev/null 2>&1 && echo "✓ ll alias available" || echo "✗ ll not found"'
+          fi
+
+      - name: Starship init smoke test
+        run: |
+          if command -v starship >/dev/null 2>&1; then
+            bash -lc 'eval "$(starship init bash)" >/dev/null 2>&1 && echo "Starship init OK"'
+          else
+            echo "Starship not installed"
           fi
 
       - name: Test idempotency (run install again)

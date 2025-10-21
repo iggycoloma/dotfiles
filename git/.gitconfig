@@ -8,6 +8,8 @@
 	excludesfile = ~/.gitignore_global
 	autocrlf = input
 	pager = delta
+	# Use a global hooks directory so guardrails apply to all repos
+	hooksPath = ~/.config/git/hooks
 
 [interactive]
 	diffFilter = delta --color-only
@@ -40,6 +42,10 @@
 
 [init]
 	defaultBranch = main
+
+[commit]
+	# Use a conventional-commit friendly template
+	template = ~/.gitmessage
 
 [color]
 	ui = auto

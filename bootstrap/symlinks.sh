@@ -77,6 +77,15 @@ create_symlinks() {
     # Git configurations
     create_symlink "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
+    # Global Git hooks (applies to all repos via core.hooksPath)
+    if [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
+        # Ensure hooks are executable
+        for file in "$DOTFILES_DIR/git/hooks"/*; do
+            [ -f "$file" ] || continue
+            chmod +x "$file" || true
+        done
+        create_symlink "$DOTFILES_DIR/git/hooks" "$HOME/.config/git/hooks"
+    fi
 
     # Vim configuration
     if [[ -f "$DOTFILES_DIR/vim/.vimrc" ]]; then
