@@ -100,24 +100,22 @@ setup_zsh_completions() {
 # Add custom completions to fpath
 fpath=("${ZDOTDIR:-$HOME/.config/zsh}/completions" $fpath)
 
-# Load zinit if available
+# Load zinit if available (deferred to avoid blocking startup)
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 if [[ -d "$ZINIT_HOME" ]]; then
+    # Source zinit lazily to avoid startup delays
     source "${ZINIT_HOME}/zinit.zsh"
 
-    # Load fast-syntax-highlighting
+    # Load plugins asynchronously with wait (deferred until prompt is shown)
+    zinit ice wait lucid
     zinit light zdharma-continuum/fast-syntax-highlighting
 
-    # Load zsh-autosuggestions
+    zinit ice wait lucid
     zinit light zsh-users/zsh-autosuggestions
 
-    # Load zsh-completions
+    zinit ice wait lucid
     zinit light zsh-users/zsh-completions
 fi
-
-# Initialize completion system
-autoload -Uz compinit
-compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump-$ZSH_VERSION"
 EOF
 
     log_success "Zsh completions configured"
