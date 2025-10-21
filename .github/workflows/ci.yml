@@ -77,10 +77,10 @@ jobs:
 
       - name: Run installation
         run: |
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))s" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
@@ -95,10 +95,10 @@ jobs:
 
       - name: Run test suite
         run: |
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash tests/test-install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -142,10 +142,10 @@ jobs:
       - name: Test idempotency (run install again)
         run: |
           echo "Running install.sh second time to test idempotency..."
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))s" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
@@ -182,10 +182,10 @@ jobs:
 
       - name: Run installation
         run: |
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Installation completed in $((END_TIME - START_TIME))s" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
@@ -200,10 +200,10 @@ jobs:
 
       - name: Run test suite
         run: |
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash tests/test-install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -248,10 +248,10 @@ jobs:
       - name: Test idempotency (run install again)
         run: |
           echo "Running install.sh second time to test idempotency..."
-          START_TIME=$(date +%s%3N)
+          START_TIME=$(date +%s)
           bash install.sh
-          END_TIME=$(date +%s%3N)
-          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))ms" >&2
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Idempotency test (2nd install) completed in $((END_TIME - START_TIME))s" >&2
         env:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
