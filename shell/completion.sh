@@ -43,10 +43,15 @@ if [[ -n "$BASH_VERSION" ]]; then
 elif [[ -n "$ZSH_VERSION" ]]; then
     # Zsh completion setup
 
-    # Load completions config
+    # Load completions config (includes zinit plugin manager)
     local zsh_config="${ZDOTDIR:-$HOME/.config/zsh}"
     if [[ -f "$zsh_config/completions.zsh" ]]; then
+        [[ -n "$CI" ]] && _before_zinit=$EPOCHREALTIME
         source "$zsh_config/completions.zsh"
+        if [[ -n "$CI" ]]; then
+            _after_zinit=$EPOCHREALTIME
+            echo "[CI-TIMING] Zinit + plugins loaded in $(( (_after_zinit - _before_zinit) * 1000 ))ms" >&2
+        fi
     fi
 fi
 
@@ -54,6 +59,7 @@ fi
 
 # fzf key bindings and completion
 if command -v fzf &> /dev/null; then
+    [[ -n "$CI" ]] && _before_fzf=$EPOCHREALTIME
     if [[ -n "$BASH_VERSION" ]]; then
         if [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]]; then
             source /usr/share/doc/fzf/examples/key-bindings.bash
@@ -83,16 +89,30 @@ if command -v fzf &> /dev/null; then
             source /usr/share/fzf/completion.zsh
         fi
     fi
+    if [[ -n "$CI" ]]; then
+        _after_fzf=$EPOCHREALTIME
+        echo "[CI-TIMING] FZF initialization in $(( (_after_fzf - _before_fzf) * 1000 ))ms" >&2
+    fi
 fi
 
 # zoxide (smart cd)
 if command -v zoxide &> /dev/null; then
+    [[ -n "$CI" ]] && _before_zoxide=$EPOCHREALTIME
     eval "$(zoxide init "$(basename "$SHELL")")"
+    if [[ -n "$CI" ]]; then
+        _after_zoxide=$EPOCHREALTIME
+        echo "[CI-TIMING] Zoxide init in $(( (_after_zoxide - _before_zoxide) * 1000 ))ms" >&2
+    fi
 fi
 
 # direnv (directory environment)
 if command -v direnv &> /dev/null; then
+    [[ -n "$CI" ]] && _before_direnv=$EPOCHREALTIME
     eval "$(direnv hook "$(basename "$SHELL")")"
+    if [[ -n "$CI" ]]; then
+        _after_direnv=$EPOCHREALTIME
+        echo "[CI-TIMING] Direnv init in $(( (_after_direnv - _before_direnv) * 1000 ))ms" >&2
+    fi
 fi
 
 # Note: Starship prompt initialization moved to .zshrc
