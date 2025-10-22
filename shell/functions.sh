@@ -2,13 +2,13 @@
 # Useful shell functions
 
 # Create directory and cd into it
-mkcd() {
+function mkcd {
     mkdir -p "$1" && cd "$1" || return 1
 }
 
 # Extract various archive formats
-extract() {
-    if [ -f "$1" ]; then
+function extract {
+    if [[ -f "$1" ]]; then
         case "$1" in
             *.tar.bz2)   tar xjf "$1"     ;;
             *.tar.gz)    tar xzf "$1"     ;;
@@ -29,34 +29,34 @@ extract() {
 }
 
 # Kill process on specific port
-killport() {
-    if [ -z "$1" ]; then
+function killport {
+    if [[ -z "$1" ]]; then
         echo "Usage: killport <port>"
         return 1
     fi
     local port="$1"
     # Prefer fuser when available (often present in containers)
-    if command -v fuser >/dev/null 2>&1; then
+    if command -v fuser &>/dev/null; then
         (fuser -k "${port}/tcp" 2>/dev/null || fuser -k "${port}/udp" 2>/dev/null) && return 0
     fi
     # Fallback to lsof
-    if command -v lsof >/dev/null 2>&1; then
-        lsof -ti:"${port}" 2>/dev/null | xargs -r kill -9 2>/dev/null && return 0
+    if command -v lsof &>/dev/null; then
+        lsof -ti:"${port}" 2>/dev/null | grep . | xargs kill -9 2>/dev/null && return 0
     fi
     # Last resort: parse ss output for PIDs
-    if command -v ss >/dev/null 2>&1; then
-        ss -lptnH "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | xargs -r kill -9 2>/dev/null && return 0
+    if command -v ss &>/dev/null; then
+        ss -lptnH "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | grep . | xargs kill -9 2>/dev/null && return 0
     fi
     echo "No process found or unable to terminate processes on port ${port}"
 }
 
 # Delete merged git branches
-gbdm() {
+function gbdm {
     git branch --merged | grep -v '\*\|main\|master\|develop' | xargs -n 1 git branch -d
 }
 
 # Checkout git branch with fzf
-gcof() {
+function gcof {
     if ! command -v fzf &> /dev/null; then
         echo "fzf is not installed"
         return 1
@@ -69,7 +69,7 @@ gcof() {
 }
 
 # Git log with fzf preview
-glf() {
+function glf {
     if ! command -v fzf &> /dev/null; then
         echo "fzf is not installed"
         return 1
@@ -81,8 +81,8 @@ glf() {
 }
 
 # Create timestamped backup of file or directory
-backup() {
-    if [ -z "$1" ]; then
+function backup {
+    if [[ -z "$1" ]]; then
         echo "Usage: backup <file_or_directory>"
         return 1
     fi
@@ -93,7 +93,7 @@ backup() {
 }
 
 # Serve current directory over HTTP
-serve() {
+function serve {
     local port="${1:-8000}"
     if command -v python3 &> /dev/null; then
         python3 -m http.server "$port"
@@ -106,7 +106,7 @@ serve() {
 }
 
 # Find file by name
-ff() {
+function ff {
     if command -v fd &> /dev/null; then
         fd "$@"
     else
@@ -115,7 +115,7 @@ ff() {
 }
 
 # Find directory by name
-fd_dir() {
+function fd_dir {
     if command -v fd &> /dev/null; then
         fd --type d "$@"
     else
@@ -124,7 +124,7 @@ fd_dir() {
 }
 
 # Search file contents
-search() {
+function search {
     if command -v rg &> /dev/null; then
         rg "$@"
     else
@@ -133,8 +133,8 @@ search() {
 }
 
 # Git clone and cd into directory
-gcl() {
-    if [ -z "$1" ]; then
+function gcl {
+    if [[ -z "$1" ]]; then
         echo "Usage: gcl <repository_url>"
         return 1
     fi
@@ -144,7 +144,7 @@ gcl() {
 # Create GitHub PR from current branch
 # Note: gpr alias already exists in aliases.sh for 'git pull --rebase'
 # This function uses a different name to avoid conflict
-ghpr() {
+function ghpr {
     if command -v gh &> /dev/null; then
         gh pr create --web
     else
@@ -156,23 +156,23 @@ ghpr() {
 # Note: weather alias already exists in aliases.sh
 
 # Show disk usage for current directory
-usage() {
+function usage {
     if command -v dust &> /dev/null; then
         dust
     elif command -v ncdu &> /dev/null; then
         ncdu --color dark
     else
-        du -sh * | sort -h
+        du -sh ./* 2>/dev/null | sort -h
     fi
 }
 
 # Quick note taking
-note() {
+function note {
     local notes_dir="$HOME/notes"
     mkdir -p "$notes_dir"
     local note_file="$notes_dir/$(date +%Y-%m-%d).md"
 
-    if [ -n "$1" ]; then
+    if [[ -n "$1" ]]; then
         echo "$(date +%H:%M:%S) - $*" >> "$note_file"
     else
         ${EDITOR:-vi} "$note_file"
@@ -180,7 +180,7 @@ note() {
 }
 
 # Docker cleanup helpers
-dclean() {
+function dclean {
     echo "Cleaning up Docker resources..."
     docker container prune -f
     docker image prune -f
@@ -190,12 +190,12 @@ dclean() {
 }
 
 # Kill all Docker containers
-dkill() {
-    docker ps -q | xargs -r docker kill
+function dkill {
+    docker ps -q | grep . | xargs docker kill
 }
 
 # Show docker container logs with fzf
-dlogs() {
+function dlogs {
     if ! command -v fzf &> /dev/null; then
         echo "fzf is not installed"
         return 1
@@ -208,16 +208,16 @@ dlogs() {
 }
 
 # List listening ports and connections (portable)
-ports() {
-    if command -v ss >/dev/null 2>&1; then
+function ports {
+    if command -v ss &>/dev/null; then
         ss -tulpen 2>/dev/null || ss -tuln
         return
     fi
-    if command -v netstat >/dev/null 2>&1; then
+    if command -v netstat &>/dev/null; then
         netstat -tulanp 2>/dev/null || netstat -tuln
         return
     fi
-    if command -v lsof >/dev/null 2>&1; then
+    if command -v lsof &>/dev/null; then
         lsof -i -P -n
         return
     fi
@@ -226,12 +226,12 @@ ports() {
 }
 
 # External helpers with timeouts
-myip() {
+function myip {
     local endpoint="${1:-https://ifconfig.me}"
     curl -m 5 -s "$endpoint" || echo "Unable to fetch IP"
 }
 
-weather() {
+function weather {
     local loc="${1:-}"
     local url="https://wttr.in"
     [[ -n "$loc" ]] && url="$url/$loc"
@@ -239,12 +239,12 @@ weather() {
 }
 
 # Quick chmod shortcuts
-chmodx() {
+function chmodx {
     chmod +x "$@"
 }
 
 # Create and enter a temporary directory
-tmp() {
+function tmp {
     local tmp_dir
     tmp_dir=$(mktemp -d)
     cd "$tmp_dir" || return 1

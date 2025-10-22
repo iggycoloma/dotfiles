@@ -3,6 +3,12 @@
 # This file runs for every interactive Zsh session (login or non-login)
 # For login shells, .zprofile runs first, then this file
 
+# CI timing diagnostics (only when CI env var is set)
+if [[ -n "$CI" ]]; then
+    zmodload zsh/datetime  # Load datetime module for EPOCHREALTIME
+    _zsh_start_time=$EPOCHREALTIME
+fi
+
 # Dotfiles directory
 export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
@@ -58,7 +64,12 @@ fi
 
 # Source tool initialization and completions
 if [[ -f "$DOTFILES_DIR/shell/completion.sh" ]]; then
+    [[ -n "$CI" ]] && _before_completions=$EPOCHREALTIME
     source "$DOTFILES_DIR/shell/completion.sh"
+    if [[ -n "$CI" ]]; then
+        _after_completions=$EPOCHREALTIME
+        echo "[CI-TIMING] Completions loaded in $(( (_after_completions - _before_completions) * 1000 ))ms" >&2
+    fi
 fi
 
 # Load local zshrc customizations (before prompt)
@@ -69,8 +80,19 @@ fi
 # Initialize Starship prompt (MUST be last)
 # Starship needs the terminal to be fully initialized with COLUMNS set
 if command -v starship &> /dev/null; then
+    [[ -n "$CI" ]] && _before_starship=$EPOCHREALTIME
     eval "$(starship init zsh)"
+    if [[ -n "$CI" ]]; then
+        _after_starship=$EPOCHREALTIME
+        echo "[CI-TIMING] Starship init in $(( (_after_starship - _before_starship) * 1000 ))ms" >&2
+    fi
 else
     # Fallback prompt if starship is not available
     PROMPT='%F{green}%n@%m%f:%F{cyan}%~%f%# '
+fi
+
+# CI timing summary
+if [[ -n "$CI" && -n "$_zsh_start_time" ]]; then
+    _zsh_end_time=$EPOCHREALTIME
+    echo "[CI-TIMING] Total zsh startup: $(( (_zsh_end_time - _zsh_start_time) * 1000 ))ms" >&2
 fi

@@ -168,7 +168,9 @@ fi
 if command -v zsh &> /dev/null; then
     log_info "Testing zsh startup..."
     if command -v timeout &>/dev/null; then
-        if timeout 15 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+        # 30s timeout to handle slower CI runners (especially macOS-13)
+        # Also accounts for zinit plugin loading, fzf, zoxide, direnv initialization
+        if timeout 30 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
             log_pass "Zsh starts successfully"
         else
             log_fail "Zsh startup failed or timed out"
