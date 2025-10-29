@@ -77,6 +77,7 @@ create_symlinks() {
     # Git configurations
     create_symlink "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
+    create_symlink "$DOTFILES_DIR/git/.gitmessage" "$HOME/.gitmessage"
     # Global Git hooks (applies to all repos via core.hooksPath)
     if [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
         # Ensure hooks are executable
