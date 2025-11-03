@@ -125,7 +125,7 @@ test_exists "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global"
 log_section "Symlinks"
 test_symlink "$HOME/.bashrc" "$DOTFILES_DIR/shell/.bashrc" ".bashrc symlink"
 test_symlink "$HOME/.bash_profile" "$DOTFILES_DIR/shell/.bash_profile" ".bash_profile symlink"
-test_symlink "$HOME/.gitconfig" "$DOTFILES_DIR/git/.gitconfig" ".gitconfig symlink"
+# Note: .gitconfig is NOT symlinked - it's managed via include directive (see install.sh)
 test_symlink "$HOME/.gitignore_global" "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global symlink"
 
 log_section "Core Tools"
@@ -232,6 +232,43 @@ if git config --get alias.s &>/dev/null; then
     log_pass "Git aliases are configured"
 else
     log_fail "Git aliases are not configured"
+fi
+
+log_section "Git Configuration Include"
+# Test include directive (search for common path component that works with any DOTFILES_DIR)
+if grep -qF "git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
+    log_pass "Git config include directive present"
+else
+    log_fail "Git config include directive missing"
+fi
+
+# Test dotfiles settings loaded
+if git config --get core.pager | grep -q "delta"; then
+    log_pass "Dotfiles git core.pager configured"
+else
+    log_fail "Dotfiles git settings not loaded"
+fi
+
+# Verify git identity (critical for all environments)
+if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
+    log_pass "Git identity configured: $(git config user.name) <$(git config user.email)>"
+else
+    # This is a FAIL in CI environments (containers, Codespaces)
+    if [[ -n "${CI:-}" ]] || [[ -n "${CODESPACES:-}" ]]; then
+        log_fail "Git identity MUST be configured in CI/Codespaces"
+    else
+        log_info "Git identity not configured (expected on fresh local install)"
+    fi
+fi
+
+# Codespaces-specific checks
+if [[ -n "${CODESPACES:-}" ]]; then
+    log_info "Detected Codespaces environment"
+    if git config --system user.name >/dev/null 2>&1; then
+        log_pass "Codespaces system-level git identity present"
+    else
+        log_warn "Codespaces should have system-level git identity"
+    fi
 fi
 
 # Summary

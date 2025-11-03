@@ -82,16 +82,46 @@ else
     log_warn "Completions setup script not found"
 fi
 
+log_section "Configuring Git"
+# Create ~/.gitconfig if it doesn't exist
+if [[ ! -f "$HOME/.gitconfig" ]]; then
+    log_info "Creating ~/.gitconfig"
+    touch "$HOME/.gitconfig"
+fi
+
+# Add include directive to ~/.gitconfig if not already present
+# Extract the directory name to detect existing includes (path-agnostic)
+DOTFILES_DIRNAME=$(basename "$DOTFILES_DIR")
+INCLUDE_PATH="$DOTFILES_DIR/git/.gitconfig"
+if ! grep -qF "${DOTFILES_DIRNAME}/git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
+    log_info "Adding dotfiles git config include to ~/.gitconfig"
+    cat >> "$HOME/.gitconfig" <<EOF
+
+# Include standardized git settings from dotfiles
+[include]
+	path = $INCLUDE_PATH
+EOF
+    log_success "Git configuration updated"
+else
+    log_success "Git configuration already includes dotfiles settings"
+fi
+
+# Check git identity configuration
+if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
+    log_success "Git identity configured: $(git config user.name) <$(git config user.email)>"
+else
+    log_warn "Git identity not configured"
+    log_info "Set with: git config --global user.name \"Your Name\""
+    log_info "         git config --global user.email \"your@email.com\""
+fi
+
 # Final message
 log_section "Installation Complete"
 log_success "Dotfiles installed successfully!"
 echo ""
 log_info "Next steps:"
 echo "  1. Reload your shell: source ~/.bashrc (or ~/.zshrc)"
-echo "  2. Set git user info:"
-echo "     git config --global user.name \"Your Name\""
-echo "     git config --global user.email \"your.email@example.com\""
-echo "  3. Customize with local configs:"
-echo "     ~/.bashrc.local, ~/.zshrc.local, ~/.gitconfig.local"
+echo "  2. Customize with local configs:"
+echo "     ~/.bashrc.local, ~/.zshrc.local, ~/.exports.local"
 echo ""
 log_info "Enjoy your new environment! 🚀"

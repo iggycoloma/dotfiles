@@ -75,6 +75,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Configure git identity for testing
+        run: |
+          git config --global user.name "CI Test User"
+          git config --global user.email "ci-test@example.com"
+
       - name: Run installation
         run: |
           START_TIME=$(date +%s)
@@ -189,6 +194,11 @@ jobs:
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           fi
 
+      - name: Configure git identity for testing
+        run: |
+          git config --global user.name "CI Test User"
+          git config --global user.email "ci-test@example.com"
+
       - name: Run installation
         run: |
           START_TIME=$(date +%s)
@@ -274,21 +284,125 @@ jobs:
           CI: true
           DOTFILES_DIR: ${{ github.workspace }}
 
+  test-codespaces-simulation:
+    name: Test Codespaces Simulation (${{ matrix.shell }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [bash, zsh]
+
+    container:
+      image: mcr.microsoft.com/devcontainers/base:ubuntu
+
+    steps:
+      - name: Install basic dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y git curl ca-certificates sudo
+          if [ "${{ matrix.shell }}" = "zsh" ]; then
+            apt-get install -y zsh
+          fi
+
+      - name: Setup git configuration (simulate Codespaces)
+        run: |
+          git config --system user.name "Codespaces Test User"
+          git config --system user.email "codespaces-test@github.com"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run installation with Codespaces environment
+        run: |
+          START_TIME=$(date +%s)
+          bash install.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Codespaces simulation installation completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          # Simulate Codespaces environment
+          CODESPACES: true
+          CODESPACE_NAME: ci-test-codespace
+          GIT_COMMITTER_NAME: Codespaces Test User
+          GIT_COMMITTER_EMAIL: codespaces-test@github.com
+          GITHUB_USER: testuser
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: https://github.com
+          GITHUB_API_URL: https://api.github.com
+          # Standard CI vars
+          CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Verify Codespaces detection
+        shell: bash
+        run: |
+          source bootstrap/detect.sh
+          ENV=$(detect_environment)
+          if [ "$ENV" = "codespaces" ]; then
+            echo "✓ Correctly detected Codespaces environment"
+          else
+            echo "✗ Failed to detect Codespaces environment (got: $ENV)"
+            exit 1
+          fi
+        env:
+          CODESPACES: true
+
+      - name: Test shell startup (${{ matrix.shell }})
+        run: |
+          if [ "${{ matrix.shell }}" = "bash" ]; then
+            bash -c 'source ~/.bashrc && echo "Bash startup successful"'
+          elif [ "${{ matrix.shell }}" = "zsh" ]; then
+            zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
+          fi
+
+      - name: Run test suite
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/test-install.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Codespaces test suite completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Verify git configuration
+        run: |
+          # Verify git can commit (important for Codespaces)
+          test -n "$(git config user.name)" && echo "✓ Git user.name is set: $(git config user.name)" || (echo "✗ Git user.name missing" && exit 1)
+          test -n "$(git config user.email)" && echo "✓ Git user.email is set: $(git config user.email)" || (echo "✗ Git user.email missing" && exit 1)
+          # Verify include directive was added
+          grep -qF "git/.gitconfig" "$HOME/.gitconfig" && echo "✓ Dotfiles include directive present" || (echo "✗ Include directive missing" && exit 1)
+          # Verify dotfiles settings are loaded
+          test "$(git config --get core.pager)" = "delta" && echo "✓ Dotfiles git settings loaded (delta pager)" || echo "⚠ Delta pager not configured"
+
+      - name: Test idempotency
+        run: |
+          echo "Running install.sh second time to test idempotency..."
+          START_TIME=$(date +%s)
+          bash install.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Codespaces idempotency test completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          CODESPACES: true
+          CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
+
   test-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [test-linux-containers, test-macos]
+    needs: [test-linux-containers, test-macos, test-codespaces-simulation]
     if: always()
     steps:
       - name: Check test results
         run: |
           if [ "${{ needs.test-linux-containers.result }}" = "success" ] && \
-             [ "${{ needs.test-macos.result }}" = "success" ]; then
+             [ "${{ needs.test-macos.result }}" = "success" ] && \
+             [ "${{ needs.test-codespaces-simulation.result }}" = "success" ]; then
             echo "✓ All tests passed!"
             exit 0
           else
             echo "✗ Some tests failed"
             echo "Linux containers: ${{ needs.test-linux-containers.result }}"
             echo "macOS: ${{ needs.test-macos.result }}"
+            echo "Codespaces simulation: ${{ needs.test-codespaces-simulation.result }}"
             exit 1
           fi
