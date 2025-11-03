@@ -214,8 +214,8 @@ else
 fi
 
 log_section "Git Configuration Include"
-# Test include directive
-if grep -qF ".dotfiles/git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
+# Test include directive (search for common path component that works with any DOTFILES_DIR)
+if grep -qF "git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
     log_pass "Git config include directive present"
 else
     log_fail "Git config include directive missing"
