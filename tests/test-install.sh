@@ -57,6 +57,17 @@ test_command() {
     fi
 }
 
+# Test if optional command is available (warns instead of fails)
+test_command_optional() {
+    local cmd=$1
+    if command -v "$cmd" &> /dev/null; then
+        local version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
+        log_pass "$cmd is available ($version)"
+    else
+        echo -e "${YELLOW}⚠${NC} $cmd is not available (optional)"
+    fi
+}
+
 # Test if symlink is correct
 test_symlink() {
     local link=$1
@@ -119,14 +130,18 @@ test_command "curl"
 test_command "bash"
 
 log_section "Modern CLI Tools"
+# Core modern tools (installed via package manager)
 test_command "fzf"
 test_command "rg"
 test_command "bat"
 test_command "jq"
-test_command "eza"
-test_command "zoxide"
-test_command "starship"
-test_command "delta"
+
+# Optional tools (installed from GitHub releases, may fail in CI)
+log_info "Optional enhanced tools:"
+test_command_optional "eza"
+test_command_optional "zoxide"
+test_command_optional "starship"
+test_command_optional "delta"
 
 log_section "Optional Host Tools"
 # Check if we're in a container/codespace environment
