@@ -326,6 +326,8 @@ jobs:
             echo "✗ Failed to detect Codespaces environment (got: $ENV)"
             exit 1
           fi
+        env:
+          CODESPACES: true
 
       - name: Test shell startup (${{ matrix.shell }})
         run: |
