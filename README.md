@@ -326,6 +326,30 @@ Comprehensive Claude Code setup included:
 
 See `claude-code/*/README.md` files for detailed documentation.
 
+## Devcontainer Support
+
+These dotfiles automatically adapt to your environment:
+
+**On Host Machines**: Configuration files are symlinked to this repository for easy updates.
+
+**In Devcontainers/Codespaces**: Files are copied with intelligent merging to work with Docker named volumes. Shared resources (agents, commands, hooks) stay up-to-date while project-specific settings are preserved.
+
+### Quick Start
+
+1. **Copy the example configuration**:
+   ```bash
+   mkdir -p .devcontainer
+   cp ~/.dotfiles/.devcontainer/example/devcontainer.json .devcontainer/
+   ```
+
+2. **Update the repository reference**:
+   Edit `.devcontainer/devcontainer.json` and change `"repository": "yourusername/.dotfiles"`
+
+3. **Reopen in container**:
+   Press `Cmd/Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
+
+**For detailed documentation**, including volume configuration, merge strategy, troubleshooting, and project-specific overrides, see [.devcontainer/example/README.md](.devcontainer/example/README.md).
+
 ## Environment Variables
 
 Key environment variables set by these dotfiles:
