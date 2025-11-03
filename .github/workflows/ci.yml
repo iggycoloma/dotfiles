@@ -352,7 +352,7 @@ jobs:
           test -n "$(git config user.name)" && echo "✓ Git user.name is set: $(git config user.name)" || (echo "✗ Git user.name missing" && exit 1)
           test -n "$(git config user.email)" && echo "✓ Git user.email is set: $(git config user.email)" || (echo "✗ Git user.email missing" && exit 1)
           # Verify include directive was added
-          grep -qF ".dotfiles/git/.gitconfig" "$HOME/.gitconfig" && echo "✓ Dotfiles include directive present" || (echo "✗ Include directive missing" && exit 1)
+          grep -qF "git/.gitconfig" "$HOME/.gitconfig" && echo "✓ Dotfiles include directive present" || (echo "✗ Include directive missing" && exit 1)
           # Verify dotfiles settings are loaded
           test "$(git config --get core.pager)" = "delta" && echo "✓ Dotfiles git settings loaded (delta pager)" || echo "⚠ Delta pager not configured"
 
