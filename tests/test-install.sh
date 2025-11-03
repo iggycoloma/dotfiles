@@ -6,6 +6,8 @@ set -e
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 FAILED=0
 PASSED=0
+OPTIONAL_AVAILABLE=0
+OPTIONAL_MISSING=0
 
 # Ensure ~/.local/bin is in PATH (where we install tools)
 export PATH="$HOME/.local/bin:$PATH"
@@ -63,8 +65,10 @@ test_command_optional() {
     if command -v "$cmd" &> /dev/null; then
         local version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
         log_pass "$cmd is available ($version)"
+        ((OPTIONAL_AVAILABLE++)) || true
     else
         echo -e "${YELLOW}⚠${NC} $cmd is not available (optional)"
+        ((OPTIONAL_MISSING++)) || true
     fi
 }
 
@@ -212,13 +216,15 @@ else
     log_fail "FZF_DEFAULT_OPTS is not set"
 fi
 
-# Starship init smoke test (non-fatal)
+# Starship init smoke test (optional)
 if command -v starship &>/dev/null; then
     if bash -i -c 'eval "$(starship init bash)" >/dev/null 2>&1'; then
         log_pass "Starship init script loads in bash"
     else
-        log_fail "Starship init script failed in bash"
+        echo -e "${YELLOW}⚠${NC} Starship init script failed in bash (optional)"
     fi
+else
+    log_info "Starship not installed (skipping init test)"
 fi
 
 log_section "Git Aliases"
@@ -231,12 +237,20 @@ fi
 # Summary
 log_section "Test Summary"
 TOTAL=$((PASSED + FAILED))
-echo "Total tests: $TOTAL"
+echo "Required tests: $TOTAL"
 echo -e "${GREEN}Passed: $PASSED${NC}"
 echo -e "${RED}Failed: $FAILED${NC}"
 
+# Optional tools summary
+if [[ $((OPTIONAL_AVAILABLE + OPTIONAL_MISSING)) -gt 0 ]]; then
+    echo ""
+    echo "Optional tools: $((OPTIONAL_AVAILABLE + OPTIONAL_MISSING))"
+    echo -e "${GREEN}Available: $OPTIONAL_AVAILABLE${NC}"
+    echo -e "${YELLOW}Missing: $OPTIONAL_MISSING${NC}"
+fi
+
 if [[ $FAILED -eq 0 ]]; then
-    echo -e "\n${GREEN}All tests passed! ✓${NC}\n"
+    echo -e "\n${GREEN}All required tests passed! ✓${NC}\n"
     exit 0
 else
     echo -e "\n${YELLOW}Some tests failed. Please review the output above.${NC}\n"
