@@ -110,7 +110,7 @@ test_exists "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global"
 log_section "Symlinks"
 test_symlink "$HOME/.bashrc" "$DOTFILES_DIR/shell/.bashrc" ".bashrc symlink"
 test_symlink "$HOME/.bash_profile" "$DOTFILES_DIR/shell/.bash_profile" ".bash_profile symlink"
-test_symlink "$HOME/.gitconfig" "$DOTFILES_DIR/git/.gitconfig" ".gitconfig symlink"
+# Note: .gitconfig is NOT symlinked - it's managed via include directive (see install.sh)
 test_symlink "$HOME/.gitignore_global" "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global symlink"
 
 log_section "Core Tools"

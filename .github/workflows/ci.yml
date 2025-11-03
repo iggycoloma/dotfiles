@@ -75,6 +75,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Configure git identity for testing
+        run: |
+          git config --global user.name "CI Test User"
+          git config --global user.email "ci-test@example.com"
+
       - name: Run installation
         run: |
           START_TIME=$(date +%s)
@@ -179,6 +184,11 @@ jobs:
           if ! command -v brew >/dev/null 2>&1; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           fi
+
+      - name: Configure git identity for testing
+        run: |
+          git config --global user.name "CI Test User"
+          git config --global user.email "ci-test@example.com"
 
       - name: Run installation
         run: |
@@ -306,6 +316,7 @@ jobs:
           DOTFILES_DIR: ${{ github.workspace }}
 
       - name: Verify Codespaces detection
+        shell: bash
         run: |
           source bootstrap/detect.sh
           ENV=$(detect_environment)
