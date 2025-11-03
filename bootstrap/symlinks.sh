@@ -121,50 +121,85 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
     fi
 
-    # Claude Code configuration
+    # Claude Code configuration - Environment-aware strategy
     if [[ -d "$DOTFILES_DIR/claude-code" ]]; then
         log_info "Setting up Claude Code configuration..."
 
-        if [[ -f "$DOTFILES_DIR/claude-code/settings.json" ]]; then
-            create_symlink "$DOTFILES_DIR/claude-code/settings.json" "$HOME/.claude/settings.json"
-        else
-            log_warn "Claude Code settings.json not found, skipping"
-        fi
+        # Source detection and merge functions
+        source "$DOTFILES_DIR/bootstrap/detect.sh"
+        source "$DOTFILES_DIR/bootstrap/merge-configs.sh"
 
-        if [[ -f "$DOTFILES_DIR/claude-code/statusline.sh" ]]; then
-            # Ensure statusline is executable before creating symlink
-            chmod +x "$DOTFILES_DIR/claude-code/statusline.sh"
-            create_symlink "$DOTFILES_DIR/claude-code/statusline.sh" "$HOME/.claude/statusline.sh"
+        # Determine strategy based on environment
+        if is_devcontainer; then
+            log_info "Detected devcontainer environment - using copy-merge strategy"
+            setup_claude_merge "$DOTFILES_DIR/claude-code"
         else
-            log_warn "Claude Code statusline.sh not found, skipping"
-        fi
+            log_info "Detected host/SSH environment - using symlink strategy"
 
-        if [[ -d "$DOTFILES_DIR/claude-code/hooks" ]]; then
-            # Ensure all hooks are executable before creating symlink
-            for file in "$DOTFILES_DIR/claude-code/hooks"/*.sh; do
-                [ -f "$file" ] || continue
-                chmod +x "$file"
-            done
-            create_symlink "$DOTFILES_DIR/claude-code/hooks" "$HOME/.claude/hooks"
-        else
-            log_warn "Claude Code hooks directory not found, skipping"
-        fi
+            # Original symlink approach for non-container environments
+            if [[ -f "$DOTFILES_DIR/claude-code/settings.json" ]]; then
+                create_symlink "$DOTFILES_DIR/claude-code/settings.json" "$HOME/.claude/settings.json"
+            else
+                log_warn "Claude Code settings.json not found, skipping"
+            fi
 
-        if [[ -d "$DOTFILES_DIR/claude-code/agents" ]]; then
-            create_symlink "$DOTFILES_DIR/claude-code/agents" "$HOME/.claude/agents"
-        else
-            log_warn "Claude Code agents directory not found, skipping"
-        fi
+            if [[ -f "$DOTFILES_DIR/claude-code/statusline.sh" ]]; then
+                # Ensure statusline is executable before creating symlink
+                chmod +x "$DOTFILES_DIR/claude-code/statusline.sh"
+                create_symlink "$DOTFILES_DIR/claude-code/statusline.sh" "$HOME/.claude/statusline.sh"
+            else
+                log_warn "Claude Code statusline.sh not found, skipping"
+            fi
 
-        if [[ -d "$DOTFILES_DIR/claude-code/commands" ]]; then
-            create_symlink "$DOTFILES_DIR/claude-code/commands" "$HOME/.claude/commands"
-        else
-            log_warn "Claude Code commands directory not found, skipping"
-        fi
+            if [[ -d "$DOTFILES_DIR/claude-code/hooks" ]]; then
+                # Ensure all hooks are executable before creating symlink
+                for file in "$DOTFILES_DIR/claude-code/hooks"/*.sh; do
+                    [ -f "$file" ] || continue
+                    chmod +x "$file"
+                done
+                create_symlink "$DOTFILES_DIR/claude-code/hooks" "$HOME/.claude/hooks"
+            else
+                log_warn "Claude Code hooks directory not found, skipping"
+            fi
 
-        log_success "Claude Code configuration complete"
+            if [[ -d "$DOTFILES_DIR/claude-code/agents" ]]; then
+                create_symlink "$DOTFILES_DIR/claude-code/agents" "$HOME/.claude/agents"
+            else
+                log_warn "Claude Code agents directory not found, skipping"
+            fi
+
+            if [[ -d "$DOTFILES_DIR/claude-code/commands" ]]; then
+                create_symlink "$DOTFILES_DIR/claude-code/commands" "$HOME/.claude/commands"
+            else
+                log_warn "Claude Code commands directory not found, skipping"
+            fi
+
+            log_success "Claude Code configuration complete (symlinks)"
+        fi
     else
         log_info "Claude Code directory not found, skipping Claude Code setup"
+    fi
+
+    # .codex configuration - Environment-aware strategy
+    if [[ -d "$DOTFILES_DIR/codex" ]]; then
+        log_info "Setting up .codex configuration..."
+
+        # Source detection and merge functions if not already loaded
+        if ! type is_devcontainer &> /dev/null; then
+            source "$DOTFILES_DIR/bootstrap/detect.sh"
+            source "$DOTFILES_DIR/bootstrap/merge-configs.sh"
+        fi
+
+        # Determine strategy based on environment
+        if is_devcontainer; then
+            log_info "Detected devcontainer environment - using copy-merge strategy"
+            setup_codex_merge "$DOTFILES_DIR/codex"
+        else
+            log_info "Detected host/SSH environment - using symlink strategy"
+            # Create symlink to entire .codex directory
+            create_symlink "$DOTFILES_DIR/codex" "$HOME/.codex"
+            log_success ".codex configuration complete (symlink)"
+        fi
     fi
 
     # Tmux configuration (skip in containers)

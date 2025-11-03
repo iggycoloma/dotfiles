@@ -75,6 +75,13 @@ is_minimal_install() {
     [[ "$env" == "codespaces" ]] || [[ "$env" == "devcontainer" ]]
 }
 
+# Check if running in a devcontainer specifically
+is_devcontainer() {
+    local env
+    env=$(detect_environment)
+    [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]]
+}
+
 # Export detection functions for use in other scripts
 export -f detect_environment
 export -f detect_os
@@ -83,6 +90,7 @@ export -f is_root
 export -f has_tool
 export -f get_sudo
 export -f is_minimal_install
+export -f is_devcontainer
 
 # If sourced, don't execute; if run directly, show info
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -90,5 +98,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "OS: $(detect_os)"
     echo "Package Manager: $(detect_package_manager)"
     echo "Minimal Install: $(is_minimal_install && echo "yes" || echo "no")"
+    echo "Devcontainer: $(is_devcontainer && echo "yes" || echo "no")"
     echo "Root: $(is_root && echo "yes" || echo "no")"
 fi

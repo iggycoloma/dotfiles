@@ -562,6 +562,9 @@ install_packages() {
             ;;
     esac
 
+    # Ensure ~/.local/bin is in PATH for current session (before GitHub installations)
+    export PATH="$HOME/.local/bin:$PATH"
+
     # Install additional tools from GitHub (skip if using Homebrew)
     if [[ "$pkg_mgr" != "brew" ]]; then
         log_info "Installing tools from GitHub releases..."
@@ -578,9 +581,6 @@ install_packages() {
             install_from_github "bottom" "$(get_github_repo bottom)"
         fi
     fi
-
-    # Ensure ~/.local/bin is in PATH for current session
-    export PATH="$HOME/.local/bin:$PATH"
 
     log_success "Package installation complete!"
 }
