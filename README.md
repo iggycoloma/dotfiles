@@ -26,10 +26,6 @@ git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 chmod +x install.sh
 ./install.sh
-
-# Configure git with your details
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
 ```
 
 Installation takes 2-3 minutes in containers, 5-15 minutes on local machines.
@@ -106,6 +102,71 @@ Scope and customization:
 - Repo-level hooks are supported: if a repository has `.git/hooks/commit-msg.local` (or `.git/hooks/commit-msg`), it runs first, then the global checks
 - To adjust global rules, edit `git/hooks/commit-msg` in this repo and re-run the installer
 
+## Git Configuration
+
+### How It Works
+
+These dotfiles provide **standardized git settings** (aliases, delta configuration, colors, etc.) while keeping your **personal identity** (user.name and user.email) separate.
+
+**The Setup:**
+
+1. **Your `~/.gitconfig`** contains your personal identity:
+   ```ini
+   [user]
+       name = Your Name
+       email = your@email.com
+   ```
+
+2. **Dotfiles provide standardized settings** via include:
+   ```ini
+   [include]
+       path = /home/user/.dotfiles/git/.gitconfig
+   ```
+
+3. **Git merges both configurations** automatically
+
+### For VS Code Devcontainers
+
+**Automatic identity setup:**
+- VS Code automatically copies your local `~/.gitconfig` (with your identity) into the container
+- The dotfiles installer adds an include directive pointing to `~/.dotfiles/git/.gitconfig`
+- Result: Your personal identity + standardized settings work together
+
+**No additional configuration needed** - the install script handles everything automatically.
+
+### For GitHub Codespaces
+
+**Automatic identity setup:**
+- Codespaces automatically configures git identity from your GitHub profile
+- The dotfiles installer adds an include directive for standardized settings
+- Result: Your GitHub identity + standardized settings work together
+
+**No additional configuration needed** - Codespaces and the install script handle everything.
+
+### For Local Machines
+
+**Setting up your identity:**
+
+If you don't already have git configured:
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+```
+
+The install script will add the dotfiles include directive automatically.
+
+### What's Included from Dotfiles
+
+The dotfiles provide these standardized settings:
+- Git aliases (gs, gl, gco, gc, etc.)
+- Delta integration for beautiful diffs
+- Color schemes
+- Default branch (main)
+- Auto-prune on fetch
+- Conventional commit template
+- Global git hooks
+
 ### Shell Functions
 
 ```bash
@@ -170,8 +231,7 @@ Create local configuration files that won't be tracked in git:
 ```bash
 ~/.bashrc.local      # Local bash configuration
 ~/.zshrc.local       # Local zsh configuration
-~/.exports.local     # Local environment variables
-~/.gitconfig.local   # Local git configuration
+~/.exports.local     # Local environment variables (including git identity)
 ~/.aliases.local     # Local aliases
 ~/.functions.local   # Local functions
 ```
