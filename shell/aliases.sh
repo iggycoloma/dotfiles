@@ -27,10 +27,6 @@ else
     alias l='ls -lah'
 fi
 
-if command -v bat &> /dev/null; then
-    alias cat='bat --paging=never'
-    alias ccat='/bin/cat'  # original cat
-fi
 
 if command -v rg &> /dev/null; then
     if [[ "${DOTFILES_OPINIONATED_ALIASES:-}" == "1" ]]; then

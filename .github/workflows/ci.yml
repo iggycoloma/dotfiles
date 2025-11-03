@@ -102,6 +102,15 @@ jobs:
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
+      - name: Run function tests
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/test-functions.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Function tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
       - name: Verify completions artifacts
         run: |
           test -f "$HOME/.config/zsh/completions.zsh" && echo "✓ zsh completions config present" || (echo "✗ zsh completions config missing" && exit 1)
@@ -204,6 +213,15 @@ jobs:
           bash tests/test-install.sh
           END_TIME=$(date +%s)
           echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run function tests
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/test-functions.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Function tests completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 

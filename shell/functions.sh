@@ -251,6 +251,26 @@ function tmp {
     echo "Created temp directory: $tmp_dir"
 }
 
+# Smart cat that uses bat for terminal output, plain cat for pipes
+# This prevents decorations (line numbers, headers) from breaking scripts
+function cat {
+    if command -v bat &> /dev/null; then
+        if [[ -t 1 ]]; then
+            # stdout is a terminal - use bat with styling
+            bat --paging=never "$@"
+        else
+            # stdout is not a terminal (pipe/redirect) - use plain cat
+            command cat "$@"
+        fi
+    else
+        # bat not available, use system cat
+        command cat "$@"
+    fi
+}
+
+# Alias for original cat without any wrappers
+alias ccat='command cat'
+
 # Load local functions if they exist
 if [[ -f "$HOME/.functions.local" ]]; then
     source "$HOME/.functions.local"
