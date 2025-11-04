@@ -294,14 +294,14 @@ if command -v zsh &> /dev/null; then
 fi
 
 log_section "Environment Variables"
-# Use -l (login shell) instead of -i (interactive) to avoid job control issues
-if bash -l -c 'test -n "$EDITOR"' 2>/dev/null; then
+# Use -l -i (login + interactive) to properly source .bashrc (which has interactive check)
+if bash -l -i -c 'test -n "$EDITOR"' 2>/dev/null; then
     log_pass "EDITOR is set"
 else
     log_fail "EDITOR is not set"
 fi
 
-if bash -l -c 'test -n "$FZF_DEFAULT_OPTS"' 2>/dev/null; then
+if bash -l -i -c 'test -n "$FZF_DEFAULT_OPTS"' 2>/dev/null; then
     log_pass "FZF_DEFAULT_OPTS is set"
 else
     log_fail "FZF_DEFAULT_OPTS is not set"
