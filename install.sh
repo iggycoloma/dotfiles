@@ -82,31 +82,9 @@ else
     log_warn "Completions setup script not found"
 fi
 
-log_section "Configuring Git"
-# Create ~/.gitconfig if it doesn't exist
-if [[ ! -f "$HOME/.gitconfig" ]]; then
-    log_info "Creating ~/.gitconfig"
-    touch "$HOME/.gitconfig"
-fi
-
-# Add include directive to ~/.gitconfig if not already present
-# Extract the directory name to detect existing includes (path-agnostic)
-DOTFILES_DIRNAME=$(basename "$DOTFILES_DIR")
-INCLUDE_PATH="$DOTFILES_DIR/git/.gitconfig"
-if ! grep -qF "${DOTFILES_DIRNAME}/git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
-    log_info "Adding dotfiles git config include to ~/.gitconfig"
-    cat >> "$HOME/.gitconfig" <<EOF
-
-# Include standardized git settings from dotfiles
-[include]
-	path = $INCLUDE_PATH
-EOF
-    log_success "Git configuration updated"
-else
-    log_success "Git configuration already includes dotfiles settings"
-fi
-
-# Check git identity configuration
+log_section "Verifying Git Configuration"
+# Git config is now symlinked via bootstrap/symlinks.sh to XDG location
+# Check if git identity is configured
 if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
     log_success "Git identity configured: $(git config user.name) <$(git config user.email)>"
 else

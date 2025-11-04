@@ -125,8 +125,95 @@ test_exists "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global"
 log_section "Symlinks"
 test_symlink "$HOME/.bashrc" "$DOTFILES_DIR/shell/.bashrc" ".bashrc symlink"
 test_symlink "$HOME/.bash_profile" "$DOTFILES_DIR/shell/.bash_profile" ".bash_profile symlink"
-# Note: .gitconfig is NOT symlinked - it's managed via include directive (see install.sh)
+# Note: .gitconfig is NOT symlinked - user identity stays in ~/.gitconfig, settings use XDG location
 test_symlink "$HOME/.gitignore_global" "$DOTFILES_DIR/git/.gitignore_global" ".gitignore_global symlink"
+
+log_section "XDG Config Directory Symlinks"
+# Test all ~/.config symlinks
+# Required configs (must exist)
+declare -A required_config_symlinks=(
+    ["$HOME/.config/starship.toml"]="$DOTFILES_DIR/config/starship.toml"
+    ["$HOME/.config/ripgrep"]="$DOTFILES_DIR/config/ripgrep"
+)
+
+# Optional configs (warn if missing)
+declare -A optional_config_symlinks=(
+    ["$HOME/.config/bat"]="$DOTFILES_DIR/config/bat"
+    ["$HOME/.config/bottom"]="$DOTFILES_DIR/config/bottom"
+    ["$HOME/.config/lazygit"]="$DOTFILES_DIR/config/lazygit"
+)
+
+# Test required config symlinks
+for link in "${!required_config_symlinks[@]}"; do
+    target="${required_config_symlinks[$link]}"
+    name=$(basename "$link")
+
+    # Check if source exists first
+    if [[ ! -e "$target" ]]; then
+        log_fail "Config source missing: $target"
+        continue
+    fi
+
+    # Test the symlink
+    if [[ -L "$link" ]]; then
+        actual=$(readlink "$link")
+        if [[ "$actual" == "$target" ]]; then
+            log_pass "~/.config/$name symlink correct"
+        else
+            log_fail "~/.config/$name points to wrong target: $actual"
+        fi
+    elif [[ -e "$link" ]]; then
+        log_fail "~/.config/$name exists but is not a symlink"
+    else
+        log_fail "~/.config/$name symlink missing"
+    fi
+done
+
+# Test optional config symlinks (warn only)
+for link in "${!optional_config_symlinks[@]}"; do
+    target="${optional_config_symlinks[$link]}"
+    name=$(basename "$link")
+
+    # Skip if source doesn't exist
+    if [[ ! -e "$target" ]]; then
+        echo -e "${YELLOW}⚠${NC} Config source not present: $target (optional)"
+        continue
+    fi
+
+    # Test the symlink
+    if [[ -L "$link" ]]; then
+        actual=$(readlink "$link")
+        if [[ "$actual" == "$target" ]]; then
+            log_pass "~/.config/$name symlink correct (optional)"
+        else
+            echo -e "${YELLOW}⚠${NC} ~/.config/$name points to wrong target: $actual (optional)"
+        fi
+    elif [[ -e "$link" ]]; then
+        echo -e "${YELLOW}⚠${NC} ~/.config/$name exists but is not a symlink (optional)"
+    else
+        echo -e "${YELLOW}⚠${NC} ~/.config/$name symlink missing (optional)"
+    fi
+done
+
+# Test config loading for tools that are installed
+if command -v starship &>/dev/null; then
+    # Test that starship can print its config path without opening an editor
+    # Note: 'starship config' opens vim, so we test if starship can load the config instead
+    if starship print-config &>/dev/null; then
+        log_pass "Starship config loads successfully"
+    else
+        log_fail "Starship config failed to load"
+    fi
+fi
+
+# Test ripgrep config is readable
+if [[ -f "$HOME/.config/ripgrep/config" ]]; then
+    if [[ -r "$HOME/.config/ripgrep/config" ]]; then
+        log_pass "Ripgrep config is readable"
+    else
+        log_fail "Ripgrep config is not readable"
+    fi
+fi
 
 log_section "Core Tools"
 test_command "git"
@@ -170,14 +257,16 @@ log_section "Shell Startup Test"
 log_info "Testing bash startup..."
 # Use timeout if available, otherwise use a simple test
 if command -v timeout &>/dev/null; then
-    if timeout 5 bash -i -c 'echo "Bash OK"' &>/dev/null; then
+    # Run in non-interactive mode for faster tests (still sources .bashrc via -l)
+    # Interactive mode (-i) can hang if there are issues with job control
+    if timeout 5 bash -l -c 'exit 0' &>/dev/null; then
         log_pass "Bash starts successfully"
     else
         log_fail "Bash startup failed or timed out"
     fi
 else
     # Fallback for systems without timeout (like some Alpine setups)
-    if bash -i -c 'echo "Bash OK"' &>/dev/null; then
+    if bash -l -c 'exit 0' &>/dev/null; then
         log_pass "Bash starts successfully"
     else
         log_fail "Bash startup failed"
@@ -189,13 +278,14 @@ if command -v zsh &> /dev/null; then
     if command -v timeout &>/dev/null; then
         # 30s timeout to handle slower CI runners (especially macOS-13)
         # Also accounts for zinit plugin loading, fzf, zoxide, direnv initialization
-        if timeout 30 zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+        # Use -l instead of -i to avoid job control issues
+        if timeout 30 zsh -l -c 'exit 0' &>/dev/null; then
             log_pass "Zsh starts successfully"
         else
             log_fail "Zsh startup failed or timed out"
         fi
     else
-        if zsh -i -c 'echo "Zsh OK"' &>/dev/null; then
+        if zsh -l -c 'exit 0' &>/dev/null; then
             log_pass "Zsh starts successfully"
         else
             log_fail "Zsh startup failed"
@@ -204,13 +294,14 @@ if command -v zsh &> /dev/null; then
 fi
 
 log_section "Environment Variables"
-if bash -i -c 'test -n "$EDITOR"' 2>/dev/null; then
+# Use -l (login shell) instead of -i (interactive) to avoid job control issues
+if bash -l -c 'test -n "$EDITOR"' 2>/dev/null; then
     log_pass "EDITOR is set"
 else
     log_fail "EDITOR is not set"
 fi
 
-if bash -i -c 'test -n "$FZF_DEFAULT_OPTS"' 2>/dev/null; then
+if bash -l -c 'test -n "$FZF_DEFAULT_OPTS"' 2>/dev/null; then
     log_pass "FZF_DEFAULT_OPTS is set"
 else
     log_fail "FZF_DEFAULT_OPTS is not set"
@@ -218,7 +309,7 @@ fi
 
 # Starship init smoke test (optional)
 if command -v starship &>/dev/null; then
-    if bash -i -c 'eval "$(starship init bash)" >/dev/null 2>&1'; then
+    if bash -l -c 'eval "$(starship init bash)" >/dev/null 2>&1'; then
         log_pass "Starship init script loads in bash"
     else
         echo -e "${YELLOW}⚠${NC} Starship init script failed in bash (optional)"
@@ -234,19 +325,26 @@ else
     log_fail "Git aliases are not configured"
 fi
 
-log_section "Git Configuration Include"
-# Test include directive (search for common path component that works with any DOTFILES_DIR)
-if grep -qF "git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
-    log_pass "Git config include directive present"
+log_section "Git XDG Configuration"
+# Test XDG git config symlink
+test_symlink "$HOME/.config/git/config" "$DOTFILES_DIR/git/.gitconfig" "Git XDG config"
+
+# Test global git hooks symlink
+test_symlink "$HOME/.config/git/hooks" "$DOTFILES_DIR/git/hooks" "Git global hooks"
+
+# Test dotfiles settings loaded via XDG config
+if git config --get core.pager | grep -q "delta"; then
+    log_pass "Dotfiles git core.pager configured (loaded from XDG)"
 else
-    log_fail "Git config include directive missing"
+    log_fail "Dotfiles git settings not loaded from XDG config"
 fi
 
-# Test dotfiles settings loaded
-if git config --get core.pager | grep -q "delta"; then
-    log_pass "Dotfiles git core.pager configured"
-else
-    log_fail "Dotfiles git settings not loaded"
+# Verify git config hierarchy: user identity in ~/.gitconfig, settings in XDG
+if [[ -f "$HOME/.gitconfig" ]]; then
+    # If ~/.gitconfig exists, it should contain identity but not include directive
+    if git config --file "$HOME/.gitconfig" user.email &>/dev/null; then
+        log_pass "User identity in ~/.gitconfig (separate from XDG settings)"
+    fi
 fi
 
 # Verify git identity (critical for all environments)

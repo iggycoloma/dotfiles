@@ -56,12 +56,14 @@ copy_if_not_exists() {
 }
 
 # Recursively merge directory contents
-# Args: source_dir dest_dir [force_patterns...]
+# Args: source_dir dest_dir base_dir [force_patterns...]
+# base_dir: base directory for computing relative paths (for pattern matching)
 # force_patterns: glob patterns to always update (e.g., "*.sh" or "agents/*")
 merge_directory() {
     local source_dir=$1
     local dest_dir=$2
-    shift 2
+    local base_dir=$3
+    shift 3
     local force_patterns=("$@")
 
     if [[ ! -d "$source_dir" ]]; then
@@ -74,16 +76,20 @@ merge_directory() {
     # Iterate through all files and directories in source
     local item
     while IFS= read -r -d '' item; do
-        local rel_path="${item#$source_dir/}"
-        local dest_path="$dest_dir/$rel_path"
+        # Compute relative path from base_dir for pattern matching
+        local rel_path="${item#$base_dir/}"
+        local dest_path="$dest_dir/${item#$source_dir/}"
 
         # Check if this item matches any force patterns
+        # Use case statement for proper glob pattern matching
         local should_force=false
         for pattern in "${force_patterns[@]}"; do
-            if [[ "$rel_path" == $pattern ]]; then
-                should_force=true
-                break
-            fi
+            case "$rel_path" in
+                $pattern)
+                    should_force=true
+                    break
+                    ;;
+            esac
         done
 
         if [[ -d "$item" ]]; then
@@ -158,7 +164,7 @@ merge_configs() {
         if [[ -d "$item" ]]; then
             # For directories, recursively merge with force patterns
             log_info "Merging directory: $basename_item"
-            merge_directory "$item" "$dest_item" "${force_update_patterns[@]}"
+            merge_directory "$item" "$dest_item" "$source" "${force_update_patterns[@]}"
         elif [[ -f "$item" ]]; then
             # For files, check if it should be forced or copied conditionally
             local should_force=false
