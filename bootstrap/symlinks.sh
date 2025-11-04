@@ -75,7 +75,9 @@ create_symlinks() {
     create_symlink "$DOTFILES_DIR/shell/.zprofile" "$HOME/.zprofile"
 
     # Git configurations
-    # Note: .gitconfig is managed by install.sh via include directive (not symlinked)
+    # Symlink .gitconfig to XDG location (works everywhere including devcontainers)
+    # User's personal ~/.gitconfig (identity) + XDG config (dotfiles settings) = merged by Git
+    create_symlink "$DOTFILES_DIR/git/.gitconfig" "$HOME/.config/git/config"
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
     create_symlink "$DOTFILES_DIR/git/.gitmessage" "$HOME/.gitmessage"
     # Global Git hooks (applies to all repos via core.hooksPath)

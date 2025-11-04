@@ -98,21 +98,21 @@ jobs:
             zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
           fi
 
-      - name: Run test suite
+      - name: Run unit tests
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/unit-tests.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Unit tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run integration tests
         run: |
           START_TIME=$(date +%s)
           bash tests/test-install.sh
           END_TIME=$(date +%s)
-          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))s" >&2
-        env:
-          DOTFILES_DIR: ${{ github.workspace }}
-
-      - name: Run function tests
-        run: |
-          START_TIME=$(date +%s)
-          bash tests/test-functions.sh
-          END_TIME=$(date +%s)
-          echo "[CI-TIMING] Function tests completed in $((END_TIME - START_TIME))s" >&2
+          echo "[CI-TIMING] Integration tests completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -217,21 +217,21 @@ jobs:
             zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
           fi
 
-      - name: Run test suite
+      - name: Run unit tests
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/unit-tests.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Unit tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run integration tests
         run: |
           START_TIME=$(date +%s)
           bash tests/test-install.sh
           END_TIME=$(date +%s)
-          echo "[CI-TIMING] Test suite completed in $((END_TIME - START_TIME))s" >&2
-        env:
-          DOTFILES_DIR: ${{ github.workspace }}
-
-      - name: Run function tests
-        run: |
-          START_TIME=$(date +%s)
-          bash tests/test-functions.sh
-          END_TIME=$(date +%s)
-          echo "[CI-TIMING] Function tests completed in $((END_TIME - START_TIME))s" >&2
+          echo "[CI-TIMING] Integration tests completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -355,12 +355,21 @@ jobs:
             zsh -c 'source ~/.zshrc && echo "Zsh startup successful"'
           fi
 
-      - name: Run test suite
+      - name: Run unit tests
+        run: |
+          START_TIME=$(date +%s)
+          bash tests/unit-tests.sh
+          END_TIME=$(date +%s)
+          echo "[CI-TIMING] Codespaces unit tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run integration tests
         run: |
           START_TIME=$(date +%s)
           bash tests/test-install.sh
           END_TIME=$(date +%s)
-          echo "[CI-TIMING] Codespaces test suite completed in $((END_TIME - START_TIME))s" >&2
+          echo "[CI-TIMING] Codespaces integration tests completed in $((END_TIME - START_TIME))s" >&2
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -369,8 +378,8 @@ jobs:
           # Verify git can commit (important for Codespaces)
           test -n "$(git config user.name)" && echo "✓ Git user.name is set: $(git config user.name)" || (echo "✗ Git user.name missing" && exit 1)
           test -n "$(git config user.email)" && echo "✓ Git user.email is set: $(git config user.email)" || (echo "✗ Git user.email missing" && exit 1)
-          # Verify include directive was added
-          grep -qF "git/.gitconfig" "$HOME/.gitconfig" && echo "✓ Dotfiles include directive present" || (echo "✗ Include directive missing" && exit 1)
+          # Verify XDG git config symlink
+          test -L "$HOME/.config/git/config" && echo "✓ Git XDG config symlink present" || (echo "✗ XDG config symlink missing" && exit 1)
           # Verify dotfiles settings are loaded
           test "$(git config --get core.pager)" = "delta" && echo "✓ Dotfiles git settings loaded (delta pager)" || echo "⚠ Delta pager not configured"
 
