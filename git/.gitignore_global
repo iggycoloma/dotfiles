@@ -1,6 +1,15 @@
 # Global gitignore patterns
+#
+# Philosophy: This file should only contain patterns for files created by YOUR
+# personal environment (operating system, editor, tools), NOT files created by
+# projects (build artifacts, dependencies, language-specific outputs).
+#
+# For project-specific ignores, use the project's .gitignore file and refer to
+# GitHub's language-specific templates: https://github.com/github/gitignore
 
+# =============================================================================
 # Operating System Files
+# =============================================================================
 .DS_Store
 .DS_Store?
 ._*
@@ -10,18 +19,20 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
-# Editor and IDE Files
+# =============================================================================
+# Editor and IDE Temporary Files
+# =============================================================================
+# Vim swap files
 *.swp
 *.swo
 *~
-.vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
-.vim/
-.nvim/
 
-# Temporary Files
+# Note: IDE configuration directories (.vscode/, .idea/, etc.) are intentionally
+# NOT included here. Let each project decide whether to share IDE settings.
+
+# =============================================================================
+# Temporary and Backup Files
+# =============================================================================
 *.tmp
 *.temp
 *.log
@@ -29,81 +40,44 @@ Desktop.ini
 *.bak
 *.backup
 
-# Environment Files
-.env
-.env.local
-.env.*.local
+# =============================================================================
+# Personal Development Tools
+# =============================================================================
+# direnv
+.direnv/
 .envrc
 
-# Build Artifacts
-dist/
-build/
-*.o
+# ctags
+tags
+TAGS
+
+# =============================================================================
+# Binary and Compiled Files (Platform-specific)
+# =============================================================================
+# Executables and libraries that should never be in source control
+*.exe
+*.dll
 *.so
 *.dylib
-*.dll
-*.exe
 
-# Dependency Directories
-node_modules/
-vendor/
-.pnp/
-.pnp.js
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-*.egg-info/
-.pytest_cache/
-.coverage
-.venv/
-venv/
-ENV/
-
-# Ruby
-.bundle/
-.ruby-version
-.ruby-gemset
-
-# Go
-*.test
-*.out
-
-# Rust
-target/
-Cargo.lock
-
-# Java
-*.class
-*.jar
-*.war
-*.ear
-
-# C/C++
-*.out
-*.o
-*.a
-
-# Package Files
+# =============================================================================
+# Archive and Package Files
+# =============================================================================
+# Common archive formats (included for convenience)
+# Note: Some projects may intentionally commit archives - override per-project
 *.7z
 *.dmg
 *.gz
 *.iso
-*.jar
 *.rar
 *.tar
 *.zip
 
-# Claude Code - prevent accidental commit of session data
+# =============================================================================
+# Claude Code - Session Data
+# =============================================================================
+# Prevent accidental commit of Claude Code session data
 .claude/debug/
 .claude/sessions/
 .claude/cache/
 .claude/*.log
-
-# Miscellaneous
-.direnv/
-.envrc
-tags
-TAGS
