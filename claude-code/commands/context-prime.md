@@ -1,5 +1,6 @@
 ---
 description: Initialize session with comprehensive project context
+allowed-tools: Read, Bash(git log:*, git status:*, git branch:*, git remote:*), Grep, Glob
 ---
 
 You are priming the conversation with project context for effective collaboration.
