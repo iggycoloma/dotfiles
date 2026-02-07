@@ -107,9 +107,9 @@ fi
 
 # atuin (shell history with SQLite)
 if command -v atuin &> /dev/null; then
-    [[ -n "$CI" ]] && _before_atuin=$EPOCHREALTIME
+    [[ -n "$CI" && -n "${EPOCHREALTIME+x}" ]] && _before_atuin=$EPOCHREALTIME
     eval "$(atuin init "$(basename "$SHELL")")"
-    if [[ -n "$CI" ]]; then
+    if [[ -n "$CI" && -n "${EPOCHREALTIME+x}" ]]; then
         _after_atuin=$EPOCHREALTIME
         echo "[CI-TIMING] Atuin init in $(( (_after_atuin - _before_atuin) * 1000 ))ms" >&2
     fi

@@ -19,6 +19,7 @@
 ```bash
 #!/usr/bin/env bash
 # Post-tool formatting hook
+command -v jq &>/dev/null || { echo "Error: jq required" >&2; exit 1; }
 read -r input
 FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 [[ -z "$FILE_PATH" || ! -f "$FILE_PATH" ]] && exit 0
@@ -37,9 +38,10 @@ exit 0
 ```bash
 #!/usr/bin/env bash
 # Post-tool test runner
+command -v jq &>/dev/null || { echo "Error: jq required" >&2; exit 1; }
 read -r input
 FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
-[[ -z "$FILE_PATH" || "$FILE_PATH" == *"test"* ]] && exit 0
+[[ -z "$FILE_PATH" || "$FILE_PATH" == *"test"* || "$FILE_PATH" == *"spec"* ]] && exit 0
 
 case "${FILE_PATH##*.}" in
     js|jsx|ts|tsx) npm test -- --findRelatedTests "$FILE_PATH" --passWithNoTests 2>&1 | head -20 ;;

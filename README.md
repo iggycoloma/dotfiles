@@ -11,7 +11,7 @@ Modern command-line productivity toolkit with automatic VS Code integration for 
 2. **Configure VS Code**:
    - Open Settings (Cmd/Ctrl + ,)
    - Search for "dotfiles"
-   - Set "Dotfiles: Repository" to `yourusername/dotfiles`
+   - Set "Dotfiles: Repository" to `iggycoloma/dotfiles`
    - Set "Dotfiles: Install Command" to `install.sh`
 
 3. **Done!** Your dotfiles will automatically install in every new devcontainer/Codespace
@@ -19,7 +19,7 @@ Modern command-line productivity toolkit with automatic VS Code integration for 
 ### Manual Installation
 
 ```bash
-git clone https://github.com/yourusername/dotfiles.git ~/.dotfiles
+git clone https://github.com/iggycoloma/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles && ./install.sh
 ```
 

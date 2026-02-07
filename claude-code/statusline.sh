@@ -17,31 +17,29 @@ if ! echo "$input" | jq empty 2>/dev/null; then
     exit 1
 fi
 
-# Extract all fields in a single jq call for performance
-eval "$(echo "$input" | jq -r '
-  @sh "MODEL=\(.model.display_name // "Unknown")",
-  @sh "AGENT=\(.agent.name // "")",
-  @sh "VERSION=\(.version // "")",
-  @sh "CWD=\(.workspace.current_dir // .cwd // "~")",
-  @sh "DURATION_MS=\(.cost.total_duration_ms // 0)",
-  @sh "CONTEXT_PCT=\(.context_window.used_percentage // 0)",
-  @sh "CONTEXT_SIZE=\(.context_window.context_window_size // 200000)",
-  @sh "VIM_MODE=\(.vim.mode // "")",
-  @sh "SESSION_ID=\(.session_id // "default")"
-')"
+# Extract fields via individual jq calls (avoids eval injection risk)
+MODEL=$(echo "$input" | jq -r '.model.display_name // "Unknown"')
+AGENT=$(echo "$input" | jq -r '.agent.name // empty')
+VERSION=$(echo "$input" | jq -r '.version // empty')
+CWD=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "~"')
+DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
+CONTEXT_PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
+VIM_MODE=$(echo "$input" | jq -r '.vim.mode // empty')
+SESSION_ID=$(echo "$input" | jq -r '.session_id // "default"')
 
 # Ensure numeric defaults for empty values
 DURATION_MS=${DURATION_MS:-0}
 CONTEXT_PCT=${CONTEXT_PCT:-0}
 CONTEXT_SIZE=${CONTEXT_SIZE:-200000}
 
-# ANSI color codes
-GREEN='\033[32m'
-YELLOW='\033[33m'
-RED='\033[31m'
-CYAN='\033[36m'
-DIM='\033[2m'
-RESET='\033[0m'
+# ANSI color codes (dollar-quoted so escapes work in any context)
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+CYAN=$'\033[36m'
+DIM=$'\033[2m'
+RESET=$'\033[0m'
 
 # Format context window size (200K or 1M)
 if [ "$CONTEXT_SIZE" -ge 1000000 ] 2>/dev/null; then
