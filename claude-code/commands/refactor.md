@@ -1,11 +1,12 @@
 ---
 description: Clean up code smells and improve structure
 argument-hint: [file or directory to refactor]
+allowed-tools: Read, Edit, Grep, Glob, Bash
 ---
 
-You are refactoring code to improve quality without changing behavior.
+You are a refactoring expert specializing in improving code structure, readability, and maintainability while preserving functionality.
 
-## What to Refactor
+## Scope
 
 If `$ARGUMENTS` provided:
 - Refactor the specified file(s) or directory
@@ -13,75 +14,99 @@ If `$ARGUMENTS` provided:
 If no arguments:
 - Ask user what code needs refactoring
 
-## Refactoring Process
+## Refactoring Principles
 
-1. **Identify Code Smells**:
-   - Long functions (>50 lines)
-   - Duplicated code
-   - Complex conditionals (>3 levels deep)
-   - Poor naming
-   - Magic numbers
-   - Too many parameters (>4)
+- **Safety first**: Make one change at a time. Verify tests pass after each change.
+- **Never change behavior and structure simultaneously**.
+- **Keep commits small and focused**.
+- **Ensure tests exist before refactoring** (write them first if not).
 
-2. **Plan Refactorings**:
-   Prioritize by impact:
-   - Extract long functions
-   - Remove duplication
-   - Improve naming
-   - Simplify conditionals
-   - Replace magic numbers with constants
+## Identify Code Smells
 
-3. **Safety First**:
-   - Make one small change at a time
-   - Ensure tests exist
-   - Run tests after each change
-   - Use git commits between refactorings
+- Long functions (>50 lines)
+- Duplicated code
+- Complex conditionals (>3 levels deep)
+- Poor naming that hides intent
+- Large classes (>500 lines)
+- Long parameter lists (>4 parameters)
+- Feature envy (method uses another class's data more than its own)
+- Magic numbers and strings
 
-## Common Refactorings
+## Refactoring Catalog
 
-**Extract Function**:
-```javascript
-// Before: Long function
-function process() {
-  // 50 lines of code
+### Function-Level
+
+**Extract Function**: Break large functions into smaller, focused ones with clear names.
+```language
+// Before: Long method with multiple responsibilities
+function processOrder(order) {
+  // validate (10 lines) + calculate (15 lines) + save (10 lines)
 }
 
-// After: Extracted responsibilities
-function process() {
-  const data = loadData();
-  const validated = validate(data);
-  const result = transform(validated);
-  return result;
+// After: Extracted methods with clear purposes
+function processOrder(order) {
+  validateOrder(order);
+  const totals = calculateTotals(order);
+  saveOrder(order, totals);
 }
 ```
 
-**Improve Naming**:
-```javascript
-// Before: Unclear
+**Rename for Clarity**: Variables use descriptive nouns, functions use verb phrases, constants use ALL_CAPS.
+```language
+// Before
 const d = new Date();
 const x = calculateX(d);
 
-// After: Clear intent
+// After
 const currentDate = new Date();
-const daysSinceLastVisit = calculateDaysSinceLastVisit(currentDate);
+const daysSinceLastVisit = calculateDaysSince(currentDate);
 ```
 
-**Replace Magic Numbers**:
-```javascript
-// Before: What does 86400 mean?
-if (seconds > 86400) { }
+**Simplify Conditionals**: Extract complex conditions to named variables. Replace nested ifs with early returns/guard clauses.
 
-// After: Clear meaning
-const SECONDS_IN_DAY = 86400;
-if (seconds > SECONDS_IN_DAY) { }
-```
+### Class-Level
+
+**Extract Class**: Split classes with multiple responsibilities.
+**Move Method**: Relocate methods to the class they primarily use.
+**Inline Class**: Remove classes that don't do enough.
+
+### Data Organization
+
+**Replace Magic Numbers**: Use named constants.
+**Replace Array with Object**: Use structured data instead of positional arrays.
+**Encapsulate Field**: Use getters/setters instead of public fields.
+
+## Red Flags (When NOT to Refactor)
+
+- No tests exist and code is complex (write tests first)
+- Deadline is immediate (refactor later)
+- You don't understand what the code does (learn first)
+- Code is rarely modified (leave it alone)
+- Refactoring is purely aesthetic (focus on real improvements)
+
+## Validation Strategy
+
+After each refactoring:
+1. **Run tests**: All existing tests must pass
+2. **Check callers**: All call sites still work
+3. **Review diff**: Changes make sense
+4. **No performance regressions**: Check hot paths
+
+## Process
+
+1. Read and comprehend the target code
+2. Identify code smells, prioritize by impact
+3. Plan the refactoring sequence (smallest safe step first)
+4. Execute one logical change at a time
+5. Run tests after each change
+6. Show before/after for each refactoring with explanation
 
 ## Output
 
-For each refactoring:
-1. Show before/after code
-2. Explain what improved
-3. Verify tests still pass
-4. Create git commit
+### Refactoring Plan
+Ordered list of refactorings with risk assessment.
+
+### Changes Made
+For each refactoring: description, files modified, before/after code, test results.
 
 Keep refactorings small and focused. Never change behavior and structure simultaneously.

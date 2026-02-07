@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Claude Code statusline - optimized for Claude Max users
+# Uses official context_window data instead of hacky transcript estimation
+# Features: color-coded context bar, git caching, agent/vim mode support
 
 read -r input
 
@@ -14,49 +17,57 @@ if ! echo "$input" | jq empty 2>/dev/null; then
     exit 1
 fi
 
+# Extract fields via individual jq calls (avoids eval injection risk)
 MODEL=$(echo "$input" | jq -r '.model.display_name // "Unknown"')
+AGENT=$(echo "$input" | jq -r '.agent.name // empty')
+VERSION=$(echo "$input" | jq -r '.version // empty')
 CWD=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "~"')
-COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 DURATION_MS=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
-LINES_ADDED=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
-LINES_REMOVED=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
-
-# Extract transcript information for token estimation
-TRANSCRIPT_PATH=$(echo "$input" | jq -r '.transcript_path // empty')
+CONTEXT_PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
+VIM_MODE=$(echo "$input" | jq -r '.vim.mode // empty')
 SESSION_ID=$(echo "$input" | jq -r '.session_id // "default"')
 
-# Estimate token count from transcript with 5-second caching
-TOKENS_TOTAL=0
-CACHE_FILE="/tmp/claude-statusline-tokens-${SESSION_ID}"
-CACHE_TIMEOUT=5
+# Ensure numeric defaults for empty values
+DURATION_MS=${DURATION_MS:-0}
+CONTEXT_PCT=${CONTEXT_PCT:-0}
+CONTEXT_SIZE=${CONTEXT_SIZE:-200000}
 
-if [[ -n "$TRANSCRIPT_PATH" ]] && [[ -f "$TRANSCRIPT_PATH" ]]; then
-    # Check if cache exists and is fresh (< 5 seconds old)
-    if [[ -f "$CACHE_FILE" ]]; then
-        CACHE_AGE=$(($(date +%s) - $(stat -c %Y "$CACHE_FILE" 2>/dev/null || stat -f %m "$CACHE_FILE" 2>/dev/null || echo 0)))
-        if [[ $CACHE_AGE -lt $CACHE_TIMEOUT ]]; then
-            # Use cached value
-            TOKENS_TOTAL=$(cat "$CACHE_FILE" 2>/dev/null || echo 0)
-        else
-            # Cache expired, recalculate
-            TRANSCRIPT_SIZE=$(du -k "$TRANSCRIPT_PATH" 2>/dev/null | cut -f1)
-            TOKENS_TOTAL=$((TRANSCRIPT_SIZE * 250))
-            echo "$TOKENS_TOTAL" > "$CACHE_FILE" 2>/dev/null
-        fi
-    else
-        # No cache, calculate and cache
-        TRANSCRIPT_SIZE=$(du -k "$TRANSCRIPT_PATH" 2>/dev/null | cut -f1)
-        TOKENS_TOTAL=$((TRANSCRIPT_SIZE * 250))
-        echo "$TOKENS_TOTAL" > "$CACHE_FILE" 2>/dev/null
-    fi
-fi
+# ANSI color codes (dollar-quoted so escapes work in any context)
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+CYAN=$'\033[36m'
+DIM=$'\033[2m'
+RESET=$'\033[0m'
 
-# Format token count (use K for thousands, add ~ to indicate estimate)
-if [ "$TOKENS_TOTAL" -ge 1000 ]; then
-    TOKENS_DISPLAY="~$((TOKENS_TOTAL / 1000))K"
+# Format context window size (200K or 1M)
+if [ "$CONTEXT_SIZE" -ge 1000000 ] 2>/dev/null; then
+    CONTEXT_SIZE_FMT="1M"
 else
-    TOKENS_DISPLAY="~$TOKENS_TOTAL"
+    CONTEXT_SIZE_FMT="200K"
 fi
+
+# Round context percentage to integer (handle floats)
+CONTEXT_PCT_INT=$(printf "%.0f" "$CONTEXT_PCT" 2>/dev/null || echo 0)
+CONTEXT_PCT_INT=${CONTEXT_PCT_INT:-0}
+
+# Build color-coded progress bar (10 chars)
+# Green < 70%, Yellow 70-89%, Red >= 90%
+if [ "$CONTEXT_PCT_INT" -ge 90 ]; then
+    BAR_COLOR="$RED"
+elif [ "$CONTEXT_PCT_INT" -ge 70 ]; then
+    BAR_COLOR="$YELLOW"
+else
+    BAR_COLOR="$GREEN"
+fi
+
+BAR_WIDTH=10
+FILLED=$((CONTEXT_PCT_INT * BAR_WIDTH / 100))
+EMPTY=$((BAR_WIDTH - FILLED))
+BAR=""
+[ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '#')
+[ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '-')"
 
 # Format duration
 DURATION_SEC=$((DURATION_MS / 1000))
@@ -65,19 +76,57 @@ if [ "$DURATION_SEC" -lt 60 ]; then
 elif [ "$DURATION_SEC" -lt 3600 ]; then
     MINS=$((DURATION_SEC / 60))
     SECS=$((DURATION_SEC % 60))
-    DURATION="${MINS}m ${SECS}s"
+    DURATION="${MINS}m${SECS}s"
 else
     HOURS=$((DURATION_SEC / 3600))
     MINS=$(((DURATION_SEC % 3600) / 60))
-    DURATION="${HOURS}h ${MINS}m"
+    DURATION="${HOURS}h${MINS}m"
 fi
 
+# Git info with 5-second caching (avoids slow git commands on each render)
 DIR_NAME="${CWD##*/}"
-GIT_BRANCH=""
-if git -C "$CWD" rev-parse --git-dir > /dev/null 2>&1; then
-    BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null)
-    [ -n "$BRANCH" ] && GIT_BRANCH=" | 🌿 $BRANCH"
+GIT_CACHE="/tmp/claude-statusline-git-${SESSION_ID}"
+CACHE_TIMEOUT=5
+
+cache_is_stale() {
+    [ ! -f "$GIT_CACHE" ] || \
+    [ $(($(date +%s) - $(stat -c %Y "$GIT_CACHE" 2>/dev/null || stat -f %m "$GIT_CACHE" 2>/dev/null || echo 0))) -gt $CACHE_TIMEOUT ]
+}
+
+if cache_is_stale; then
+    if git -C "$CWD" rev-parse --git-dir > /dev/null 2>&1; then
+        BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null)
+        STAGED=$(git -C "$CWD" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
+        MODIFIED=$(git -C "$CWD" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
+        echo "${BRANCH}|${STAGED}|${MODIFIED}" > "$GIT_CACHE"
+    else
+        echo "||" > "$GIT_CACHE"
+    fi
 fi
 
-printf "📁 %s%s | 🤖 %s | ⏱️  %s | 🪙 %s tok | 💰 \$%.4f | +%s/-%s\n" \
-    "$DIR_NAME" "$GIT_BRANCH" "$MODEL" "$DURATION" "$TOKENS_DISPLAY" "$COST" "$LINES_ADDED" "$LINES_REMOVED"
+IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"
+
+# Build git status string with colors
+GIT_INFO=""
+if [ -n "$BRANCH" ]; then
+    GIT_STATUS=""
+    [ "${STAGED:-0}" -gt 0 ] && GIT_STATUS="${GREEN}+${STAGED}${RESET}"
+    [ "${MODIFIED:-0}" -gt 0 ] && GIT_STATUS="${GIT_STATUS}${YELLOW}~${MODIFIED}${RESET}"
+    [ -n "$GIT_STATUS" ] && GIT_STATUS=" ${GIT_STATUS}"
+    GIT_INFO=" | ${CYAN}${BRANCH}${RESET}${GIT_STATUS}"
+fi
+
+# Build model string with optional agent
+MODEL_STR="$MODEL"
+[ -n "$AGENT" ] && MODEL_STR="${MODEL} -> ${AGENT}"
+
+# Build vim mode indicator
+VIM_INDICATOR=""
+[ -n "$VIM_MODE" ] && VIM_INDICATOR=" [${VIM_MODE}]"
+
+# Line 1: Model, vim mode, directory, git branch with status
+printf '%b\n' "[${MODEL_STR}]${VIM_INDICATOR} ${DIR_NAME}${GIT_INFO}"
+
+# Line 2: Context bar, percentage, duration, version
+# Lines changed omitted - Claude Code's built-in status already shows file/line counts
+printf '%b\n' "${BAR_COLOR}${BAR}${RESET} ${CONTEXT_PCT_INT}% of ${CONTEXT_SIZE_FMT} | ${DURATION} | ${DIM}v${VERSION}${RESET}"

@@ -1,11 +1,12 @@
 ---
 description: Analyze performance and suggest optimizations
 argument-hint: [file or function to optimize]
+allowed-tools: Read, Edit, Bash, Grep, Glob
 ---
 
-You are analyzing code for performance improvements.
+You are a performance optimization expert specializing in identifying bottlenecks and implementing efficient solutions.
 
-## What to Optimize
+## Scope
 
 If `$ARGUMENTS` provided:
 - Analyze the specified file or function
@@ -15,29 +16,30 @@ If no arguments:
 
 ## Analysis Process
 
-1. **Measure First**:
-   - What is the current performance?
-   - Where is the bottleneck?
-   - Use profiling tools if available
+### 1. Establish Baseline
+- Measure current performance with realistic data
+- Use profiling tools appropriate to the language
+- Document timing and resource usage
+- Set performance targets
 
-2. **Identify Issues**:
-   - Algorithm complexity (O(n²) loops?)
-   - Inefficient data structures
-   - Unnecessary computations
-   - Database query problems (N+1 queries?)
-   - Memory leaks or excessive allocation
+### 2. Identify Bottlenecks
+- Profile the code to find hotspots
+- Analyze algorithm complexity
+- Check database query performance
+- Review network calls and I/O
+- Examine memory usage
 
-3. **Propose Optimizations**:
-   Prioritize by impact vs effort:
-   - **Quick wins**: High impact, low effort
-   - **Major improvements**: High impact, high effort
-   - **Nice to have**: Low impact, low effort
+### 3. Prioritize Improvements
+- **Quick wins**: High impact, low effort (do first)
+- **Major improvements**: High impact, high effort (plan)
+- **Nice to have**: Low impact, low effort (opportunistic)
+- Avoid premature optimization -- evidence first
 
 ## Common Performance Issues
 
 ### Algorithm Complexity
-```javascript
-// Before: O(n²) - nested loops
+```language
+// Before: O(n^2) - nested loops
 for (const item of list1) {
   for (const other of list2) {
     if (item.id === other.id) { }
@@ -51,14 +53,8 @@ for (const item of list1) {
 }
 ```
 
-### Caching
-```javascript
-// Before: Recalculate every time
-function expensiveCalc(input) {
-  return /* expensive operation */;
-}
-
-// After: Cache results
+### Caching / Memoization
+```language
 const cache = new Map();
 function expensiveCalc(input) {
   if (cache.has(input)) return cache.get(input);
@@ -68,34 +64,70 @@ function expensiveCalc(input) {
 }
 ```
 
-### Database Optimization
+### Database: N+1 Queries
 ```sql
 -- Before: N+1 queries
 SELECT * FROM users;
--- Then N queries: SELECT * FROM orders WHERE user_id = ?
+SELECT * FROM orders WHERE user_id = ?;  -- repeated N times
 
 -- After: Single query with join
 SELECT users.*, orders.*
 FROM users LEFT JOIN orders ON orders.user_id = users.id;
 ```
 
+### Parallel Processing
+```language
+// Before: Serial (slow)
+const user = await fetchUser(id);
+const orders = await fetchOrders(id);
+
+// After: Parallel (fast)
+const [user, orders] = await Promise.all([
+  fetchUser(id), fetchOrders(id)
+]);
+```
+
+### Frontend Performance
+- **Large bundles**: Code splitting and lazy loading
+- **Render blocking**: Defer non-critical resources
+- **Excessive re-renders**: Memoization (React.memo, useMemo)
+- **Unoptimized images**: Compression, lazy loading, responsive
+
+## Profiling Tools
+
+| Language | Tools |
+|----------|-------|
+| JavaScript/Node.js | Chrome DevTools, `--prof`, clinic.js |
+| Python | cProfile, line_profiler, memory_profiler |
+| Go | `go test -bench`, pprof |
+| Database | EXPLAIN ANALYZE, slow query logs |
+
+## Caching Strategies
+
+- **In-memory**: Frequently accessed data with TTL and invalidation
+- **HTTP**: Cache-Control headers, ETags, CDN for static assets
+- **Application**: Redis/Memcached for shared state across instances
+
+## When NOT to Optimize
+
+- Performance is already acceptable
+- Code becomes unreadable for marginal gain
+- Maintenance cost outweighs benefit
+- No evidence of bottleneck (premature optimization)
+- Edge case that rarely occurs in production
+
 ## Output Format
 
-### Current Performance
-- Baseline metrics (if available)
+### Baseline
+Current performance metrics.
 
 ### Bottlenecks Identified
-1. Issue description
-2. Impact assessment
-3. Location in code
+For each: description, location, impact, time cost.
 
 ### Optimization Plan
-1. Quick wins (do these first)
-2. Major improvements
-3. Nice to have
+Ordered by priority with expected improvement and effort.
 
-### Expected Improvements
-- Estimated performance gain
-- Implementation effort
+### Results
+After/before comparison with measured improvements.
 
-Provide specific code examples. Measure improvements after implementation.
+Measure first, optimize second. One change at a time. Test thoroughly.

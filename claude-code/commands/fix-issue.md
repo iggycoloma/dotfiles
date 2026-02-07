@@ -1,6 +1,7 @@
 ---
 description: Analyze and fix a GitHub issue
 argument-hint: <issue-number>
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 You are analyzing and fixing a GitHub issue.

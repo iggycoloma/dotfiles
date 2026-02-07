@@ -103,6 +103,7 @@ get_github_repo() {
         delta) echo "dandavison/delta" ;;
         lazygit) echo "jesseduffield/lazygit" ;;
         bottom) echo "ClementTsang/bottom" ;;
+        atuin) echo "atuinsh/atuin" ;;
         duf) echo "muesli/duf" ;;
         procs) echo "dalance/procs" ;;
         dust) echo "bootandy/dust" ;;
@@ -242,7 +243,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "git" "eza" "zoxide" "starship" "git-delta")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "git" "eza" "zoxide" "starship" "git-delta" "atuin")
 
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
@@ -523,6 +524,45 @@ install_from_github() {
                 return 1
             fi
             ;;
+        atuin)
+            # atuin releases: atuin-x86_64-unknown-linux-gnu.tar.gz, atuin-x86_64-unknown-linux-musl.tar.gz
+            download_url=$(_select_asset_url "$api_json" "atuin-${arch}-${os}.*\\.tar\\.gz$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download atuin"; return 1; }
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for atuin" ;;
+                        1) log_error "Aborting atuin install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for atuin (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name atuin -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/atuin"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find atuin binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract atuin"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find atuin release for ${arch}-${os}"
+                return 1
+            fi
+            ;;
         *)
             log_warn "No installer for $tool, skipping"
             return 1
@@ -574,6 +614,7 @@ install_packages() {
         install_from_github "eza" "$(get_github_repo eza)"
         install_from_github "zoxide" "$(get_github_repo zoxide)"
         install_from_github "delta" "$(get_github_repo delta)"
+        install_from_github "atuin" "$(get_github_repo atuin)"
 
         # Host-only GitHub tools
         if [[ "$minimal" != "true" ]]; then

@@ -1,6 +1,7 @@
 ---
 description: Generate comprehensive feature specification
 argument-hint: <feature-name>
+allowed-tools: Read, Write, Grep, Glob
 ---
 
 You are creating a detailed feature specification.

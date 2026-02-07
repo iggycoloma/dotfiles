@@ -171,17 +171,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
-            version: "13"
+          - runner: macos-15
+            version: "15"
             shell: bash
-          - runner: macos-13
-            version: "13"
+          - runner: macos-15
+            version: "15"
             shell: zsh
-          - runner: macos-14
-            version: "14"
+          - runner: macos-26
+            version: "26"
             shell: bash
-          - runner: macos-14
-            version: "14"
+          - runner: macos-26
+            version: "26"
             shell: zsh
 
     steps:

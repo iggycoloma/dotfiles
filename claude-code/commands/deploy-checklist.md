@@ -1,5 +1,6 @@
 ---
 description: Pre-deployment verification checklist
+allowed-tools: Read, Bash, Grep, Glob
 ---
 
 You are verifying the system is ready for deployment.
