@@ -6,11 +6,11 @@ Universal hooks for Claude Code that work across all projects.
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| pre-security.sh | Read/Write/Edit | Protects sensitive files (.env, credentials, keys) |
-| pre-auto-approve-docs.sh | Read | Auto-approves safe documentation files |
-| pre-bash-validate.sh | Bash | Suggests better commands, blocks dangerous operations |
+| pre-security.sh | Read/Write/Edit/Bash | Protects sensitive files (.env, credentials, keys) |
 | pre-commit-validate.sh | Bash (git commit) | Validates conventional commits, blocks AI attribution |
-| session-git-context.sh | SessionStart | Injects git context at session start |
+| pre-code-no-emoji.sh | Write/Edit | Blocks emoji characters in code files |
+| notify.sh | Notification | Cross-platform desktop alert when Claude needs attention |
+| *(inline)* | SessionStart (compact) | Re-injects key rules after context compaction |
 
 ## Configuration
 

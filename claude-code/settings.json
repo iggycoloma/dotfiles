@@ -12,26 +12,16 @@
         ]
       },
       {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/pre-auto-approve-docs.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/pre-bash-validate.sh",
+            "command": "~/.claude/hooks/pre-commit-validate.sh",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "~/.claude/hooks/pre-commit-validate.sh",
+            "command": "~/.claude/hooks/pre-security.sh",
             "timeout": 10
           }
         ]
@@ -47,26 +37,25 @@
         ]
       }
     ],
-    "SessionStart": [
+    "Notification": [
       {
-        "matcher": "*",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/session-git-context.sh",
-            "timeout": 10
+            "command": "~/.claude/hooks/notify.sh",
+            "timeout": 5
           }
         ]
       }
     ],
-    "PostToolUse": [
+    "SessionStart": [
       {
-        "matcher": "*",
+        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/post-tool-logger.sh",
-            "timeout": 5
+            "command": "echo 'Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits.'"
           }
         ]
       }
@@ -77,5 +66,9 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
 }
