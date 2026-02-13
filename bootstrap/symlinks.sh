@@ -197,10 +197,38 @@ create_symlinks() {
             log_info "Detected devcontainer environment - using copy-merge strategy"
             setup_codex_merge "$DOTFILES_DIR/codex"
         else
-            log_info "Detected host/SSH environment - using symlink strategy"
-            # Create symlink to entire .codex directory
-            create_symlink "$DOTFILES_DIR/codex" "$HOME/.codex"
-            log_success ".codex configuration complete (symlink)"
+            log_info "Detected host/SSH environment - using managed symlink strategy"
+            # Migrate from old whole-directory symlink to managed-file strategy
+            if [[ -L "$HOME/.codex" ]]; then
+                log_warn "Removing old whole-directory symlink ~/.codex (migrating to managed files)"
+                rm "$HOME/.codex"
+            fi
+            mkdir -p "$HOME/.codex"
+
+            # Keep runtime/session data local; only manage explicit config assets.
+            if [[ -f "$DOTFILES_DIR/codex/AGENTS.md" ]]; then
+                create_symlink "$DOTFILES_DIR/codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
+            fi
+
+            # Do not overwrite existing config.toml because it includes local trust and preferences.
+            if [[ -f "$DOTFILES_DIR/codex/config.toml" ]]; then
+                if [[ -e "$HOME/.codex/config.toml" ]] && [[ ! -L "$HOME/.codex/config.toml" ]]; then
+                    log_warn "Skipping ~/.codex/config.toml (preserving local Codex settings)"
+                else
+                    create_symlink "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+                fi
+            fi
+
+            # Link managed skill directories individually to avoid clobbering ~/.codex/skills/.system.
+            if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
+                mkdir -p "$HOME/.codex/skills"
+                for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
+                    [[ -d "$skill_dir" ]] || continue
+                    create_symlink "$skill_dir" "$HOME/.codex/skills/$(basename "$skill_dir")"
+                done
+            fi
+
+            log_success ".codex configuration complete (managed files)"
         fi
     fi
 

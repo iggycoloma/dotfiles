@@ -128,9 +128,13 @@ merge_configs() {
     # subdirectories during recursive merge. Top-level patterns (e.g., "statusline.sh")
     # match files in the root config directory.
     local force_update_patterns=(
+        "AGENTS.md"
         "agents/*.md"
         "commands/*.md"
         "hooks/*.sh"
+        "skills/*/SKILL.md"
+        "skills/*/agents/openai.yaml"
+        "skills/*/references/*.md"
         "statusline.sh"
     )
 
