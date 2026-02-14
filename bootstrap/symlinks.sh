@@ -242,11 +242,11 @@ create_symlinks() {
             if [[ -f "$HOME/.codex/config.toml" ]]; then
                 if ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
                     log_info "Adding notify hook to ~/.codex/config.toml"
-                    printf '\nnotify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" >> "$HOME/.codex/config.toml"
+                    printf '\nnotify = "bash %s/.codex/hooks/notify.sh"\n' "$HOME" >> "$HOME/.codex/config.toml"
                 fi
             else
                 log_info "Creating ~/.codex/config.toml with notify hook"
-                printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" > "$HOME/.codex/config.toml"
+                printf 'notify = "bash %s/.codex/hooks/notify.sh"\n' "$HOME" > "$HOME/.codex/config.toml"
             fi
 
             log_success ".codex configuration complete (managed files)"
