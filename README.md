@@ -39,6 +39,18 @@ cd ~/.dotfiles && ./install.sh
 - **lazygit**: Terminal UI for git (local machines)
 - **atuin**: Shell history with SQLite and context-aware search
 
+## Codex CLI Parity
+
+These dotfiles now include a Codex configuration bundle under `codex/` to mirror key Claude Code workflows and guardrails.
+
+- `~/.codex/AGENTS.md` for global operating rules (security, commit standards, review posture)
+- `~/.codex/skills/claude-parity` for command-style workflow playbooks (context-prime, commit, PR, debug, test, pipeline)
+- Safe installer behavior: runtime files like `auth.json`, `history.jsonl`, `sessions/`, and `tmp/` are preserved locally
+- Shell shortcuts:
+  - `cx` -> `codex`
+  - `cxe` -> `codex exec`
+  - `cxr` -> `codex review --uncommitted`
+
 ## Global Git Hooks
 
 These dotfiles enable a single global hooks directory so commit message checks apply to every repository automatically.
@@ -125,6 +137,9 @@ dotfiles/
 │   ├── commands/          # Slash commands
 │   ├── hooks/             # Pre/post hooks
 │   └── settings.json      # Claude Code settings
+├── codex/                 # Codex CLI configuration
+│   ├── AGENTS.md          # Global Codex instructions
+│   └── skills/            # Custom Codex skills
 ├── starship.toml          # Starship prompt configuration
 └── tmux/
     └── .tmux.conf         # Tmux configuration (local only)

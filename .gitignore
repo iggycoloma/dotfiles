@@ -29,6 +29,7 @@ Thumbs.db
 # Any private or sensitive data
 secrets/
 private/
+.pushover-creds
 
 # User-specific bin scripts (if any)
 bin/private/

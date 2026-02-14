@@ -616,6 +616,25 @@ install_packages() {
         install_from_github "delta" "$(get_github_repo delta)"
         install_from_github "atuin" "$(get_github_repo atuin)"
 
+        # bash-preexec (required for atuin history capture on bash)
+        if [[ ! -f "$HOME/.bash-preexec.sh" ]]; then
+            local preexec_ver="0.6.0"
+            local preexec_sha="998f4d5e9dd82e254463228cc6caa4d40125ae79b31d5a16a2a2f49357f0c160"
+            log_info "Installing bash-preexec v${preexec_ver} (atuin dependency for bash)..."
+            if curl -fsSL "https://raw.githubusercontent.com/rcaloras/bash-preexec/${preexec_ver}/bash-preexec.sh" -o "$HOME/.bash-preexec.sh"; then
+                local actual_sha
+                actual_sha=$(_sha256 "$HOME/.bash-preexec.sh")
+                if [[ -n "$actual_sha" && "$actual_sha" == "$preexec_sha" ]]; then
+                    log_success "bash-preexec installed (checksum verified)"
+                else
+                    log_error "bash-preexec checksum mismatch! Removing downloaded file."
+                    rm -f "$HOME/.bash-preexec.sh"
+                fi
+            else
+                log_warn "Failed to download bash-preexec (atuin history may not work in bash)"
+            fi
+        fi
+
         # Host-only GitHub tools
         if [[ "$minimal" != "true" ]]; then
             install_from_github "lazygit" "$(get_github_repo lazygit)"

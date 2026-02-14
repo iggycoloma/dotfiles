@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Push notification when Claude Code is idle and waiting for input.
-# Reads hook JSON from stdin; sends push via Pushover.
+# Push notification when Codex CLI is idle and waiting for input.
+# Receives hook JSON as $1 (command-line argument); sends push via Pushover.
 
 # --- Credentials: env vars > creds file ---
 CREDS_FILE="$HOME/.claude/hooks/.pushover-creds"
 
-APP_TOKEN="${PUSHOVER_APP_TOKEN_CLAUDE:-$PUSHOVER_TOKEN}"
+APP_TOKEN="${PUSHOVER_APP_TOKEN_CODEX:-$PUSHOVER_TOKEN}"
 
 if [[ -z "$APP_TOKEN" || -z "$PUSHOVER_USER" ]] && [[ -f "$CREDS_FILE" ]]; then
     [[ -z "$APP_TOKEN" ]] && APP_TOKEN=$(sed -n '1p' "$CREDS_FILE")
@@ -16,11 +16,11 @@ if [[ -z "$APP_TOKEN" || -z "$PUSHOVER_USER" ]]; then
     exit 0
 fi
 
-INPUT=$(cat)
+INPUT="$1"
 
-# --- Session label: env override > cwd + git branch > cwd > session id ---
-if [[ -n "$CLAUDE_SESSION_NAME" ]]; then
-    LABEL="$CLAUDE_SESSION_NAME"
+# --- Session label: env override > cwd + git branch > cwd > thread id ---
+if [[ -n "$CODEX_SESSION_NAME" ]]; then
+    LABEL="$CODEX_SESSION_NAME"
 else
     CWD=$(echo "$INPUT" | grep -o '"cwd":"[^"]*"' | head -1 | cut -d'"' -f4)
     PROJECT="${CWD##*/}"
@@ -30,12 +30,12 @@ else
     elif [[ -n "$PROJECT" ]]; then
         LABEL="$PROJECT"
     else
-        SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4)
-        LABEL="session ${SESSION_ID:0:6}"
+        THREAD_ID=$(echo "$INPUT" | grep -o '"thread-id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        LABEL="session ${THREAD_ID:0:6}"
     fi
 fi
 
-TITLE="Claude Code"
+TITLE="Codex"
 MESSAGE="$LABEL ready for input"
 
 # --- Pushover push notification ---

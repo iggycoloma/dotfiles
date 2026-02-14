@@ -165,8 +165,16 @@ alias j='jobs -l'
 alias c='clear'
 alias q='exit'
 
-# Load local aliases if they exist
+alias cclog="$HOME/.dotfiles/claude-code/hooks/query-tool-logs.sh"
+
+# Codex CLI shortcuts
+if command -v codex &> /dev/null; then
+    alias cx='codex'
+    alias cxe='codex exec'
+    alias cxr='codex review --uncommitted'
+fi
+
+# Load local aliases last so they can override anything above
 if [[ -f "$HOME/.aliases.local" ]]; then
     source "$HOME/.aliases.local"
 fi
-alias cclog="$HOME/.dotfiles/claude-code/hooks/query-tool-logs.sh"

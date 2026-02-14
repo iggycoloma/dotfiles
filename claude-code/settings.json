@@ -1,4 +1,8 @@
 {
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -39,7 +43,7 @@
     ],
     "Notification": [
       {
-        "matcher": "",
+        "matcher": "idle_prompt",
         "hooks": [
           {
             "type": "command",
@@ -66,9 +70,5 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
-  "alwaysThinkingEnabled": true,
-  "attribution": {
-    "commit": "",
-    "pr": ""
-  }
+  "alwaysThinkingEnabled": true
 }
