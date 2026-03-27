@@ -22,6 +22,13 @@ if [[ -n "$BASH_VERSION" ]]; then
         done
     fi
 
+    # Load Nix-installed bash completions
+    if [[ -d "$HOME/.nix-profile/share/bash-completion/completions" ]]; then
+        for completion in "$HOME/.nix-profile/share/bash-completion/completions"/*; do
+            [[ -f "$completion" ]] && source "$completion"
+        done
+    fi
+
     # Tool-specific completions
     if command -v gh &> /dev/null; then
         eval "$(gh completion -s bash 2>/dev/null)"
@@ -61,7 +68,9 @@ fi
 if command -v fzf &> /dev/null; then
     [[ -n "$CI" ]] && _before_fzf=$EPOCHREALTIME
     if [[ -n "$BASH_VERSION" ]]; then
-        if [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]]; then
+        if [[ -f "$HOME/.nix-profile/share/fzf/key-bindings.bash" ]]; then
+            source "$HOME/.nix-profile/share/fzf/key-bindings.bash"
+        elif [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]]; then
             source /usr/share/doc/fzf/examples/key-bindings.bash
         elif [[ -f /usr/share/fzf/key-bindings.bash ]]; then
             source /usr/share/fzf/key-bindings.bash
@@ -69,13 +78,17 @@ if command -v fzf &> /dev/null; then
             source ~/.fzf.bash
         fi
 
-        if [[ -f /usr/share/doc/fzf/examples/completion.bash ]]; then
+        if [[ -f "$HOME/.nix-profile/share/fzf/completion.bash" ]]; then
+            source "$HOME/.nix-profile/share/fzf/completion.bash"
+        elif [[ -f /usr/share/doc/fzf/examples/completion.bash ]]; then
             source /usr/share/doc/fzf/examples/completion.bash
         elif [[ -f /usr/share/fzf/completion.bash ]]; then
             source /usr/share/fzf/completion.bash
         fi
     elif [[ -n "$ZSH_VERSION" ]]; then
-        if [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
+        if [[ -f "$HOME/.nix-profile/share/fzf/key-bindings.zsh" ]]; then
+            source "$HOME/.nix-profile/share/fzf/key-bindings.zsh"
+        elif [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
             source /usr/share/doc/fzf/examples/key-bindings.zsh
         elif [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
             source /usr/share/fzf/key-bindings.zsh
@@ -83,7 +96,9 @@ if command -v fzf &> /dev/null; then
             source ~/.fzf.zsh
         fi
 
-        if [[ -f /usr/share/doc/fzf/examples/completion.zsh ]]; then
+        if [[ -f "$HOME/.nix-profile/share/fzf/completion.zsh" ]]; then
+            source "$HOME/.nix-profile/share/fzf/completion.zsh"
+        elif [[ -f /usr/share/doc/fzf/examples/completion.zsh ]]; then
             source /usr/share/doc/fzf/examples/completion.zsh
         elif [[ -f /usr/share/fzf/completion.zsh ]]; then
             source /usr/share/fzf/completion.zsh

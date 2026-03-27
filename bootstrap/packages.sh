@@ -412,7 +412,7 @@ install_from_github() {
                     return 1
                 fi
             else
-                log_error "Could not find zoxide release for ${arch}-${zoxide_os}"
+                log_error "Could not find zoxide release for ${arch}-${os}"
                 return 1
             fi
             ;;
@@ -567,6 +567,54 @@ install_from_github() {
     fi
 }
 
+# Install only system-level prerequisites needed for Nix and basic operation
+install_system_basics() {
+    local pkg_mgr
+    pkg_mgr=$(detect_package_manager)
+    local SUDO
+    SUDO=$(get_sudo)
+
+    case "$pkg_mgr" in
+        apt)
+            log_info "Installing system prerequisites via apt..."
+            $SUDO apt-get update -qq
+            $SUDO apt-get install -y curl wget git ca-certificates xz-utils build-essential
+            ;;
+        apk)
+            log_info "Installing system prerequisites via apk..."
+            $SUDO apk update
+            $SUDO apk add curl wget git bash ca-certificates xz build-base
+            ;;
+        brew)
+            # Homebrew handles its own dependencies
+            ;;
+    esac
+}
+
+# Install bash-preexec (required for atuin history capture on bash)
+install_bash_preexec() {
+    if [[ -f "$HOME/.bash-preexec.sh" ]]; then
+        log_info "bash-preexec already installed, skipping"
+        return 0
+    fi
+
+    local preexec_ver="0.6.0"
+    local preexec_sha="998f4d5e9dd82e254463228cc6caa4d40125ae79b31d5a16a2a2f49357f0c160"
+    log_info "Installing bash-preexec v${preexec_ver} (atuin dependency for bash)..."
+    if curl -fsSL "https://raw.githubusercontent.com/rcaloras/bash-preexec/${preexec_ver}/bash-preexec.sh" -o "$HOME/.bash-preexec.sh"; then
+        local actual_sha
+        actual_sha=$(_sha256 "$HOME/.bash-preexec.sh")
+        if [[ -n "$actual_sha" && "$actual_sha" == "$preexec_sha" ]]; then
+            log_success "bash-preexec installed (checksum verified)"
+        else
+            log_error "bash-preexec checksum mismatch! Removing downloaded file."
+            rm -f "$HOME/.bash-preexec.sh"
+        fi
+    else
+        log_warn "Failed to download bash-preexec (atuin history may not work in bash)"
+    fi
+}
+
 # Main installation function
 install_packages() {
     local env os pkg_mgr minimal
@@ -577,7 +625,24 @@ install_packages() {
 
     log_info "Environment: $env | OS: $os | Minimal: $minimal"
 
-    # Install base packages via package manager
+    # 1. Install system-level prerequisites (curl, git, ca-certificates, xz)
+    install_system_basics
+
+    # Ensure ~/.local/bin is in PATH for current session
+    export PATH="$HOME/.local/bin:$PATH"
+
+    # 2. Try Nix as primary package installer (Linux only — macOS uses Homebrew)
+    if [[ "$os" != "macos" ]]; then
+        source "$DOTFILES_DIR/bootstrap/nix.sh"
+        if install_nix; then
+            install_nix_packages "$minimal"
+            install_bash_preexec
+            log_success "Package installation complete (via Nix)!"
+            return 0
+        fi
+        log_warn "Nix unavailable, falling back to native package managers"
+    fi
+
     case "$pkg_mgr" in
         apt)
             install_apt "$minimal"
@@ -593,38 +658,17 @@ install_packages() {
             ;;
     esac
 
-    # Ensure ~/.local/bin is in PATH for current session (before GitHub installations)
-    export PATH="$HOME/.local/bin:$PATH"
-
     # Install additional tools from GitHub (skip if using Homebrew)
     if [[ "$pkg_mgr" != "brew" ]]; then
         log_info "Installing tools from GitHub releases..."
 
-        # Always install these from GitHub for latest versions
         install_from_github "starship" "$(get_github_repo starship)"
         install_from_github "eza" "$(get_github_repo eza)"
         install_from_github "zoxide" "$(get_github_repo zoxide)"
         install_from_github "delta" "$(get_github_repo delta)"
         install_from_github "atuin" "$(get_github_repo atuin)"
 
-        # bash-preexec (required for atuin history capture on bash)
-        if [[ ! -f "$HOME/.bash-preexec.sh" ]]; then
-            local preexec_ver="0.6.0"
-            local preexec_sha="998f4d5e9dd82e254463228cc6caa4d40125ae79b31d5a16a2a2f49357f0c160"
-            log_info "Installing bash-preexec v${preexec_ver} (atuin dependency for bash)..."
-            if curl -fsSL "https://raw.githubusercontent.com/rcaloras/bash-preexec/${preexec_ver}/bash-preexec.sh" -o "$HOME/.bash-preexec.sh"; then
-                local actual_sha
-                actual_sha=$(_sha256 "$HOME/.bash-preexec.sh")
-                if [[ -n "$actual_sha" && "$actual_sha" == "$preexec_sha" ]]; then
-                    log_success "bash-preexec installed (checksum verified)"
-                else
-                    log_error "bash-preexec checksum mismatch! Removing downloaded file."
-                    rm -f "$HOME/.bash-preexec.sh"
-                fi
-            else
-                log_warn "Failed to download bash-preexec (atuin history may not work in bash)"
-            fi
-        fi
+        install_bash_preexec
 
         # Host-only GitHub tools
         if [[ "$minimal" != "true" ]]; then
