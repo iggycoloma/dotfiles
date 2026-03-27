@@ -102,6 +102,11 @@ setup_zsh_completions() {
 # Add custom completions to fpath
 fpath=("${ZDOTDIR:-$HOME/.config/zsh}/completions" $fpath)
 
+# Add Nix-installed zsh completions to fpath
+if [[ -d "$HOME/.nix-profile/share/zsh/site-functions" ]]; then
+    fpath=("$HOME/.nix-profile/share/zsh/site-functions" $fpath)
+fi
+
 # Load zinit if available (with turbo mode for instant startup)
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 if [[ -d "$ZINIT_HOME" ]]; then
