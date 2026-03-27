@@ -631,17 +631,17 @@ install_packages() {
     # Ensure ~/.local/bin is in PATH for current session
     export PATH="$HOME/.local/bin:$PATH"
 
-    # 2. Try Nix as primary package installer
-    source "$DOTFILES_DIR/bootstrap/nix.sh"
-    if install_nix; then
-        install_nix_packages "$minimal"
-        install_bash_preexec
-        log_success "Package installation complete (via Nix)!"
-        return 0
+    # 2. Try Nix as primary package installer (Linux only — macOS uses Homebrew)
+    if [[ "$os" != "macos" ]]; then
+        source "$DOTFILES_DIR/bootstrap/nix.sh"
+        if install_nix; then
+            install_nix_packages "$minimal"
+            install_bash_preexec
+            log_success "Package installation complete (via Nix)!"
+            return 0
+        fi
+        log_warn "Nix unavailable, falling back to native package managers"
     fi
-
-    # 3. Fallback: native package managers + GitHub releases
-    log_warn "Nix unavailable, falling back to native package managers"
 
     case "$pkg_mgr" in
         apt)
