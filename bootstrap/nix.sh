@@ -26,6 +26,12 @@ install_nix() {
         return 0
     fi
 
+    # Skip Nix on Intel Macs -- nixpkgs is dropping x86_64-darwin after 26.05
+    if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "x86_64" ]]; then
+        log_warn "Skipping Nix on Intel Mac (x86_64-darwin support is ending)"
+        return 1
+    fi
+
     log_info "Installing Nix (NixOS nix-installer)..."
 
     local env
