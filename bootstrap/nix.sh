@@ -16,7 +16,7 @@ _source_nix() {
     fi
 }
 
-# Install Nix using the Determinate Systems installer
+# Install Nix using the NixOS nix-installer
 # Works without systemd, handles root/non-root, enables nix-command + flakes
 install_nix() {
     # Already installed?
@@ -26,7 +26,7 @@ install_nix() {
         return 0
     fi
 
-    log_info "Installing Nix (Determinate Systems installer)..."
+    log_info "Installing Nix (NixOS nix-installer)..."
 
     local env
     env=$(detect_environment)
@@ -39,7 +39,7 @@ install_nix() {
         installer_args=(install linux --init none --no-confirm)
     fi
 
-    if curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix \
+    if curl --proto '=https' --tlsv1.2 -sSf -L https://artifacts.nixos.org/nix-installer \
         | sh -s -- "${installer_args[@]}"; then
         # Make nix available in current session
         _source_nix
