@@ -5,6 +5,9 @@
 # Zsh users: Most of this is handled by .zprofile for login shells.
 # This file is still sourced by .bashrc for Bash users.
 
+# Disable NVM's racy current-version symlink — PATH is managed by nvm.sh directly
+export NVM_SYMLINK_CURRENT=false
+
 # Homebrew initialization (macOS)
 # Must be done early so Homebrew-installed tools are available
 if [[ "$(uname -s)" == "Darwin" ]]; then

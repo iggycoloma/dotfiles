@@ -279,12 +279,10 @@ install_from_github() {
     local os
     case "$(uname -s)" in
         Linux)
-            # Detect musl vs glibc
-            if ldd --version 2>&1 | grep -q musl; then
-                os="unknown-linux-musl"
-            else
-                os="unknown-linux-gnu"
-            fi
+            # Always prefer musl on Linux — statically linked, no GLIBC version dependency.
+            # GNU builds from GitHub Actions now target GLIBC 2.39+ which is newer than
+            # Debian stable (Bookworm = 2.36), causing runtime failures.
+            os="unknown-linux-musl"
             ;;
         Darwin) os="apple-darwin" ;;
         *) log_error "Unsupported OS"; return 1 ;;
@@ -381,13 +379,7 @@ install_from_github() {
             fi
             ;;
         zoxide)
-            # zoxide only provides musl binaries for Linux, but they work on glibc too
-            # Always use musl for Linux systems
-            local zoxide_os="$os"
-            if [[ "$os" == "unknown-linux-gnu" ]]; then
-                zoxide_os="unknown-linux-musl"
-            fi
-            download_url=$(_select_asset_url "$api_json" "${arch}-${zoxide_os}.*\\.tar\\.gz$")
+            download_url=$(_select_asset_url "$api_json" "${arch}-${os}.*\\.tar\\.gz$")
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
                 local tmp_dir=$(mktemp -d)
@@ -525,7 +517,6 @@ install_from_github() {
             fi
             ;;
         atuin)
-            # atuin releases: atuin-x86_64-unknown-linux-gnu.tar.gz, atuin-x86_64-unknown-linux-musl.tar.gz
             download_url=$(_select_asset_url "$api_json" "atuin-${arch}-${os}.*\\.tar\\.gz$")
             if [[ -n "$download_url" ]]; then
                 log_info "Downloading: $download_url"
