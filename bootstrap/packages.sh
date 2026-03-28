@@ -567,7 +567,7 @@ install_from_github() {
     fi
 }
 
-# Install only system-level prerequisites needed for Nix and basic operation
+# Install system-level prerequisites needed for basic operation
 install_system_basics() {
     local pkg_mgr
     pkg_mgr=$(detect_package_manager)
@@ -578,12 +578,12 @@ install_system_basics() {
         apt)
             log_info "Installing system prerequisites via apt..."
             $SUDO apt-get update -qq
-            $SUDO apt-get install -y curl wget git ca-certificates xz-utils build-essential
+            $SUDO apt-get install -y curl wget git ca-certificates build-essential
             ;;
         apk)
             log_info "Installing system prerequisites via apk..."
             $SUDO apk update
-            $SUDO apk add curl wget git bash ca-certificates xz build-base
+            $SUDO apk add curl wget git bash ca-certificates build-base
             ;;
         brew)
             # Homebrew handles its own dependencies
@@ -625,24 +625,13 @@ install_packages() {
 
     log_info "Environment: $env | OS: $os | Minimal: $minimal"
 
-    # 1. Install system-level prerequisites (curl, git, ca-certificates, xz)
+    # Install system-level prerequisites (curl, git, ca-certificates)
     install_system_basics
 
     # Ensure ~/.local/bin is in PATH for current session
     export PATH="$HOME/.local/bin:$PATH"
 
-    # 2. Try Nix as primary package installer (Linux only — macOS uses Homebrew)
-    if [[ "$os" != "macos" ]]; then
-        source "$DOTFILES_DIR/bootstrap/nix.sh"
-        if install_nix; then
-            install_nix_packages "$minimal"
-            install_bash_preexec
-            log_success "Package installation complete (via Nix)!"
-            return 0
-        fi
-        log_warn "Nix unavailable, falling back to native package managers"
-    fi
-
+    # Install base packages via package manager
     case "$pkg_mgr" in
         apt)
             install_apt "$minimal"
