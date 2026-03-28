@@ -9,14 +9,8 @@ PASSED=0
 OPTIONAL_AVAILABLE=0
 OPTIONAL_MISSING=0
 
-# Ensure tool paths are available
-export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
-# Source Nix environment if available
-if [[ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]]; then
-    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-elif [[ -e "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh" ]]; then
-    . "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
-fi
+# Ensure ~/.local/bin is in PATH (where we install tools)
+export PATH="$HOME/.local/bin:$PATH"
 
 # Colors
 RED='\033[0;31m'
@@ -221,24 +215,14 @@ if [[ -f "$HOME/.config/ripgrep/config" ]]; then
     fi
 fi
 
-log_section "Nix Package Manager"
-if command -v nix &>/dev/null; then
-    log_pass "Nix is installed ($(nix --version 2>&1))"
-    # Verify tools resolve to Nix store
-    for tool in eza starship delta; do
-        tool_path=$(command -v "$tool" 2>/dev/null || true)
-        if [[ -n "$tool_path" ]]; then
-            resolved=$(readlink -f "$tool_path" 2>/dev/null || echo "$tool_path")
-            if echo "$resolved" | grep -q "/nix/store"; then
-                log_pass "$tool installed via Nix"
-            else
-                log_info "$tool available but not from Nix: $resolved"
-            fi
-        fi
-    done
-else
-    log_info "Nix not installed (using fallback package manager)"
-fi
+log_section "GitHub Releases Tools"
+for tool in eza starship delta atuin zoxide; do
+    if command -v "$tool" &>/dev/null; then
+        log_pass "$tool is installed"
+    else
+        log_info "$tool not found (may not be required in this environment)"
+    fi
+done
 
 log_section "Core Tools"
 test_command "git"

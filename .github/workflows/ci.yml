@@ -58,14 +58,14 @@ jobs:
             # Debian/Ubuntu
             export DEBIAN_FRONTEND=noninteractive
             apt-get update
-            apt-get install -y git curl ca-certificates sudo xz-utils
+            apt-get install -y git curl ca-certificates sudo
             # Install zsh if needed for this test
             if [ "${{ matrix.shell }}" = "zsh" ]; then
               apt-get install -y zsh
             fi
           elif command -v apk >/dev/null 2>&1; then
             # Alpine
-            apk add --no-cache git curl bash sudo xz
+            apk add --no-cache git curl bash sudo
             # Alpine uses ash/bash, zsh tests would need apk add zsh
             if [ "${{ matrix.shell }}" = "zsh" ]; then
               apk add --no-cache zsh
@@ -124,7 +124,7 @@ jobs:
       - name: Verify core tools installed
         run: |
           echo "Checking core tools..."
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           command -v fzf || echo "WARNING: fzf not found"
           command -v rg || echo "WARNING: ripgrep not found"
           command -v fd || echo "WARNING: fd not found"
@@ -134,29 +134,6 @@ jobs:
           command -v zoxide || echo "WARNING: zoxide not found"
           command -v starship || echo "WARNING: starship not found"
           command -v delta || echo "WARNING: delta not found"
-
-      - name: Verify Nix installation
-        run: |
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
-          if [ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
-            . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-          fi
-          if command -v nix >/dev/null 2>&1; then
-            echo "OK Nix installed: $(nix --version)"
-            for tool in eza starship delta; do
-              tool_path=$(command -v $tool 2>/dev/null || true)
-              if [ -n "$tool_path" ]; then
-                resolved=$(readlink -f "$tool_path" 2>/dev/null || echo "$tool_path")
-                if echo "$resolved" | grep -q "/nix/store"; then
-                  echo "OK $tool installed via Nix"
-                else
-                  echo "WARN $tool not from Nix: $resolved"
-                fi
-              fi
-            done
-          else
-            echo "WARN Nix not installed (fallback mode)"
-          fi
 
       - name: Test key aliases and functions
         run: |
@@ -172,7 +149,7 @@ jobs:
 
       - name: Starship init smoke test
         run: |
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           if command -v starship >/dev/null 2>&1; then
             bash -lc 'eval "$(starship init bash)" >/dev/null 2>&1 && echo "Starship init OK"'
           else
@@ -262,7 +239,7 @@ jobs:
       - name: Verify core tools installed
         run: |
           echo "Checking core tools..."
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           command -v fzf || echo "WARNING: fzf not found"
           command -v rg || echo "WARNING: ripgrep not found"
           command -v fd || echo "WARNING: fd not found"
@@ -272,31 +249,6 @@ jobs:
           command -v zoxide || echo "WARNING: zoxide not found"
           command -v starship || echo "WARNING: starship not found"
           command -v delta || echo "WARNING: delta not found"
-
-      - name: Verify Nix installation
-        run: |
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
-          if [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-            . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-          elif [ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
-            . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-          fi
-          if command -v nix >/dev/null 2>&1; then
-            echo "OK Nix installed: $(nix --version)"
-            for tool in eza starship delta; do
-              tool_path=$(command -v $tool 2>/dev/null || true)
-              if [ -n "$tool_path" ]; then
-                resolved=$(readlink -f "$tool_path" 2>/dev/null || echo "$tool_path")
-                if echo "$resolved" | grep -q "/nix/store"; then
-                  echo "OK $tool installed via Nix"
-                else
-                  echo "WARN $tool not from Nix: $resolved"
-                fi
-              fi
-            done
-          else
-            echo "WARN Nix not installed (fallback mode)"
-          fi
 
       - name: Test key aliases and functions
         run: |
@@ -312,7 +264,7 @@ jobs:
 
       - name: Starship init smoke test
         run: |
-          export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           if command -v starship >/dev/null 2>&1; then
             bash -lc 'eval "$(starship init bash)" >/dev/null 2>&1 && echo "Starship init OK"'
           else
@@ -346,7 +298,7 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
-          apt-get install -y git curl ca-certificates sudo xz-utils
+          apt-get install -y git curl ca-certificates sudo
           if [ "${{ matrix.shell }}" = "zsh" ]; then
             apt-get install -y zsh
           fi
