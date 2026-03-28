@@ -12,6 +12,13 @@ fi
 # Dotfiles directory
 export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
+# Nix package manager (needed for non-login shells where .zprofile doesn't run)
+if [[ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]]; then
+    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+elif [[ -e "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh" ]]; then
+    . "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
+fi
+
 # History configuration
 HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
 mkdir -p "$(dirname "$HISTFILE")"
