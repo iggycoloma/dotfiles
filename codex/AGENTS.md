@@ -5,14 +5,28 @@ Use these rules to mirror the existing Claude Code setup.
 ## Core Guardrails
 
 - Never access secrets or credential files without explicit user approval.
-- Treat these paths as sensitive: `.env*`, `credentials.json`, `.credentials`, `secrets.yaml`, `secrets.json`, `.aws/credentials`, `.ssh/id_rsa`, `.ssh/id_ed25519`, `.git/config`, `*.pem`, `*.key`, `*.p12`, `*.pfx`.
+- Treat these paths as sensitive: `.env*`, `credentials.json`, `.credentials`, `secrets.yaml`, `secrets.json`, `*.pem`, `*.key`, `*.p12`, `*.pfx`.
+- Never access credential directories: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.docker`, `~/.kube`, `~/.config/heroku`, `~/.config/doctl`, `~/.gradle`, `~/.m2`, `~/.minikube`, `~/.cargo`, `~/.gem`, `~/.composer`, `~/.stripe`.
+- Never access credential files: `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.git-credentials`, `~/.pgpass`, `~/.my.cnf`, `~/.mongorc.js`, `*.tfvars`, `*.ppk`, `*.jks`, `*.keystore`.
 - Deny path traversal patterns (for example paths containing `../`) unless the user explicitly asks and confirms.
 - Do not add decorative emoji characters to code, docs, or commit messages.
 - Use conventional commits and do not include AI attribution or `Co-Authored-By` lines.
 
 ## Working Style
 
-- Prefer `rg` for content search and `rg --files` for file discovery.
+- Prefer `rg` for content search and `rg --files` or `fd` for file discovery.
+- Use `ast-grep` (`sg`) for structural code search and refactoring (AST-based, not regex).
+  - `sg --pattern 'console.log($$$)' --lang js` -- find all console.log calls
+  - `sg --pattern 'import $_ from "react"' --lang tsx` -- find React imports
+  - Use `sg --help` to learn more patterns
+- Use `difft` for file comparisons (AST-aware, ignores formatting noise).
+- Use `bat` for viewing files with syntax highlighting (instead of `cat`).
+- Run `shellcheck` on shell scripts before committing; fix all warnings.
+- Use `sd` for find/replace (modern sed with PCRE regex, no escaping hell).
+- Use `scc` for codebase statistics (fast LOC/complexity counts).
+- Use `yq` for YAML/TOML/XML editing (preserves comments and formatting).
+- Use `jq` for JSON processing.
+- Use `watchexec` for auto-test/rebuild loops (e.g., `watchexec -e py -- pytest tests/`).
 - Keep changes minimal and focused; do not refactor unrelated code.
 - Run relevant tests/lint after changes when practical and report what was run.
 - If asked for a review, prioritize bugs/regressions/security issues first, then style.

@@ -56,8 +56,11 @@ _verify_checksum() {
     base=$(basename "$file")
     if [[ -s "$checksums_file" ]]; then
         local expected
-        # Use -F for literal match and handle common checksum formats
-        expected=$(awk -v file="$base" '$2 == file || $2 == "./"file || $2 == "*"file {print $1; exit}' "$checksums_file")
+        # Handle common checksum formats: "hash  filename" and "filename  hash ..." (yq-style)
+        expected=$(awk -v file="$base" '
+            $2 == file || $2 == "./"file || $2 == "*"file {print $1; exit}
+            $1 == file {print $2; exit}
+        ' "$checksums_file")
         if [[ -n "$expected" ]]; then
             local actual
             actual=$(_sha256 "$file")
@@ -108,6 +111,11 @@ get_github_repo() {
         procs) echo "dalance/procs" ;;
         dust) echo "bootandy/dust" ;;
         sd) echo "chmln/sd" ;;
+        sg) echo "ast-grep/ast-grep" ;;
+        difft) echo "Wilfred/difftastic" ;;
+        scc) echo "boyter/scc" ;;
+        yq) echo "mikefarah/yq" ;;
+        watchexec) echo "watchexec/watchexec" ;;
         *) echo "" ;;
     esac
 }
@@ -125,7 +133,7 @@ install_apt() {
     local packages=("curl" "wget" "git" "build-essential")
 
     # Add core tools
-    packages+=("ripgrep" "fd-find" "bat" "jq")
+    packages+=("ripgrep" "fd-find" "bat" "jq" "shellcheck")
 
     # fzf is available in Ubuntu 20.04+
     if ! has_tool fzf; then
@@ -218,7 +226,7 @@ install_apk() {
 
     # Add core tools - check availability in Alpine repos
     # Note: Some tools may have different names or not be available
-    packages+=("fzf" "ripgrep" "fd" "bat" "jq")
+    packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
     # Add host-specific tools
     if [[ "$minimal" != "true" ]]; then
@@ -243,7 +251,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "git" "eza" "zoxide" "starship" "git-delta" "atuin")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "atuin" "ast-grep" "difftastic" "sd" "scc" "yq" "watchexec")
 
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
@@ -554,6 +562,213 @@ install_from_github() {
                 return 1
             fi
             ;;
+        sd)
+            # sd: Rust binary, musl available for both arches
+            download_url=$(_select_asset_url "$api_json" "sd-v[0-9.]+-${arch}-${os}\\.tar\\.gz$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download sd"; return 1; }
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name sd -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/sd"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find sd binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract sd"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find sd release for ${arch}-${os}"
+                return 1
+            fi
+            ;;
+        sg)
+            # ast-grep: only gnu builds available, uses zip format with 'app-' prefix
+            local sg_os="unknown-linux-gnu"
+            download_url=$(_select_asset_url "$api_json" "app-${arch}-${sg_os}\\.zip$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local zipfile="$tmp_dir/asset.zip"
+                curl -fsSL "$download_url" -o "$zipfile" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download ast-grep"; return 1; }
+                if unzip -qo "$zipfile" -d "$tmp_dir"; then
+                    if find "$tmp_dir" -name sg -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/sg"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find sg binary in archive"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract ast-grep (is unzip installed?)"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find ast-grep release for ${arch}-${sg_os}"
+                return 1
+            fi
+            ;;
+        difft)
+            # difftastic: musl for x86_64 only, fall back to gnu for aarch64
+            download_url=$(_select_asset_url "$api_json" "difft-${arch}-${os}\\.tar\\.gz$")
+            if [[ -z "$download_url" && "$os" == "unknown-linux-musl" ]]; then
+                download_url=$(_select_asset_url "$api_json" "difft-${arch}-unknown-linux-gnu\\.tar\\.gz$")
+            fi
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/asset.tar.gz"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download difftastic"; return 1; }
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name difft -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/difft"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find difft binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract difftastic"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find difftastic release for ${arch}"
+                return 1
+            fi
+            ;;
+        scc)
+            # scc: Go binary, uses Go-style naming (Linux_x86_64, Linux_arm64)
+            local scc_arch="$arch"
+            if [[ "$arch" == "aarch64" ]]; then
+                scc_arch="arm64"
+            fi
+            download_url=$(_select_asset_url "$api_json" "scc_Linux_${scc_arch}\\.tar\\.gz$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/$(basename "$download_url")"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download scc"; return 1; }
+                local sums_url sums_file
+                sums_url=$(_select_checksum_url "$api_json")
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for scc" ;;
+                        1) log_error "Aborting scc install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for scc (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xzf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name scc -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/scc"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find scc binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract scc"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find scc release for Linux_${scc_arch}"
+                return 1
+            fi
+            ;;
+        yq)
+            # yq: Go binary, standalone download (no archive), needs rename
+            local yq_arch="amd64"
+            if [[ "$arch" == "aarch64" ]]; then
+                yq_arch="arm64"
+            fi
+            download_url=$(_select_asset_url "$api_json" "yq_linux_${yq_arch}$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                curl -fsSL "$download_url" -o "$tmp_dir/yq" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download yq"; return 1; }
+                # yq uses non-standard multi-hash checksums; fetch BSD format and extract SHA256
+                local sums_url
+                sums_url=$(echo "$api_json" | jq -r '.assets[].browser_download_url' 2>/dev/null | grep -F 'checksums-bsd' | head -n1)
+                if [[ -n "$sums_url" ]]; then
+                    local sums_file="$tmp_dir/checksums-bsd"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    if [[ -s "$sums_file" ]]; then
+                        local expected actual
+                        expected=$(grep "SHA256 (yq_linux_${yq_arch})" "$sums_file" | awk '{print $NF}')
+                        actual=$(sha256sum "$tmp_dir/yq" | awk '{print $1}')
+                        if [[ -n "$expected" && "$expected" == "$actual" ]]; then
+                            log_success "Checksum verified for yq"
+                        elif [[ -n "$expected" ]]; then
+                            log_error "Checksum mismatch for yq (expected: $expected, got: $actual)"
+                            [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                            return 1
+                        else
+                            log_warn "SHA256 not found in checksums-bsd for yq (proceeding with caution)"
+                        fi
+                    fi
+                fi
+                cp "$tmp_dir/yq" "$install_dir/yq"
+                chmod +x "$install_dir/yq"
+                [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+            else
+                log_error "Could not find yq release for linux_${yq_arch}"
+                return 1
+            fi
+            ;;
+        watchexec)
+            # watchexec: Rust binary, musl available, uses .tar.xz format
+            download_url=$(_select_asset_url "$api_json" "watchexec-[0-9.]+-${arch}-${os}\\.tar\\.xz$")
+            if [[ -n "$download_url" ]]; then
+                log_info "Downloading: $download_url"
+                local tmp_dir=$(mktemp -d)
+                local tarball="$tmp_dir/$(basename "$download_url")"
+                curl -fsSL "$download_url" -o "$tarball" || { [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; log_error "Failed to download watchexec"; return 1; }
+                local sums_url sums_file
+                sums_url=$(echo "$api_json" | jq -r '.assets[].browser_download_url' 2>/dev/null | grep -F 'SHA256SUMS' | head -n1)
+                if [[ -n "$sums_url" ]]; then
+                    sums_file="$tmp_dir/checksums.txt"
+                    curl -fsSL "$sums_url" -o "$sums_file" || true
+                    _verify_checksum "$tarball" "$sums_file"
+                    case $? in
+                        0) log_success "Checksum verified for watchexec" ;;
+                        1) log_error "Aborting watchexec install due to checksum mismatch"; [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"; return 1 ;;
+                        2) log_warn "Checksum unavailable for watchexec (proceeding with caution)" ;;
+                    esac
+                fi
+                if tar xJf "$tarball" -C "$tmp_dir"; then
+                    if find "$tmp_dir" -name watchexec -type f -exec cp {} "$install_dir/" \;; then
+                        chmod +x "$install_dir/watchexec"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    else
+                        log_error "Could not find watchexec binary in tarball"
+                        [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                else
+                    log_error "Failed to extract watchexec (is xz-utils installed?)"
+                    [[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                log_error "Could not find watchexec release for ${arch}-${os}"
+                return 1
+            fi
+            ;;
         *)
             log_warn "No installer for $tool, skipping"
             return 1
@@ -578,12 +793,12 @@ install_system_basics() {
         apt)
             log_info "Installing system prerequisites via apt..."
             $SUDO apt-get update -qq
-            $SUDO apt-get install -y curl wget git ca-certificates build-essential
+            $SUDO apt-get install -y curl wget git ca-certificates build-essential unzip xz-utils
             ;;
         apk)
             log_info "Installing system prerequisites via apk..."
             $SUDO apk update
-            $SUDO apk add curl wget git bash ca-certificates build-base
+            $SUDO apk add curl wget git bash ca-certificates build-base unzip xz
             ;;
         brew)
             # Homebrew handles its own dependencies
@@ -656,6 +871,12 @@ install_packages() {
         install_from_github "zoxide" "$(get_github_repo zoxide)"
         install_from_github "delta" "$(get_github_repo delta)"
         install_from_github "atuin" "$(get_github_repo atuin)"
+        install_from_github "sd" "$(get_github_repo sd)"
+        install_from_github "difft" "$(get_github_repo difft)"
+        install_from_github "sg" "$(get_github_repo sg)"
+        install_from_github "scc" "$(get_github_repo scc)"
+        install_from_github "yq" "$(get_github_repo yq)"
+        install_from_github "watchexec" "$(get_github_repo watchexec)"
 
         install_bash_preexec
 
