@@ -196,12 +196,25 @@ test_bash_glob_evasion() {
     assert_blocked "$(run_bash_hook 'cat .envrc')" "Blocks .envrc (matches .env pattern)"
 }
 
-test_bash_keyword_patterns() {
-    assert_blocked "$(run_bash_hook 'cat credentials.bak')" "Blocks credential keyword"
-    assert_blocked "$(run_bash_hook 'cat secret-config.yml')" "Blocks secret keyword"
-    assert_blocked "$(run_bash_hook 'grep token config.json')" "Blocks token keyword"
-    assert_blocked "$(run_bash_hook 'grep password settings.ini')" "Blocks password keyword"
-    assert_blocked "$(run_bash_hook 'cat auth.json')" "Blocks auth.json pattern"
+test_bash_keyword_not_false_positive() {
+    # Keywords in arguments/titles/search terms should NOT trigger blocks.
+    # The actual credential files are covered by other layers (Check 1, 2, 2b).
+    assert_allowed "$(run_bash_hook 'gh pr create --title "feat: token refresh"')" "Allows token in PR title"
+    assert_allowed "$(run_bash_hook 'git commit -m "fix: credential handler"')" "Allows credential in commit message"
+    assert_allowed "$(run_bash_hook 'grep -r "password" src/validators.py')" "Allows password as grep argument"
+    assert_allowed "$(run_bash_hook 'rg secret src/config/')" "Allows secret as search term"
+    assert_allowed "$(run_bash_hook 'git commit -m "fix auth.json handling"')" "Allows auth.json in commit message"
+    assert_allowed "$(run_bash_hook 'curl -H "Authorization: Bearer tok" https://api.example.com')" "Allows auth header in curl"
+}
+
+test_bash_credential_files_still_blocked() {
+    # Actual credential files are still blocked by Check 1 (exact path matching)
+    assert_blocked "$(run_bash_hook 'cat credentials.json')" "Blocks credentials.json (Check 1)"
+    assert_blocked "$(run_bash_hook 'cat secrets.yaml')" "Blocks secrets.yaml (Check 1)"
+    assert_blocked "$(run_bash_hook 'cat secrets.json')" "Blocks secrets.json (Check 1)"
+    assert_blocked "$(run_bash_hook 'cat .credentials')" "Blocks .credentials (Check 1)"
+    # auth.json in composer dir blocked by Check 2 (directory-level)
+    assert_blocked "$(run_bash_hook 'cat ~/.composer/auth.json')" "Blocks ~/.composer/auth.json (Check 2)"
 }
 
 #
@@ -297,7 +310,8 @@ main() {
 
     test_suite "Layer 4: Glob/Regex Pattern Matching"
     test_bash_glob_evasion
-    test_bash_keyword_patterns
+    test_bash_keyword_not_false_positive
+    test_bash_credential_files_still_blocked
 
     test_suite "File Tool Checks (Read/Write/Edit)"
     test_file_tool_env

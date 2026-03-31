@@ -82,11 +82,6 @@ SENSITIVE_FILES=(
 SENSITIVE_GLOB_PATTERNS=(
     '\.en[v*?]'
     '\.env\b'
-    'credential'
-    'secret'
-    'token'
-    'password'
-    'auth\.json'
     '\.htpasswd'
 )
 
