@@ -1,4 +1,136 @@
 {
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git remote:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git -C:*)",
+      "Bash(git stash list:*)",
+      "Bash(git tag:*)",
+
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+
+      "Bash(gh pr:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh run:*)",
+      "Bash(gh api:*)",
+      "Bash(gh --version)",
+
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(which:*)",
+      "Bash(command -v:*)",
+      "Bash(type:*)",
+      "Bash(realpath:*)",
+      "Bash(readlink:*)",
+
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(fd:*)",
+
+      "Bash(curl:*)",
+      "Bash(tar:*)",
+      "Bash(unzip:*)",
+      "Bash(sha256sum:*)",
+
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(diff:*)",
+      "Bash(sort:*)",
+      "Bash(cut:*)",
+      "Bash(awk:*)",
+      "Bash(xargs:*)",
+
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(test:*)",
+      "Bash(perl:*)",
+      "Bash(python3 -c:*)",
+
+      "Bash(jq:*)",
+      "Bash(yq:*)",
+      "Bash(shellcheck:*)",
+      "Bash(ast-grep:*)",
+      "Bash(sg:*)",
+      "Bash(difft:*)",
+      "Bash(sd:*)",
+      "Bash(scc:*)",
+      "Bash(bat:*)",
+      "Bash(watchexec:*)",
+
+      "Bash(node --version:*)",
+      "Bash(npm list:*)",
+      "Bash(npx:*)",
+      "Bash(python3 --version:*)",
+      "Bash(go version:*)",
+      "Bash(rustc --version:*)",
+      "Bash(claude --version:*)",
+      "Bash(codex --version:*)",
+      "Bash(dpkg -l:*)",
+      "Bash(snap list:*)",
+      "Bash(apt list:*)",
+      "Bash(brew list:*)",
+
+      "Bash(chmod:*)",
+      "Bash(atuin:*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/credentials*)",
+      "Read(**/*secret*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.kube/config)",
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)",
+      "Read(~/.netrc)",
+      "Read(~/.config/hub/**)",
+      "Read(~/.config/heroku/**)",
+      "Read(~/.config/doctl/**)",
+      "Read(~/.gradle/gradle.properties)",
+      "Read(~/.m2/settings.xml)",
+      "Read(~/.m2/settings-security.xml)",
+      "Read(~/.minikube/**)",
+      "Read(~/.cargo/credentials*)",
+      "Read(~/.gem/credentials)",
+      "Read(~/.composer/auth.json)",
+      "Read(~/.stripe/**)",
+      "Read(~/.git-credentials)",
+      "Read(~/.pgpass)",
+      "Read(~/.my.cnf)",
+      "Read(~/.mongorc.js)"
+    ]
+  },
   "attribution": {
     "commit": "",
     "pr": ""
@@ -59,7 +191,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits.'"
+            "command": "echo 'Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits. Prefer: ast-grep (sg) for structural search, difft for diffs, shellcheck for shell validation, sd for find/replace, scc for code stats, yq for YAML/TOML editing.'"
           }
         ]
       }

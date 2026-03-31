@@ -129,6 +129,7 @@ merge_configs() {
     # match files in the root config directory.
     local force_update_patterns=(
         "AGENTS.md"
+        "CLAUDE.md"
         "agents/*.md"
         "commands/*.md"
         "hooks/*.sh"

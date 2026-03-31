@@ -145,6 +145,12 @@ create_symlinks() {
                 log_warn "Claude Code settings.json not found, skipping"
             fi
 
+            if [[ -f "$DOTFILES_DIR/claude-code/CLAUDE.md" ]]; then
+                create_symlink "$DOTFILES_DIR/claude-code/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+            else
+                log_warn "Claude Code CLAUDE.md not found, skipping"
+            fi
+
             if [[ -f "$DOTFILES_DIR/claude-code/statusline.sh" ]]; then
                 # Ensure statusline is executable before creating symlink
                 chmod +x "$DOTFILES_DIR/claude-code/statusline.sh"
