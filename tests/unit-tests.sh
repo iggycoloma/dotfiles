@@ -451,11 +451,11 @@ test_logging_output_format() {
 test_path_no_duplicates() {
     local output
     output=$(
-        export PATH="/usr/bin"
+        # Preserve existing PATH so grep/tr remain available
         export HOME="/tmp/test_home_$$"
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
-        echo "$PATH" | tr ':' '\n' | grep -c "\.local/bin"
+        echo "$PATH" | tr ':' '\n' | grep -c "/test_home_.*/\.local/bin"
     )
     assert_equals "1" "$output" "PATH contains .local/bin exactly once after double source"
 }
