@@ -186,6 +186,12 @@ create_symlinks() {
             if [[ -d "$HOME/.devcontainer-state" ]]; then
                 setup_volume_dir "$HOME/.devcontainer-state/claude" "$HOME/.claude"
                 log_success "$HOME/.claude -> volume"
+
+                # Migrate ~/.claude.json -> ~/.claude/config.json for CLAUDE_CONFIG_DIR
+                if [[ -f "$HOME/.claude.json" ]] && [[ ! -L "$HOME/.claude.json" ]] && [[ ! -f "$HOME/.claude/config.json" ]]; then
+                    mv "$HOME/.claude.json" "$HOME/.claude/config.json"
+                    log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
+                fi
             else
                 mkdir -p "$HOME/.claude"
             fi
@@ -310,6 +316,12 @@ create_symlinks() {
         fi
 
         log_success ".codex configuration complete"
+    fi
+
+    # GitHub CLI credentials (devcontainer persistence only)
+    if is_devcontainer && [[ -d "$HOME/.devcontainer-state" ]]; then
+        setup_volume_dir "$HOME/.devcontainer-state/gh" "$HOME/.config/gh"
+        log_success "$HOME/.config/gh -> volume"
     fi
 
     # Tmux configuration (skip in containers)
