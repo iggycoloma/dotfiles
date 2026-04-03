@@ -107,6 +107,11 @@ jobs:
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
+      - name: Run package function tests
+        run: bash tests/test-packages.sh
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
       - name: Run integration tests
         run: |
           START_TIME=$(date +%s)
@@ -219,6 +224,11 @@ jobs:
           bash tests/unit-tests.sh
           END_TIME=$(date +%s)
           echo "[CI-TIMING] Unit tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run package function tests
+        run: bash tests/test-packages.sh
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 
@@ -359,6 +369,11 @@ jobs:
           bash tests/unit-tests.sh
           END_TIME=$(date +%s)
           echo "[CI-TIMING] Codespaces unit tests completed in $((END_TIME - START_TIME))s" >&2
+        env:
+          DOTFILES_DIR: ${{ github.workspace }}
+
+      - name: Run package function tests
+        run: bash tests/test-packages.sh
         env:
           DOTFILES_DIR: ${{ github.workspace }}
 

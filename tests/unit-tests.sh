@@ -8,6 +8,8 @@ set +e
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Preserve real path for tests that run after setup_test_env changes DOTFILES_DIR
+REAL_DOTFILES_DIR="$DOTFILES_DIR"
 
 # Source test framework
 source "$SCRIPT_DIR/test-framework.sh"
@@ -408,6 +410,76 @@ test_merge_source_missing() {
 }
 
 #
+# Test Suite: Logging Module
+#
+
+test_logging_sources_without_error() {
+    (
+        unset _DOTFILES_LOGGING_LOADED
+        source "$REAL_DOTFILES_DIR/bootstrap/logging.sh"
+    )
+    local rc=$?
+    assert_equals "0" "$rc" "logging.sh sources without error"
+}
+
+test_logging_double_source_idempotent() {
+    local output
+    output=$(
+        unset _DOTFILES_LOGGING_LOADED
+        source "$REAL_DOTFILES_DIR/bootstrap/logging.sh"
+        source "$REAL_DOTFILES_DIR/bootstrap/logging.sh"
+        type log_info >/dev/null 2>&1 && echo "ok"
+    )
+    assert_equals "ok" "$output" "Sourcing logging.sh twice is idempotent"
+}
+
+test_logging_output_format() {
+    local output
+    output=$(
+        unset _DOTFILES_LOGGING_LOADED
+        source "$REAL_DOTFILES_DIR/bootstrap/logging.sh"
+        log_info "test message"
+    )
+    assert_contains "$output" "==>" "log_info output contains ==>"
+    assert_contains "$output" "test message" "log_info output contains message"
+}
+
+#
+# Test Suite: Shell Config
+#
+
+test_path_no_duplicates() {
+    local output
+    output=$(
+        # Preserve existing PATH so grep/tr remain available
+        export HOME="/tmp/test_home_$$"
+        source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
+        source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
+        echo "$PATH" | tr ':' '\n' | grep -c "/test_home_.*/\.local/bin"
+    )
+    assert_equals "1" "$output" "PATH contains .local/bin exactly once after double source"
+}
+
+test_completion_no_local_at_file_scope() {
+    # Verify that completion.sh does not use 'local' outside of a function
+    # The zsh_config line should not have 'local' keyword
+    if grep -n '^\s*local ' "$REAL_DOTFILES_DIR/shell/completion.sh" | grep -v '^\s*#' | while read -r line; do
+        local lineno="${line%%:*}"
+        # Check if this line is inside a function by looking for preceding function declaration
+        local in_function
+        in_function=$(head -n "$lineno" "$REAL_DOTFILES_DIR/shell/completion.sh" | grep -c '^\s*\(function \)\?\w\+\s*()')
+        if [[ "$in_function" -eq 0 ]]; then
+            echo "FOUND: $line"
+            return 1
+        fi
+    done; then
+        test_pass "No 'local' at file scope in completion.sh"
+    else
+        test_fail "Found 'local' at file scope in completion.sh"
+    fi
+}
+
+#
 # Run all tests
 #
 
@@ -448,6 +520,17 @@ main() {
     test_merge_skips_settings_json
     test_merge_force_updates_hooks
     test_merge_source_missing
+
+    # Logging module tests
+    test_suite "Logging Module"
+    test_logging_sources_without_error
+    test_logging_double_source_idempotent
+    test_logging_output_format
+
+    # Shell config tests
+    test_suite "Shell Config"
+    test_path_no_duplicates
+    test_completion_no_local_at_file_scope
 
     # Print summary
     print_test_summary

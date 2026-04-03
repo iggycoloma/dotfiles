@@ -5,19 +5,8 @@
 # Don't use set -e as we want to handle errors explicitly
 set -u  # Error on undefined variables
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-NC='\033[0m'
-
-log_info() { echo -e "${BLUE}==>${NC} $1"; }
-log_success() { echo -e "${GREEN}✓${NC} $1"; }
-log_warn() { echo -e "${YELLOW}!${NC} $1"; }
-log_error() { echo -e "${RED}✗${NC} $1"; }
-log_section() { echo -e "\n${MAGENTA}==== $1 ====${NC}\n"; }
+# Shared logging functions
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bootstrap/logging.sh"
 
 # Dotfiles directory (prefer env var, then script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -111,4 +100,4 @@ echo "  1. Reload your shell: source ~/.bashrc (or ~/.zshrc)"
 echo "  2. Customize with local configs:"
 echo "     ~/.bashrc.local, ~/.zshrc.local, ~/.exports.local"
 echo ""
-log_info "Enjoy your new environment! 🚀"
+log_info "Enjoy your new environment!"

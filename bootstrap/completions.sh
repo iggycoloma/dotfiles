@@ -6,15 +6,8 @@ set -e
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
-# Colors
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log_info() { echo -e "${BLUE}==>${NC} $1"; }
-log_success() { echo -e "${GREEN}==>${NC} $1"; }
-log_warn() { echo -e "${YELLOW}==>${NC} $1"; }
+# Shared logging functions
+source "$DOTFILES_DIR/bootstrap/logging.sh"
 
 # Setup bash completions
 setup_bash_completions() {
