@@ -25,6 +25,7 @@
   ],
 
   "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh",
+  "waitFor": "postCreateCommand",
 
   "customizations": {
     "vscode": {
