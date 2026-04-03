@@ -12,6 +12,11 @@ fi
 # Dotfiles directory
 export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
+# Source shared exports (idempotent -- skipped if .zprofile already loaded them)
+if [[ -z "$_DOTFILES_EXPORTS_LOADED" && -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
+    source "$DOTFILES_DIR/shell/exports.sh"
+fi
+
 # History configuration
 HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
 mkdir -p "$(dirname "$HISTFILE")"

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Environment variables and exports
 #
-# NOTE: This file is primarily for Bash compatibility.
-# Zsh users: Most of this is handled by .zprofile for login shells.
-# This file is still sourced by .bashrc for Bash users.
+# Sourced by .bashrc (bash) and .zprofile/.zshrc (zsh).
+# Guard prevents double-sourcing in zsh login shells (.zprofile + .zshrc).
+[[ -n "$_DOTFILES_EXPORTS_LOADED" ]] && return 0
+_DOTFILES_EXPORTS_LOADED=1
 
 # Disable NVM's racy current-version symlink — PATH is managed by nvm.sh directly
 export NVM_SYMLINK_CURRENT=false
