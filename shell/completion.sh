@@ -6,13 +6,15 @@
 if [[ -n "$BASH_VERSION" ]]; then
     # Bash completion setup
 
-    # Load bash-completion if available
-    if [[ -f /usr/share/bash-completion/bash_completion ]]; then
-        . /usr/share/bash-completion/bash_completion
-    elif [[ -f /etc/bash_completion ]]; then
-        . /etc/bash_completion
-    elif [[ -f /usr/local/etc/bash_completion ]]; then
-        . /usr/local/etc/bash_completion
+    # Load bash-completion if available (skip in POSIX mode)
+    if ! shopt -oq posix; then
+        if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+            . /usr/share/bash-completion/bash_completion
+        elif [[ -f /etc/bash_completion ]]; then
+            . /etc/bash_completion
+        elif [[ -f /usr/local/etc/bash_completion ]]; then
+            . /usr/local/etc/bash_completion
+        fi
     fi
 
     # Load custom completions from ~/.local/share
@@ -44,7 +46,7 @@ elif [[ -n "$ZSH_VERSION" ]]; then
     # Zsh completion setup
 
     # Load completions config (includes zinit plugin manager)
-    local zsh_config="${ZDOTDIR:-$HOME/.config/zsh}"
+    zsh_config="${ZDOTDIR:-$HOME/.config/zsh}"
     if [[ -f "$zsh_config/completions.zsh" ]]; then
         [[ -n "$CI" ]] && _before_zinit=$EPOCHREALTIME
         source "$zsh_config/completions.zsh"

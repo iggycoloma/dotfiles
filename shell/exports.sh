@@ -59,9 +59,9 @@ elif locale -a 2>/dev/null | grep -qi "C.UTF-8"; then
     export LC_ALL="C.UTF-8"
 fi
 
-# Path additions
-export PATH="$HOME/.local/bin:$PATH"
-export PATH="$HOME/bin:$PATH"
+# Path additions (with dedup guard)
+[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+[[ ":$PATH:" != *":$HOME/bin:"* ]] && export PATH="$HOME/bin:$PATH"
 
 # FZF configuration
 export FZF_DEFAULT_OPTS="

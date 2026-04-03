@@ -32,7 +32,8 @@
   "remoteEnv": {
     "DOTFILES_DIR": "${containerWorkspaceFolder}",
     "DOTFILES_WORKSPACE": "1",
-    "PUSHOVER_TOKEN": "${localEnv:PUSHOVER_TOKEN}",
+    "PUSHOVER_APP_TOKEN_CLAUDE": "${localEnv:PUSHOVER_APP_TOKEN_CLAUDE}",
+    "PUSHOVER_APP_TOKEN_CODEX": "${localEnv:PUSHOVER_APP_TOKEN_CODEX}",
     "PUSHOVER_USER": "${localEnv:PUSHOVER_USER}"
   },
 

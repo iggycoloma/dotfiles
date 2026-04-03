@@ -59,12 +59,21 @@ has_tool() {
     command -v "$1" &> /dev/null
 }
 
-# Get sudo prefix if needed
+# Get sudo prefix if needed (legacy -- prefer run_sudo)
 get_sudo() {
     if is_root; then
         echo ""
     else
         echo "sudo"
+    fi
+}
+
+# Run a command with sudo if needed (safe replacement for unquoted $SUDO)
+run_sudo() {
+    if is_root; then
+        "$@"
+    else
+        sudo "$@"
     fi
 }
 
@@ -94,6 +103,7 @@ export -f detect_package_manager
 export -f is_root
 export -f has_tool
 export -f get_sudo
+export -f run_sudo
 export -f is_minimal_install
 export -f is_devcontainer
 export -f is_dotfiles_workspace
