@@ -1,0 +1,39 @@
+{
+  "name": "Dotfiles Dev (Debian/Bash)",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
+    "ghcr.io/devcontainers-extra/features/npm-package:1": {
+      "package": "@openai/codex@latest"
+    },
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "mounts": [
+    "source=dotfiles-debian-bash-state,target=/home/vscode/.devcontainer-state,type=volume"
+  ],
+
+  "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "remoteEnv": {
+    "DOTFILES_DIR": "${containerWorkspaceFolder}",
+    "DOTFILES_WORKSPACE": "1",
+    "PUSHOVER_TOKEN": "${localEnv:PUSHOVER_TOKEN}",
+    "PUSHOVER_USER": "${localEnv:PUSHOVER_USER}"
+  },
+
+  "remoteUser": "vscode"
+}

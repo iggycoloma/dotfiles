@@ -192,11 +192,11 @@ Write spec to: `.claude/specs/[feature-slug].md`
 
 ### Status Update
 ```
-✅ Specification complete: [feature-slug]
-📄 Document: .claude/specs/[feature-slug].md
-📊 Stories: 3 user stories defined
-🎯 Status: READY_FOR_ARCH
-➡️  Next: architect-review
+[DONE] Specification complete: [feature-slug]
+Document: .claude/specs/[feature-slug].md
+Stories: 3 user stories defined
+Status: READY_FOR_ARCH
+Next: architect-review
 ```
 
 ## Quality Checklist

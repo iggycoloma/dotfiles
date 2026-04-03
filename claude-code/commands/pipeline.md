@@ -17,23 +17,23 @@ This pipeline uses 4 specialized agents in sequence. Each stage produces an arti
 ### Stage 1: PM Spec (pm-spec agent)
 **Goal**: Gather requirements, write a specification document.
 **Output**: `.claude/specs/<feature-name>.md` with user stories, acceptance criteria, and scope.
-**Trigger**: Dispatch `Task(subagent_type="pm-spec")` with the feature description.
+**Trigger**: Dispatch `Agent(subagent_type="pm-spec")` with the feature description.
 
 ### Stage 2: Architecture Review (architect-review agent)
 **Goal**: Validate the spec, produce an Architecture Decision Record (ADR).
 **Output**: ADR document with component breakdown, API contracts, data models, and risk assessment.
-**Trigger**: Dispatch `Task(subagent_type="architect-review")` with the spec from Stage 1.
+**Trigger**: Dispatch `Agent(subagent_type="architect-review")` with the spec from Stage 1.
 **Gate**: Status must be `READY_FOR_BUILD` before proceeding.
 
 ### Stage 3: Implementation & Testing (implementer-tester agent)
 **Goal**: Build the feature per the architectural design, with comprehensive tests.
 **Output**: Working code with tests passing.
-**Trigger**: Dispatch `Task(subagent_type="implementer-tester")` with the ADR and spec.
+**Trigger**: Dispatch `Agent(subagent_type="implementer-tester")` with the ADR and spec.
 
 ### Stage 4: QA Review (qa-reviewer agent)
 **Goal**: Validate the implementation against the spec, run final checks.
 **Output**: QA report with pass/fail status.
-**Trigger**: Dispatch `Task(subagent_type="qa-reviewer")` with the spec, ADR, and implementation.
+**Trigger**: Dispatch `Agent(subagent_type="qa-reviewer")` with the spec, ADR, and implementation.
 **Gate**: Status must be `APPROVED_FOR_RELEASE` to complete the pipeline.
 
 ## How to Run

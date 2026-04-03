@@ -319,14 +319,14 @@ Before marking READY_FOR_QA:
 
 ### Implementation Summary
 ```
-✅ Implementation complete: [feature-slug]
-📝 Files created: 8
-📝 Files modified: 3
-✅ Tests: 45 passing (coverage: 85%)
-🔐 Security: Auth and validation implemented
-📚 Documentation: Updated
-🎯 Status: READY_FOR_QA
-➡️  Next: qa-reviewer
+[DONE] Implementation complete: [feature-slug]
+Files created: 8
+Files modified: 3
+[PASS] Tests: 45 passing (coverage: 85%)
+Security: Auth and validation implemented
+Documentation: Updated
+Status: READY_FOR_QA
+Next: qa-reviewer
 ```
 
 ### File Changes

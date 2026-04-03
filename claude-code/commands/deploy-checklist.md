@@ -89,13 +89,13 @@ You are verifying the system is ready for deployment.
 
 Generate checklist report:
 
-### ✅ Passed (N items)
+### [PASS] Passed (N items)
 - List items that passed
 
-### ⚠️ Warnings (N items)
+### [WARN] Warnings (N items)
 - List items with warnings
 
-### ❌ Blockers (N items)
+### [FAIL] Blockers (N items)
 - List items that must be fixed before deployment
 
 **Deployment Status**: READY / NOT READY / READY WITH WARNINGS

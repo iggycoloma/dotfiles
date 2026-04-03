@@ -319,11 +319,11 @@ Write to: `.claude/adrs/[feature-slug]-adr.md`
 
 ### Status Update
 ```
-✅ Architecture review complete: [feature-slug]
-📐 ADR: .claude/adrs/[feature-slug]-adr.md
-🏗️  Components: 3 new components defined
-🎯 Status: READY_FOR_BUILD
-➡️  Next: implementer-tester
+[DONE] Architecture review complete: [feature-slug]
+ADR: .claude/adrs/[feature-slug]-adr.md
+Components: 3 new components defined
+Status: READY_FOR_BUILD
+Next: implementer-tester
 ```
 
 ## Handoff to Implementer
