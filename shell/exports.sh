@@ -149,6 +149,11 @@ export GPG_TTY=$(tty)
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
+# Claude Code: store global config inside ~/.claude dir (persists in devcontainers)
+if command -v claude &> /dev/null; then
+    export CLAUDE_CONFIG_DIR="$HOME/.claude"
+fi
+
 # Load local exports if they exist
 if [[ -f "$HOME/.exports.local" ]]; then
     source "$HOME/.exports.local"

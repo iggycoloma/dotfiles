@@ -33,7 +33,12 @@ shopt -s autocd 2>/dev/null || true  # cd by typing directory name (if supported
 HISTCONTROL=ignoreboth:erasedups
 HISTSIZE=100000
 HISTFILESIZE=100000
-PROMPT_COMMAND="history -a; history -c; history -r; $PROMPT_COMMAND"
+# Prepend history sync; strip any trailing semicolons from existing value to
+# avoid ";;" syntax errors when other tools append to PROMPT_COMMAND later.
+_existing_prompt_cmd="${PROMPT_COMMAND%;}"
+_existing_prompt_cmd="${_existing_prompt_cmd% }"
+PROMPT_COMMAND="history -a; history -c; history -r${_existing_prompt_cmd:+; $_existing_prompt_cmd}"
+unset _existing_prompt_cmd
 
 # Enable programmable completion
 if ! shopt -oq posix; then

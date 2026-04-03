@@ -19,9 +19,18 @@ log_warn() { echo -e "${YELLOW}!${NC} $1"; }
 log_error() { echo -e "${RED}✗${NC} $1"; }
 log_section() { echo -e "\n${MAGENTA}==== $1 ====${NC}\n"; }
 
-# Dotfiles directory
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+# Dotfiles directory (prefer env var, then script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_DIR="${DOTFILES_DIR:-$SCRIPT_DIR}"
 export DOTFILES_DIR
+
+# In self-edit devcontainers (DOTFILES_WORKSPACE=1), VS Code's dotfiles
+# mechanism also runs install.sh from its clone at ~/.dotfiles. Defer that
+# invocation -- postCreateCommand runs the canonical install from the workspace.
+if [[ -n "${DOTFILES_WORKSPACE:-}" ]] && [[ "$SCRIPT_DIR" != "$DOTFILES_DIR" ]]; then
+    log_info "Deferring install to postCreateCommand (DOTFILES_DIR=$DOTFILES_DIR)"
+    exit 0
+fi
 
 # Check if dotfiles directory exists
 if [[ ! -d "$DOTFILES_DIR" ]]; then

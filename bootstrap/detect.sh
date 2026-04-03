@@ -82,6 +82,11 @@ is_devcontainer() {
     [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]]
 }
 
+# Check if the dotfiles repo itself is the active workspace
+is_dotfiles_workspace() {
+    [[ -n "${DOTFILES_WORKSPACE:-}" ]]
+}
+
 # Export detection functions for use in other scripts
 export -f detect_environment
 export -f detect_os
@@ -91,6 +96,7 @@ export -f has_tool
 export -f get_sudo
 export -f is_minimal_install
 export -f is_devcontainer
+export -f is_dotfiles_workspace
 
 # If sourced, don't execute; if run directly, show info
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

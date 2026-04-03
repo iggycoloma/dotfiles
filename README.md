@@ -205,21 +205,33 @@ These dotfiles automatically adapt to your environment:
 
 **On Host Machines**: Configuration files are symlinked to this repository for easy updates.
 
-**In Devcontainers/Codespaces**: Files are copied with intelligent merging to work with Docker named volumes.
+**In Devcontainers/Codespaces**: A single named volume persists CLI tool state (credentials, history, sessions) across container rebuilds. The installer creates directory symlinks (`~/.claude`, `~/.codex`) into the volume and force-copies configs from dotfiles on every boot, so configuration is always fresh while state is preserved.
+
+### Per-Project Setup
+
+Add one volume mount to your project's `devcontainer.json`:
+
+```json
+"mounts": [
+  "source=${devcontainerId}-state,target=/home/vscode/.devcontainer-state,type=volume"
+]
+```
+
+The dotfiles installer handles everything else: ownership fixes, directory wiring, environment variables, and config deployment.
+
+**What persists across rebuilds** (lives in the volume): credentials, auth tokens, shell history, sessions, plans, todos, caches.
+
+**What refreshes every boot** (copied from dotfiles): settings.json, CLAUDE.md, agents, commands, hooks, skills.
 
 ### Quick Start
 
-1. Copy the example configuration:
-   ```bash
-   mkdir -p .devcontainer
-   cp ~/.dotfiles/.devcontainer/example/devcontainer.json .devcontainer/
-   ```
+1. Configure VS Code to use your dotfiles repo (Settings > "Dotfiles: Repository")
 
-2. Update the repository reference in `.devcontainer/devcontainer.json`
+2. Add the mount above to your project's `.devcontainer/devcontainer.json`
 
 3. Reopen in container: `Cmd/Ctrl+Shift+P` -> "Dev Containers: Reopen in Container"
 
-See [.devcontainer/example/README.md](.devcontainer/example/README.md) for detailed documentation.
+See [.devcontainer/example/devcontainer.json](.devcontainer/example/devcontainer.json) for a complete example.
 
 ## Environment Variables
 
