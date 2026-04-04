@@ -112,4 +112,4 @@ if [[ -n "$CI" && -n "$_zsh_start_time" ]]; then
 fi
 
 # Startup profiling output
-[[ -n "$ZSH_PROFILE" ]] && zprof
+if [[ -n "$ZSH_PROFILE" ]]; then zprof; fi
