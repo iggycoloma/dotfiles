@@ -97,10 +97,19 @@ if command -v fzf &> /dev/null; then
     fi
 fi
 
-# zoxide (smart cd)
+# zoxide (smart cd) -- deferred on zsh (first prompt), eager on bash
 if command -v zoxide &> /dev/null; then
     [[ -n "$CI" ]] && _before_zoxide=$EPOCHREALTIME
-    eval "$(zoxide init "$(basename "$SHELL")")"
+    if [[ -n "$ZSH_VERSION" ]]; then
+        # Deferred: init on first prompt so tracking hooks are active early
+        _zoxide_lazy_init() {
+            precmd_functions=("${precmd_functions[@]:#_zoxide_lazy_init}")
+            eval "$(zoxide init zsh)"
+        }
+        precmd_functions+=(_zoxide_lazy_init)
+    else
+        eval "$(zoxide init bash)"
+    fi
     if [[ -n "$CI" ]]; then
         _after_zoxide=$EPOCHREALTIME
         echo "[CI-TIMING] Zoxide init in $(( (_after_zoxide - _before_zoxide) * 1000 ))ms" >&2
@@ -122,10 +131,19 @@ if command -v atuin &> /dev/null; then
     fi
 fi
 
-# direnv (directory environment)
+# direnv (directory environment) -- lazy-load on zsh, eager on bash
 if command -v direnv &> /dev/null; then
     [[ -n "$CI" ]] && _before_direnv=$EPOCHREALTIME
-    eval "$(direnv hook "$(basename "$SHELL")")"
+    if [[ -n "$ZSH_VERSION" ]]; then
+        # Deferred: init on first prompt via precmd hook, then remove itself
+        _direnv_lazy_init() {
+            precmd_functions=("${precmd_functions[@]:#_direnv_lazy_init}")
+            eval "$(direnv hook zsh)"
+        }
+        precmd_functions+=(_direnv_lazy_init)
+    else
+        eval "$(direnv hook bash)"
+    fi
     if [[ -n "$CI" ]]; then
         _after_direnv=$EPOCHREALTIME
         echo "[CI-TIMING] Direnv init in $(( (_after_direnv - _before_direnv) * 1000 ))ms" >&2

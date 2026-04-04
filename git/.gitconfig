@@ -41,6 +41,13 @@
 [commit]
 	# Use a conventional-commit friendly template
 	template = ~/.gitmessage
+	# gpgsign is enabled by install.sh when an SSH key is available
+
+[gpg]
+	format = ssh
+
+[gpg "ssh"]
+	allowedSignersFile = ~/.config/git/allowed_signers
 
 [color]
 	ui = auto

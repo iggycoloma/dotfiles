@@ -3,6 +3,9 @@
 # This file runs for every interactive Zsh session (login or non-login)
 # For login shells, .zprofile runs first, then this file
 
+# Startup profiling: ZSH_PROFILE=1 zsh -i -c exit
+[[ -n "$ZSH_PROFILE" ]] && zmodload zsh/zprof
+
 # CI timing diagnostics (only when CI env var is set)
 if [[ -n "$CI" ]]; then
     zmodload zsh/datetime  # Load datetime module for EPOCHREALTIME
@@ -41,9 +44,15 @@ setopt INTERACTIVE_COMMENTS  # Allow comments in interactive mode
 setopt EXTENDED_GLOB         # Extended globbing
 setopt NO_BEEP               # No beeping
 
-# Completion system initialization
+# Completion system initialization (cached -- full rebuild once per day)
 autoload -Uz compinit
-compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+_comp_dump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+if [[ -n "$_comp_dump"(#qN.mh+24) ]]; then
+    compinit -d "$_comp_dump"
+else
+    compinit -C -d "$_comp_dump"
+fi
+unset _comp_dump
 
 # Completion configuration
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
@@ -101,3 +110,6 @@ if [[ -n "$CI" && -n "$_zsh_start_time" ]]; then
     _zsh_end_time=$EPOCHREALTIME
     echo "[CI-TIMING] Total zsh startup: $(( (_zsh_end_time - _zsh_start_time) * 1000 ))ms" >&2
 fi
+
+# Startup profiling output
+[[ -n "$ZSH_PROFILE" ]] && zprof

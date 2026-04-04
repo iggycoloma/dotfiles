@@ -79,6 +79,7 @@ _tool_config() {
     _tc_format="tar.gz"           # tar.gz | tar.xz | zip | binary
     _tc_checksum="standard"       # standard | bsd | sha256sums | none
     _tc_arch_remap=""             # "" | "arm64" | "amd64" (remap aarch64)
+    _tc_x86_remap=""              # "" | "x64" | "amd64" (remap x86_64)
     _tc_os_override=""            # "" | literal os | "musl_fallback_gnu"
     _tc_skip_musl=""              # "true" to skip on musl systems
     _tc_find_depth=""             # "" | "-maxdepth N"
@@ -142,6 +143,13 @@ _tool_config() {
             _tc_pattern='bottom_ARCH-OS\.tar\.gz$'
             _tc_binary_name="btm"
             ;;
+        gitleaks)
+            # gitleaks uses x64/arm64 (not x86_64/aarch64)
+            _tc_arch_remap="arm64"
+            _tc_x86_remap="x64"
+            _tc_os_override="linux"
+            _tc_pattern='gitleaks_[0-9.]+_OS_ARCH\.tar\.gz$'
+            ;;
         *)
             return 1
             ;;
@@ -166,6 +174,9 @@ _install_tool() {
     # Apply arch remapping for Go-style binaries
     if [[ -n "$_tc_arch_remap" && "$arch" == "aarch64" ]]; then
         arch="$_tc_arch_remap"
+    fi
+    if [[ -n "$_tc_x86_remap" && "$arch" == "x86_64" ]]; then
+        arch="$_tc_x86_remap"
     fi
 
     # Apply OS override
@@ -341,6 +352,7 @@ get_github_repo() {
         scc) echo "boyter/scc" ;;
         yq) echo "mikefarah/yq" ;;
         watchexec) echo "watchexec/watchexec" ;;
+        gitleaks) echo "gitleaks/gitleaks" ;;
         *) echo "" ;;
     esac
 }
@@ -625,6 +637,7 @@ install_packages() {
         install_from_github "scc" "$(get_github_repo scc)"
         install_from_github "yq" "$(get_github_repo yq)"
         install_from_github "watchexec" "$(get_github_repo watchexec)"
+        install_from_github "gitleaks" "$(get_github_repo gitleaks)"
 
         install_bash_preexec
 
