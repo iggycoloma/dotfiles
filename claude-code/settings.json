@@ -121,7 +121,13 @@
       "Read(~/.git-credentials)",
       "Read(~/.pgpass)",
       "Read(~/.my.cnf)",
-      "Read(~/.mongorc.js)"
+      "Read(~/.mongorc.js)",
+      "Read(**/*.tfvars)",
+      "Read(**/*.ppk)",
+      "Read(**/*.jks)",
+      "Read(**/*.keystore)",
+      "Read(**/*.pfx)",
+      "Read(**/*.p12)"
     ]
   },
   "hooks": {
@@ -159,6 +165,18 @@
             "type": "command",
             "command": "~/.claude/hooks/pre-code-no-emoji.sh",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/post-shellcheck.sh",
+            "timeout": 15
           }
         ]
       }

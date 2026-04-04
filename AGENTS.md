@@ -1,4 +1,7 @@
-# Global Claude Code Instructions
+# Dotfiles Repository -- Agent Instructions
+
+Shared instructions for all AI coding tools (Claude Code, Codex, Copilot, Cursor, Windsurf, Amp, Devin).
+Tool-specific overrides live in `claude-code/CLAUDE.md` and `codex/AGENTS.md`.
 
 ## Guardrails
 
@@ -8,10 +11,6 @@
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe
 - Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
-- Permission hooks enforce credential deny lists in `settings.json`
-- The `pre-security.sh` hook blocks access to sensitive paths at runtime
-- The `pre-commit-validate.sh` hook enforces conventional commits on `git commit`
-- The `pre-code-no-emoji.sh` hook blocks decorative emojis in code files
 
 ## Preferred CLI Tools
 
@@ -47,3 +46,9 @@ prefer `sg` over `rg`. Examples:
 
 - Use `watchexec` for auto-test/rebuild loops when iterating on changes
 - Example: `watchexec -e py -- pytest tests/`
+
+## Working Style
+
+- Keep changes minimal and focused; do not refactor unrelated code
+- Run relevant tests/lint after changes when practical and report what was run
+- If asked for a review, prioritize bugs/regressions/security issues first, then style

@@ -271,6 +271,104 @@ function cat {
 # Alias for original cat without any wrappers
 alias ccat='command cat'
 
+# Verify dotfiles installation state (read-only diagnostic)
+function dotfiles-doctor {
+    local pass=0 fail=0 warn=0
+
+    _doc_pass() { echo -e "\033[0;32m  ok\033[0m  $1"; ((pass++)); }
+    _doc_fail() { echo -e "\033[0;31m  FAIL\033[0m $1"; ((fail++)); }
+    _doc_warn() { echo -e "\033[1;33m  warn\033[0m $1"; ((warn++)); }
+
+    _doc_check_symlink() {
+        local target="$1" label="$2"
+        if [[ -L "$target" ]]; then
+            _doc_pass "$label -> $(readlink "$target")"
+        elif [[ -e "$target" ]]; then
+            _doc_warn "$label exists but is not a symlink"
+        else
+            _doc_fail "$label missing"
+        fi
+    }
+
+    _doc_check_tool() {
+        local tool="$1" label="${2:-$1}"
+        if command -v "$tool" &>/dev/null; then
+            local ver
+            ver=$("$tool" --version 2>/dev/null | head -1 || echo "unknown")
+            _doc_pass "$label ($ver)"
+        else
+            _doc_warn "$label not found"
+        fi
+    }
+
+    echo "dotfiles doctor -- checking installation health"
+    echo ""
+
+    echo "== Symlinks =="
+    _doc_check_symlink "$HOME/.bashrc" ".bashrc"
+    _doc_check_symlink "$HOME/.zshrc" ".zshrc"
+    _doc_check_symlink "$HOME/.config/git/config" "git config (XDG)"
+    _doc_check_symlink "$HOME/.config/git/hooks" "git hooks"
+    _doc_check_symlink "$HOME/.config/starship.toml" "starship config"
+    _doc_check_symlink "$HOME/.gitignore_global" ".gitignore_global"
+    echo ""
+
+    echo "== Core Tools =="
+    _doc_check_tool git
+    _doc_check_tool curl
+    _doc_check_tool fzf
+    _doc_check_tool rg "ripgrep"
+    _doc_check_tool fd
+    _doc_check_tool bat
+    _doc_check_tool jq
+    echo ""
+
+    echo "== Enhanced Tools =="
+    _doc_check_tool starship
+    _doc_check_tool zoxide
+    _doc_check_tool eza
+    _doc_check_tool delta "git-delta"
+    _doc_check_tool atuin
+    _doc_check_tool sd
+    _doc_check_tool sg "ast-grep"
+    _doc_check_tool difft "difftastic"
+    _doc_check_tool scc
+    _doc_check_tool yq
+    _doc_check_tool watchexec
+    _doc_check_tool gitleaks
+    echo ""
+
+    echo "== Git Configuration =="
+    if git config user.name >/dev/null 2>&1; then
+        _doc_pass "git user.name: $(git config user.name)"
+    else
+        _doc_fail "git user.name not set"
+    fi
+    if git config user.email >/dev/null 2>&1; then
+        _doc_pass "git user.email: $(git config user.email)"
+    else
+        _doc_fail "git user.email not set"
+    fi
+    if git config core.hooksPath >/dev/null 2>&1; then
+        _doc_pass "global hooks: $(git config core.hooksPath)"
+    else
+        _doc_fail "global hooks not configured"
+    fi
+    if git config user.signingkey >/dev/null 2>&1; then
+        _doc_pass "commit signing configured"
+    else
+        _doc_warn "commit signing not configured"
+    fi
+    echo ""
+
+    echo "== Summary =="
+    echo -e "  \033[0;32m$pass passed\033[0m, \033[1;33m$warn warnings\033[0m, \033[0;31m$fail failed\033[0m"
+
+    # Clean up helper functions from shell namespace
+    unset -f _doc_pass _doc_fail _doc_warn _doc_check_symlink _doc_check_tool
+    [[ $fail -eq 0 ]] && return 0 || return 1
+}
+
 # Load local functions if they exist
 if [[ -f "$HOME/.functions.local" ]]; then
     source "$HOME/.functions.local"
