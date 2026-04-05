@@ -85,6 +85,7 @@ _tool_config() {
     _tc_find_depth=""             # "" | "-maxdepth N"
     _tc_binary_name="$tool"       # binary name in archive
     _tc_api_fallback=""           # "lazygit" for special HTTP redirect fallback
+    _tc_binary_rename=""          # glob pattern to find + rename binary (e.g. "codex-*" -> "$tool")
 
     case "$tool" in
         starship)
@@ -130,7 +131,8 @@ _tool_config() {
             ;;
         yq)
             _tc_format="binary"
-            _tc_arch_remap="amd64"
+            _tc_arch_remap="arm64"
+            _tc_x86_remap="amd64"
             _tc_checksum="bsd"
             _tc_pattern='yq_linux_ARCH$'
             ;;
@@ -149,6 +151,13 @@ _tool_config() {
             _tc_x86_remap="x64"
             _tc_os_override="linux"
             _tc_pattern='gitleaks_[0-9.]+_OS_ARCH\.tar\.gz$'
+            ;;
+        codex)
+            _tc_checksum="none"
+            _tc_pattern='/codex-ARCH-OS\.tar\.gz$'
+            # Archive contains "codex-ARCH-OS" not "codex"; _tc_binary_rename
+            # tells _install_tool to find by glob and rename to "codex"
+            _tc_binary_rename="codex-*"
             ;;
         *)
             return 1
@@ -315,14 +324,30 @@ _install_tool() {
         fi
 
         # Find and install binary
-        local find_args=("$tmp_dir" -name "$binary_name" -type f)
-        # Intentional word splitting for -maxdepth N
-        # shellcheck disable=SC2206
-        [[ -n "$_tc_find_depth" ]] && find_args+=($_tc_find_depth)
-        if ! find "${find_args[@]}" -exec cp {} "$install_dir/" \; 2>/dev/null || [[ ! -f "$install_dir/$binary_name" ]]; then
-            log_error "Could not find $binary_name binary in archive"
-            rm -rf "$tmp_dir"
-            return 1
+        if [[ -n "$_tc_binary_rename" ]]; then
+            # Glob-based find + rename (e.g. "codex-*" -> "codex")
+            # Excludes archive files to avoid matching the downloaded asset itself
+            local found_bin
+            # shellcheck disable=SC2086
+            found_bin=$(find "$tmp_dir" -name $_tc_binary_rename -type f \
+                ! -name '*.tar.gz' ! -name '*.tar.xz' ! -name '*.zip' | head -n1)
+            if [[ -n "$found_bin" ]]; then
+                cp "$found_bin" "$install_dir/$binary_name"
+            else
+                log_error "Could not find $binary_name binary in archive"
+                rm -rf "$tmp_dir"
+                return 1
+            fi
+        else
+            local find_args=("$tmp_dir" -name "$binary_name" -type f)
+            # Intentional word splitting for -maxdepth N
+            # shellcheck disable=SC2206
+            [[ -n "$_tc_find_depth" ]] && find_args+=($_tc_find_depth)
+            if ! find "${find_args[@]}" -exec cp {} "$install_dir/" \; 2>/dev/null || [[ ! -f "$install_dir/$binary_name" ]]; then
+                log_error "Could not find $binary_name binary in archive"
+                rm -rf "$tmp_dir"
+                return 1
+            fi
         fi
         chmod +x "$install_dir/$binary_name"
     fi
@@ -353,6 +378,7 @@ get_github_repo() {
         yq) echo "mikefarah/yq" ;;
         watchexec) echo "watchexec/watchexec" ;;
         gitleaks) echo "gitleaks/gitleaks" ;;
+        codex) echo "openai/codex" ;;
         *) echo "" ;;
     esac
 }
@@ -373,6 +399,11 @@ install_apt() {
     # fzf is available in Ubuntu 20.04+
     if ! has_tool fzf; then
         packages+=("fzf")
+    fi
+
+    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+        packages+=("bubblewrap")
     fi
 
     # Add host-specific tools
@@ -459,6 +490,11 @@ install_apk() {
     # Note: Some tools may have different names or not be available
     packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
+    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+        packages+=("bubblewrap")
+    fi
+
     # Add host-specific tools
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "lazygit")
@@ -482,7 +518,17 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "atuin" "ast-grep" "difftastic" "sd" "scc" "yq" "watchexec")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec")
+
+    # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
+    if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
+        packages+=("atuin")
+    fi
+
+    # AI-adjacent tools (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+        packages+=("ast-grep" "difftastic")
+    fi
 
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
@@ -590,6 +636,36 @@ install_bash_preexec() {
     fi
 }
 
+# Install Claude Code via native installer (no Node.js required).
+# Downloads to a temp file first so download and execution failures are
+# distinguishable. No pinnable checksum -- this is Anthropic's official
+# installer and is a moving target.
+install_claude_code() {
+    if has_tool claude; then
+        log_info "Claude Code already installed, skipping"
+        return 0
+    fi
+    log_info "Installing Claude Code via native installer..."
+    local tmp_script
+    tmp_script=$(mktemp) || { log_warn "Failed to create temp file for Claude installer"; return 1; }
+    if curl -fsSL https://claude.ai/install.sh -o "$tmp_script"; then
+        if bash "$tmp_script" 2>&1; then
+            # Installer may place binary outside current PATH
+            export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$PATH"
+            if has_tool claude; then
+                log_success "Claude Code installed"
+            else
+                log_warn "Claude Code installer ran but 'claude' not found in PATH"
+            fi
+        else
+            log_warn "Failed to run Claude Code installer (non-fatal)"
+        fi
+    else
+        log_warn "Failed to download Claude Code installer (non-fatal)"
+    fi
+    rm -f "$tmp_script"
+}
+
 # Main installation function
 install_packages() {
     local env os pkg_mgr minimal
@@ -624,28 +700,45 @@ install_packages() {
 
     # Install additional tools from GitHub (skip if using Homebrew)
     if [[ "$pkg_mgr" != "brew" ]]; then
-        log_info "Installing tools from GitHub releases..."
+        log_info "Installing core tools from GitHub releases..."
 
         install_from_github "starship" "$(get_github_repo starship)"
         install_from_github "eza" "$(get_github_repo eza)"
         install_from_github "zoxide" "$(get_github_repo zoxide)"
         install_from_github "delta" "$(get_github_repo delta)"
-        install_from_github "atuin" "$(get_github_repo atuin)"
         install_from_github "sd" "$(get_github_repo sd)"
-        install_from_github "difft" "$(get_github_repo difft)"
-        install_from_github "sg" "$(get_github_repo sg)"
         install_from_github "scc" "$(get_github_repo scc)"
         install_from_github "yq" "$(get_github_repo yq)"
         install_from_github "watchexec" "$(get_github_repo watchexec)"
         install_from_github "gitleaks" "$(get_github_repo gitleaks)"
 
-        install_bash_preexec
+        # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
+        if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
+            install_bash_preexec
+            install_from_github "atuin" "$(get_github_repo atuin)"
+        fi
+
+        # AI-adjacent tools (opt-out via DOTFILES_NO_AI_TOOLS=1)
+        if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+            install_from_github "difft" "$(get_github_repo difft)"
+            install_from_github "sg" "$(get_github_repo sg)"
+        fi
 
         # Host-only GitHub tools
         if [[ "$minimal" != "true" ]]; then
             install_from_github "lazygit" "$(get_github_repo lazygit)"
             install_from_github "bottom" "$(get_github_repo bottom)"
         fi
+    fi
+
+    # AI coding tools -- native binary installs, devcontainer only
+    # (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && is_devcontainer; then
+        log_info "Installing AI coding tools..."
+        if [[ "$pkg_mgr" != "brew" ]]; then
+            install_from_github "codex" "$(get_github_repo codex)"
+        fi
+        install_claude_code
     fi
 
     log_success "Package installation complete!"

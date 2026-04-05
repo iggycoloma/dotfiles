@@ -112,7 +112,8 @@ create_symlinks() {
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
     create_symlink "$DOTFILES_DIR/git/.gitmessage" "$HOME/.gitmessage"
     # Global Git hooks (applies to all repos via core.hooksPath)
-    if [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
+    # Opt-out via DOTFILES_NO_GIT_HOOKS=1
+    if [[ "${DOTFILES_NO_GIT_HOOKS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
         # Ensure hooks are executable
         for file in "$DOTFILES_DIR/git/hooks"/*; do
             [ -f "$file" ] || continue
@@ -154,8 +155,8 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
     fi
 
-    # Claude Code configuration
-    if [[ -d "$DOTFILES_DIR/claude-code" ]]; then
+    # Claude Code configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/claude-code" ]]; then
         log_info "Setting up Claude Code configuration..."
 
         if is_devcontainer; then
@@ -207,12 +208,14 @@ create_symlinks() {
         fi
 
         log_success "Claude Code configuration complete"
+    elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
+        log_info "DOTFILES_NO_AI_TOOLS=1, skipping Claude Code setup"
     else
         log_info "Claude Code directory not found, skipping Claude Code setup"
     fi
 
-    # Codex configuration
-    if [[ -d "$DOTFILES_DIR/codex" ]]; then
+    # Codex configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/codex" ]]; then
         log_info "Setting up .codex configuration..."
 
         if is_devcontainer; then
@@ -283,19 +286,30 @@ create_symlinks() {
         fi
 
         # Ensure notify hook is wired in config.toml (non-destructive)
+        # Codex expects notify as an array of command + args
         if [[ -f "$HOME/.codex/hooks/notify.sh" ]]; then
             if [[ -f "$HOME/.codex/config.toml" ]]; then
-                if ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
+                # Fix legacy string format -> array format
+                if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
+                    log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
+                    if command -v sd >/dev/null 2>&1; then
+                        sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
+                    else
+                        sed -i 's|^notify\s*=\s*"bash \(.*\)"|notify = ["bash", "\1"]|' "$HOME/.codex/config.toml"
+                    fi
+                elif ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
                     log_info "Adding notify hook to ~/.codex/config.toml"
-                    printf '\nnotify = "bash %s/.codex/hooks/notify.sh"\n' "$HOME" >> "$HOME/.codex/config.toml"
+                    printf '\nnotify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" >> "$HOME/.codex/config.toml"
                 fi
             else
                 log_info "Creating ~/.codex/config.toml with notify hook"
-                printf 'notify = "bash %s/.codex/hooks/notify.sh"\n' "$HOME" > "$HOME/.codex/config.toml"
+                printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" > "$HOME/.codex/config.toml"
             fi
         fi
 
         log_success ".codex configuration complete"
+    elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
+        log_info "DOTFILES_NO_AI_TOOLS=1, skipping Codex setup"
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)

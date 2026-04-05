@@ -34,6 +34,9 @@ private/
 # User-specific bin scripts (if any)
 bin/private/
 
+# Devcontainer state (workspace-local fallback)
+.devcontainer-state/
+
 # Prevent circular symlinks (files with same name as parent directory)
 bin/bin
 claude-code/agents/agents

@@ -480,6 +480,116 @@ test_completion_no_local_at_file_scope() {
 }
 
 #
+# Test Suite: Installation Toggle Gates
+#
+
+# Helper: set up a minimal dotfiles tree that create_symlinks expects
+_setup_toggle_env() {
+    setup_test_env
+
+    # Minimal shell configs (required by create_symlinks)
+    for f in .bashrc .bash_profile .zshrc .zprofile; do
+        mock_file "$TEST_TEMP_DIR/dotfiles/shell/$f" "# $f"
+    done
+
+    # Git configs
+    mock_file "$TEST_TEMP_DIR/dotfiles/git/.gitconfig" "# git"
+    mock_file "$TEST_TEMP_DIR/dotfiles/git/.gitignore_global" "# ignore"
+    mock_file "$TEST_TEMP_DIR/dotfiles/git/.gitmessage" "# message"
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/git/hooks"
+    echo '#!/bin/sh' > "$TEST_TEMP_DIR/dotfiles/git/hooks/commit-msg"
+    chmod +x "$TEST_TEMP_DIR/dotfiles/git/hooks/commit-msg"
+
+    # Claude Code config
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/claude-code/hooks"
+    mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/CLAUDE.md" "# claude"
+    mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/settings.json" "{}"
+    mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/statusline.sh" "#!/bin/sh"
+
+    # Codex config
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/codex/hooks"
+    mock_file "$TEST_TEMP_DIR/dotfiles/codex/AGENTS.md" "# codex"
+
+    # Ensure XDG config dir
+    mkdir -p "$TEST_TEMP_DIR/home/.config/git"
+}
+
+test_toggle_no_ai_tools_skips_claude_config() {
+    _setup_toggle_env
+    export DOTFILES_NO_AI_TOOLS=1
+
+    create_symlinks &>/dev/null
+
+    assert_file_not_exists "$TEST_TEMP_DIR/home/.claude/CLAUDE.md" \
+        "DOTFILES_NO_AI_TOOLS=1 should skip Claude Code config"
+
+    unset DOTFILES_NO_AI_TOOLS
+    teardown_test_env
+}
+
+test_toggle_no_ai_tools_skips_codex_config() {
+    _setup_toggle_env
+    export DOTFILES_NO_AI_TOOLS=1
+
+    create_symlinks &>/dev/null
+
+    assert_file_not_exists "$TEST_TEMP_DIR/home/.codex/AGENTS.md" \
+        "DOTFILES_NO_AI_TOOLS=1 should skip Codex config"
+
+    unset DOTFILES_NO_AI_TOOLS
+    teardown_test_env
+}
+
+test_toggle_no_git_hooks_skips_hooks() {
+    _setup_toggle_env
+    export DOTFILES_NO_GIT_HOOKS=1
+
+    create_symlinks &>/dev/null
+
+    if [[ -L "$TEST_TEMP_DIR/home/.config/git/hooks" ]]; then
+        test_fail "DOTFILES_NO_GIT_HOOKS=1 should skip git hooks symlink"
+    else
+        test_pass "DOTFILES_NO_GIT_HOOKS=1 skips git hooks symlink"
+    fi
+
+    unset DOTFILES_NO_GIT_HOOKS
+    teardown_test_env
+}
+
+test_toggle_default_installs_all() {
+    _setup_toggle_env
+    # Ensure toggles are unset
+    unset DOTFILES_NO_AI_TOOLS 2>/dev/null || true
+    unset DOTFILES_NO_GIT_HOOKS 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    # Claude config should be deployed (as symlink in local mode)
+    assert_file_exists "$TEST_TEMP_DIR/home/.claude/CLAUDE.md" \
+        "Default (no toggles) should deploy Claude Code config"
+
+    # Git hooks should be symlinked
+    assert_is_symlink "$TEST_TEMP_DIR/home/.config/git/hooks" \
+        "Default (no toggles) should symlink git hooks"
+
+    teardown_test_env
+}
+
+test_toggle_no_ai_tools_log_message() {
+    _setup_toggle_env
+    export DOTFILES_NO_AI_TOOLS=1
+
+    local output
+    output=$(create_symlinks 2>&1)
+
+    assert_contains "$output" "DOTFILES_NO_AI_TOOLS=1" \
+        "Should log toggle skip message for AI tools"
+
+    unset DOTFILES_NO_AI_TOOLS
+    teardown_test_env
+}
+
+#
 # Run all tests
 #
 
@@ -531,6 +641,14 @@ main() {
     test_suite "Shell Config"
     test_path_no_duplicates
     test_completion_no_local_at_file_scope
+
+    # Installation toggle tests
+    test_suite "Installation Toggles"
+    test_toggle_no_ai_tools_skips_claude_config
+    test_toggle_no_ai_tools_skips_codex_config
+    test_toggle_no_git_hooks_skips_hooks
+    test_toggle_default_installs_all
+    test_toggle_no_ai_tools_log_message
 
     # Print summary
     print_test_summary

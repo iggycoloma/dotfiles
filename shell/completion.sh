@@ -117,12 +117,14 @@ if command -v zoxide &> /dev/null; then
 fi
 
 # bash-preexec (required for atuin on bash; zsh has native preexec/precmd)
-if [[ -n "$BASH_VERSION" && -f "$HOME/.bash-preexec.sh" ]]; then
+# Respects DOTFILES_NO_ATUIN=1 toggle
+if [[ "${DOTFILES_NO_ATUIN:-}" != "1" && -n "$BASH_VERSION" && -f "$HOME/.bash-preexec.sh" ]]; then
     source "$HOME/.bash-preexec.sh"
 fi
 
 # atuin (shell history with SQLite)
-if command -v atuin &> /dev/null; then
+# Respects DOTFILES_NO_ATUIN=1 toggle
+if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]] && command -v atuin &> /dev/null; then
     [[ -n "$CI" && -n "${EPOCHREALTIME+x}" ]] && _before_atuin=$EPOCHREALTIME
     eval "$(atuin init "$(basename "$SHELL")")"
     if [[ -n "$CI" && -n "${EPOCHREALTIME+x}" ]]; then
