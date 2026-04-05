@@ -131,8 +131,12 @@ if [[ -f "$DOTFILES_DIR/vim/.vimrc" ]]; then
 fi
 
 log_section "XDG Config Directory Symlinks"
-# Git XDG config
-check_symlink "$HOME/.config/git/config" "$DOTFILES_DIR/git/.gitconfig" "Git XDG config"
+# Git XDG config (real file with [include], not a symlink)
+if [[ -f "$HOME/.config/git/config" ]] && ! [[ -L "$HOME/.config/git/config" ]] && grep -qF "$DOTFILES_DIR/git/.gitconfig" "$HOME/.config/git/config"; then
+    log_pass "Git XDG config includes dotfiles settings"
+else
+    log_fail "Git XDG config should include dotfiles settings via [include]"
+fi
 check_symlink "$HOME/.config/git/hooks" "$DOTFILES_DIR/git/hooks" "Git global hooks"
 
 # Required tool configs

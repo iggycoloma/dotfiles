@@ -86,6 +86,37 @@ stomp_configs() {
     done
 }
 
+# Ensure the user's git config includes the dotfiles git settings.
+# Uses [include] so ~/.config/git/config stays writable for personal settings
+# (signing keys) without dirtying the repo. Converts old symlink on migration.
+_ensure_git_include() {
+    local dotfiles_gitconfig="$1"
+    local xdg_config="$HOME/.config/git/config"
+    mkdir -p "$(dirname "$xdg_config")"
+
+    # Migrate from old symlink to real file
+    if [[ -L "$xdg_config" ]]; then
+        log_info "Migrating git config from symlink to [include] pattern"
+        rm -f "$xdg_config"
+    fi
+
+    # Check if include already present
+    if [[ -f "$xdg_config" ]] && grep -qF "$dotfiles_gitconfig" "$xdg_config" 2>/dev/null; then
+        log_success "Git config already includes dotfiles settings"
+        return 0
+    fi
+
+    # Prepend include (dotfiles = defaults, user settings override)
+    local tmp
+    tmp=$(mktemp)
+    printf '[include]\n\tpath = %s\n' "$dotfiles_gitconfig" > "$tmp"
+    if [[ -f "$xdg_config" ]]; then
+        cat "$xdg_config" >> "$tmp"
+    fi
+    mv "$tmp" "$xdg_config"
+    log_success "Added [include] for dotfiles git settings"
+}
+
 # Main symlink creation
 create_symlinks() {
     log_info "Creating symlinks..."
@@ -106,9 +137,10 @@ create_symlinks() {
     create_symlink "$DOTFILES_DIR/shell/.zprofile" "$HOME/.zprofile"
 
     # Git configurations
-    # Symlink .gitconfig to XDG location (works everywhere including devcontainers)
-    # User's personal ~/.gitconfig (identity) + XDG config (dotfiles settings) = merged by Git
-    create_symlink "$DOTFILES_DIR/git/.gitconfig" "$HOME/.config/git/config"
+    # Include dotfiles git settings via [include] in the XDG config.
+    # VS Code copies host ~/.gitconfig (identity) into devcontainers.
+    # The XDG config is a real file so git config --global writes are safe.
+    _ensure_git_include "$DOTFILES_DIR/git/.gitconfig"
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
     create_symlink "$DOTFILES_DIR/git/.gitmessage" "$HOME/.gitmessage"
     # Global Git hooks (applies to all repos via core.hooksPath)

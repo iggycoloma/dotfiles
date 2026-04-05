@@ -81,7 +81,7 @@ else
 fi
 
 log_section "Verifying Git Configuration"
-# Git config is now symlinked via bootstrap/symlinks.sh to XDG location
+# Git config: dotfiles settings included via [include] in XDG config
 # Check if git identity is configured
 if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
     log_success "Git identity configured: $(git config user.name) <$(git config user.email)>"
