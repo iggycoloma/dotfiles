@@ -646,6 +646,11 @@ install_claude_code() {
         return 0
     fi
     log_info "Installing Claude Code via native installer..."
+    # Ensure ~/.cache is writable (Docker volumes may mount it as root-owned)
+    mkdir -p "$HOME/.cache"
+    if [[ ! -w "$HOME/.cache" ]] && command -v sudo >/dev/null 2>&1; then
+        sudo chown -R "$(id -u):$(id -g)" "$HOME/.cache"
+    fi
     local tmp_script
     tmp_script=$(mktemp) || { log_warn "Failed to create temp file for Claude installer"; return 1; }
     if curl -fsSL https://claude.ai/install.sh -o "$tmp_script"; then
