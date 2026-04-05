@@ -335,8 +335,12 @@ else
 fi
 
 log_section "Git XDG Configuration"
-# Test XDG git config symlink
-test_symlink "$HOME/.config/git/config" "$DOTFILES_DIR/git/.gitconfig" "Git XDG config"
+# Test XDG git config includes dotfiles settings via [include]
+if [[ -f "$HOME/.config/git/config" ]] && ! [[ -L "$HOME/.config/git/config" ]] && grep -qF "$DOTFILES_DIR/git/.gitconfig" "$HOME/.config/git/config"; then
+    log_pass "Git XDG config includes dotfiles settings via [include]"
+else
+    log_fail "Git XDG config should be a real file with [include] for dotfiles settings"
+fi
 
 # Test global git hooks symlink
 test_symlink "$HOME/.config/git/hooks" "$DOTFILES_DIR/git/hooks" "Git global hooks"
@@ -348,11 +352,10 @@ else
     log_fail "Dotfiles git settings not loaded from XDG config"
 fi
 
-# Verify git config hierarchy: user identity in ~/.gitconfig, settings in XDG
+# Verify git config hierarchy: user identity in ~/.gitconfig, dotfiles in XDG via [include]
 if [[ -f "$HOME/.gitconfig" ]]; then
-    # If ~/.gitconfig exists, it should contain identity but not include directive
     if git config --file "$HOME/.gitconfig" user.email &>/dev/null; then
-        log_pass "User identity in ~/.gitconfig (separate from XDG settings)"
+        log_pass "User identity in ~/.gitconfig (separate from dotfiles settings)"
     fi
 fi
 

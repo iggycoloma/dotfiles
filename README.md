@@ -36,19 +36,21 @@ All tools are installed automatically. On Linux, most come from GitHub releases 
 | [fd](https://github.com/sharkdp/fd) | Fast file finder | Core |
 | [bat](https://github.com/sharkdp/bat) | Cat with syntax highlighting | Core |
 | [jq](https://github.com/jqlang/jq) | JSON processor | Core |
-| [starship](https://starship.rs/) | Cross-shell prompt with git status | Enhanced |
-| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smart directory jumping (replaces cd) | Enhanced |
-| [eza](https://github.com/eza-community/eza) | Modern ls replacement with git integration | Enhanced |
-| [git-delta](https://github.com/dandavison/delta) | Beautiful, syntax-highlighted git diffs | Enhanced |
+| [starship](https://starship.rs/) | Cross-shell prompt with git status | Core |
+| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smart directory jumping (replaces cd) | Core |
+| [eza](https://github.com/eza-community/eza) | Modern ls replacement with git integration | Core |
+| [git-delta](https://github.com/dandavison/delta) | Beautiful, syntax-highlighted git diffs | Core |
+| [sd](https://github.com/chmln/sd) | Find-and-replace (modern sed, PCRE regex) | Core |
+| [scc](https://github.com/boyter/scc) | Fast code statistics (LOC, complexity) | Core |
+| [yq](https://github.com/mikefarah/yq) | YAML/TOML/XML editor (preserves comments) | Core |
+| [watchexec](https://github.com/watchexec/watchexec) | File watcher for auto-test/rebuild | Core |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Secret scanner (pre-commit hook) | Core |
+| [shellcheck](https://github.com/koalaman/shellcheck) | Shell script linter | Core |
 | [atuin](https://github.com/atuinsh/atuin) | Shell history with SQLite and context search | Enhanced |
-| [sd](https://github.com/chmln/sd) | Find-and-replace (modern sed, PCRE regex) | Enhanced |
-| [ast-grep](https://ast-grep.github.io/) (sg) | Structural code search by AST | Enhanced |
-| [difftastic](https://github.com/Wilfred/difftastic) (difft) | AST-aware file diff (ignores formatting) | Enhanced |
-| [scc](https://github.com/boyter/scc) | Fast code statistics (LOC, complexity) | Enhanced |
-| [yq](https://github.com/mikefarah/yq) | YAML/TOML/XML editor (preserves comments) | Enhanced |
-| [watchexec](https://github.com/watchexec/watchexec) | File watcher for auto-test/rebuild | Enhanced |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | Secret scanner (pre-commit hook) | Security |
-| [shellcheck](https://github.com/koalaman/shellcheck) | Shell script linter | Quality |
+| [ast-grep](https://ast-grep.github.io/) (sg) | Structural code search by AST | AI |
+| [difftastic](https://github.com/Wilfred/difftastic) (difft) | AST-aware file diff (ignores formatting) | AI |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | AI coding assistant CLI (devcontainer) | AI |
+| [Codex CLI](https://github.com/openai/codex) | AI coding assistant CLI (devcontainer) | AI |
 | [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for git (host only) | Optional |
 | [bottom](https://github.com/ClementTsang/bottom) (btm) | System monitor (host only) | Optional |
 
@@ -95,7 +97,7 @@ Git settings live in `git/.gitconfig` and are included via `[include]` into your
 
 ### Agentic Coding Tools
 
-This repo configures two AI coding assistants with shared guardrails and workflows.
+This repo configures two AI coding assistants with shared guardrails and workflows. In devcontainers, Claude Code and Codex CLI are installed automatically as native binaries -- no devcontainer features or Node.js required. Disable with `DOTFILES_NO_AI_TOOLS=1`.
 
 **Architecture:**
 
@@ -143,19 +145,23 @@ Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35 cre
 
 ## Devcontainer Support
 
-These dotfiles automatically adapt to devcontainers and Codespaces.
+These dotfiles automatically adapt to devcontainers and Codespaces. Claude Code and Codex CLI are installed as native binaries -- no devcontainer features or Node.js required.
 
 ### How It Works
 
-A single named volume persists CLI tool state across container rebuilds. The installer creates directory symlinks into the volume and force-copies fresh configs from dotfiles on every boot.
+The installer detects devcontainer environments and automatically:
+- Installs Claude Code and Codex CLI as native binaries
+- Installs all configured CLI tools (core + AI-adjacent)
+- Deploys AI tool configs (~/.claude, ~/.codex) with fresh copies from dotfiles
+- Wires state persistence if a volume mount is present
 
-**What persists** (volume): credentials, auth tokens, shell history, sessions, plans, caches.
+**What persists** (volume, if mounted): credentials, auth tokens, shell history, sessions, plans, caches.
 
-**What refreshes** (copied from dotfiles): settings.json, CLAUDE.md, AGENTS.md, hooks, agents, commands, skills.
+**What refreshes** (copied from dotfiles every boot): settings.json, CLAUDE.md, AGENTS.md, hooks, agents, commands, skills.
 
 ### Per-Project Setup
 
-Add one volume mount to your project's `.devcontainer/devcontainer.json`:
+For state persistence across container rebuilds, add a volume mount to your project's `.devcontainer/devcontainer.json`:
 
 ```json
 {
@@ -165,7 +171,9 @@ Add one volume mount to your project's `.devcontainer/devcontainer.json`:
 }
 ```
 
-The dotfiles installer handles everything else: ownership fixes, directory wiring, environment variables, and config deployment. See `.devcontainer/example/` for a complete example.
+This is optional but recommended -- without it, auth tokens and history are lost on rebuild. The dotfiles installer handles everything else: tool installation, ownership fixes, directory wiring, environment variables, and config deployment. See `.devcontainer/example/` for a complete example.
+
+For future plans to eliminate this last piece of boilerplate, see [docs/future-workspace-local-state.md](docs/future-workspace-local-state.md).
 
 ### Git in Devcontainers
 
@@ -245,6 +253,19 @@ By default, `grep` and `find` are not shadowed. To enable rg/fd replacements:
 # Add to ~/.exports.local
 export DOTFILES_OPINIONATED_ALIASES=1
 ```
+
+### Installation Toggles
+
+Control what gets installed by setting environment variables before running `install.sh`. Set these in `~/.exports.local` or in your devcontainer's `remoteEnv`:
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `DOTFILES_NO_AI_TOOLS=1` | off | Skip Claude Code, Codex CLI, ast-grep, difftastic, and all AI config (~/.claude, ~/.codex) |
+| `DOTFILES_NO_ATUIN=1` | off | Skip atuin shell history and bash-preexec |
+| `DOTFILES_NO_GIT_HOOKS=1` | off | Skip global git hooks (conventional commits, gitleaks pre-commit) |
+| `DOTFILES_OPINIONATED_ALIASES=1` | off | Shadow `grep` with rg and `find` with fd |
+
+AI tools (Claude Code + Codex CLI) are installed as native binaries in devcontainer environments only. On host machines, users manage their own AI tool installations.
 
 ### Diagnostics
 

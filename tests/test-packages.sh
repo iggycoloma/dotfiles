@@ -24,7 +24,8 @@ assert_equals "standard" "$_tc_checksum" "starship checksum is standard"
 _tool_config yq
 assert_equals "binary" "$_tc_format" "yq format is binary (bare download)"
 assert_equals "bsd" "$_tc_checksum" "yq checksum is bsd"
-assert_equals "amd64" "$_tc_arch_remap" "yq remaps aarch64 to amd64"
+assert_equals "arm64" "$_tc_arch_remap" "yq remaps aarch64 to arm64"
+assert_equals "amd64" "$_tc_x86_remap" "yq remaps x86_64 to amd64"
 
 _tool_config watchexec
 assert_equals "tar.xz" "$_tc_format" "watchexec format is tar.xz"
@@ -56,8 +57,15 @@ assert_equals "btm" "$_tc_binary_name" "bottom binary name is btm"
 _tool_config sd
 assert_equals "none" "$_tc_checksum" "sd has no checksum"
 
+_tool_config codex
+assert_contains "$_tc_pattern" "codex" "codex pattern contains tool name"
+assert_equals "none" "$_tc_checksum" "codex has no checksum (uses sigstore)"
+
+# Test get_github_repo for codex
+assert_equals "openai/codex" "$(get_github_repo codex)" "codex maps to openai/codex"
+
 # Test all known tools have a non-empty pattern
-for tool in starship eza zoxide delta lazygit atuin sd sg difft scc yq watchexec bottom; do
+for tool in starship eza zoxide delta lazygit atuin sd sg difft scc yq watchexec bottom codex; do
     _tool_config "$tool"
     assert_not_equals "" "$_tc_pattern" "$tool has a non-empty pattern"
 done

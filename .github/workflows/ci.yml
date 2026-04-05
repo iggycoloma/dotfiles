@@ -391,8 +391,8 @@ jobs:
           # Verify git can commit (important for Codespaces)
           test -n "$(git config user.name)" && echo "✓ Git user.name is set: $(git config user.name)" || (echo "✗ Git user.name missing" && exit 1)
           test -n "$(git config user.email)" && echo "✓ Git user.email is set: $(git config user.email)" || (echo "✗ Git user.email missing" && exit 1)
-          # Verify XDG git config symlink
-          test -L "$HOME/.config/git/config" && echo "✓ Git XDG config symlink present" || (echo "✗ XDG config symlink missing" && exit 1)
+          # Verify XDG git config includes dotfiles settings
+          test -f "$HOME/.config/git/config" && grep -qF "git/.gitconfig" "$HOME/.config/git/config" && echo "✓ Git XDG config includes dotfiles settings" || (echo "✗ XDG config missing [include] for dotfiles" && exit 1)
           # Verify dotfiles settings are loaded
           test "$(git config --get core.pager)" = "delta" && echo "✓ Dotfiles git settings loaded (delta pager)" || echo "⚠ Delta pager not configured"
 
