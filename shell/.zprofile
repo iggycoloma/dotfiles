@@ -3,8 +3,15 @@
 # This file runs once at login for interactive login shells
 # Zsh automatically loads .zshrc after this file
 
-# Dotfiles directory (needed before sourcing exports.sh)
-export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+# Dotfiles directory -- resolve from symlink target if available
+if [[ -z "${DOTFILES_DIR:-}" ]]; then
+    if [[ -L "$HOME/.zshrc" ]]; then
+        DOTFILES_DIR="$(cd "$(dirname "$(readlink "$HOME/.zshrc")")/.." && pwd)"
+    else
+        DOTFILES_DIR="$HOME/.dotfiles"
+    fi
+fi
+export DOTFILES_DIR
 
 # Source shared environment variables
 if [[ -f "$DOTFILES_DIR/shell/exports.sh" ]]; then

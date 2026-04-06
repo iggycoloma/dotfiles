@@ -12,8 +12,16 @@ if [[ -n "$CI" ]]; then
     _zsh_start_time=$EPOCHREALTIME
 fi
 
-# Dotfiles directory
-export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+# Dotfiles directory -- resolve from symlink target if available
+# (Codespaces clones to a non-standard path; the symlink tells us where)
+if [[ -z "${DOTFILES_DIR:-}" ]]; then
+    if [[ -L "$HOME/.zshrc" ]]; then
+        DOTFILES_DIR="$(cd "$(dirname "$(readlink "$HOME/.zshrc")")/.." && pwd)"
+    else
+        DOTFILES_DIR="$HOME/.dotfiles"
+    fi
+fi
+export DOTFILES_DIR
 
 # Source shared exports (idempotent -- skipped if .zprofile already loaded them)
 if [[ -z "$_DOTFILES_EXPORTS_LOADED" && -f "$DOTFILES_DIR/shell/exports.sh" ]]; then

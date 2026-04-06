@@ -4,8 +4,15 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-# Dotfiles directory
-export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+# Dotfiles directory -- resolve from symlink target if available
+if [[ -z "${DOTFILES_DIR:-}" ]]; then
+    if [[ -L "$HOME/.bashrc" ]]; then
+        DOTFILES_DIR="$(cd "$(dirname "$(readlink "$HOME/.bashrc")")/.." && pwd)"
+    else
+        DOTFILES_DIR="$HOME/.dotfiles"
+    fi
+fi
+export DOTFILES_DIR
 
 # Source shared configuration
 if [[ -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
