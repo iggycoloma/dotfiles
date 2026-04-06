@@ -23,8 +23,8 @@ if [[ -z "${DOTFILES_DIR:-}" ]]; then
 fi
 export DOTFILES_DIR
 
-# Source shared exports (idempotent -- skipped if .zprofile already loaded them)
-if [[ -z "$_DOTFILES_EXPORTS_LOADED" && -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
+# Source shared exports (idempotent -- safe to source even if .zprofile already did)
+if [[ -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
     source "$DOTFILES_DIR/shell/exports.sh"
 fi
 

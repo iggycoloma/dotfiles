@@ -2,9 +2,7 @@
 # Environment variables and exports
 #
 # Sourced by .bashrc (bash) and .zprofile/.zshrc (zsh).
-# Guard prevents double-sourcing in zsh login shells (.zprofile + .zshrc).
-[[ -n "$_DOTFILES_EXPORTS_LOADED" ]] && return 0
-_DOTFILES_EXPORTS_LOADED=1
+# Safe to source multiple times -- all assignments are idempotent.
 
 # Disable NVM's racy current-version symlink — PATH is managed by nvm.sh directly
 export NVM_SYMLINK_CURRENT=false
