@@ -14,7 +14,7 @@
   },
 
   "mounts": [
-    "source=dotfiles-ubuntu-zsh-state,target=/home/vscode/.devcontainer-state,type=volume"
+    "source=dotfiles-ubuntu-zsh-state,target=/home/vscode/.dotfiles-state,type=volume"
   ],
 
   "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh",

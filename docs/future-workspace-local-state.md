@@ -6,7 +6,7 @@ The volume mount in `devcontainer.json` is the last required piece of boilerplat
 
 ```json
 "mounts": [
-  "source=${devcontainerId}-state,target=/home/vscode/.devcontainer-state,type=volume"
+  "source=${devcontainerId}-state,target=/home/vscode/.dotfiles-state,type=volume"
 ]
 ```
 
@@ -18,9 +18,9 @@ Detect the best available persistence mechanism at runtime, with automatic fallb
 
 | Priority | Condition | Tier | Behavior |
 |----------|-----------|------|----------|
-| 1 | `~/.devcontainer-state` exists | **volume** | Use as-is (current behavior) |
-| 2 | Workspace folder detected and writable | **workspace** | Create `<workspace>/.devcontainer-state/`, symlink `~/.devcontainer-state` to it, add `.gitignore` entry |
-| 3 | Fallback | **ephemeral** | `mkdir ~/.devcontainer-state` (state lost on rebuild) |
+| 1 | `~/.dotfiles-state` exists | **volume** | Use as-is (current behavior) |
+| 2 | Workspace folder detected and writable | **workspace** | Create `<workspace>/.dotfiles-state/`, symlink `~/.dotfiles-state` to it, add `.gitignore` entry |
+| 3 | Fallback | **ephemeral** | `mkdir ~/.dotfiles-state` (state lost on rebuild) |
 
 With this, a user who configures dotfiles in VS Code settings gets persistent AI tool state in devcontainers with zero `devcontainer.json` changes.
 
@@ -67,43 +67,40 @@ detect_workspace_folder() {
 
 ```bash
 detect_state_tier() {
-    if [[ -d "$HOME/.devcontainer-state" ]]; then
-        STATE_DIR="$HOME/.devcontainer-state"
+    if [[ -d "$HOME/.dotfiles-state" ]]; then
+        STATE_DIR="$HOME/.dotfiles-state"
         STATE_TIER="volume"
         return
     fi
     local ws_folder
     ws_folder=$(detect_workspace_folder)
     if [[ -n "$ws_folder" && -d "$ws_folder" ]]; then
-        local ws_state="$ws_folder/.devcontainer-state"
+        local ws_state="$ws_folder/.dotfiles-state"
         if mkdir -p "$ws_state" 2>/dev/null; then
-            ln -snf "$ws_state" "$HOME/.devcontainer-state"
-            STATE_DIR="$HOME/.devcontainer-state"
+            ln -snf "$ws_state" "$HOME/.dotfiles-state"
+            STATE_DIR="$HOME/.dotfiles-state"
             STATE_TIER="workspace"
-            _ensure_gitignore "$ws_folder" ".devcontainer-state/"
+            _ensure_gitignore "$ws_folder" ".dotfiles-state/"
             return
         fi
     fi
-    mkdir -p "$HOME/.devcontainer-state"
-    STATE_DIR="$HOME/.devcontainer-state"
+    mkdir -p "$HOME/.dotfiles-state"
+    STATE_DIR="$HOME/.dotfiles-state"
     STATE_TIER="ephemeral"
 }
 ```
 
 ### `.gitignore` management
 
-The `_ensure_gitignore()` helper idempotently appends `.devcontainer-state/` to the workspace's `.gitignore`. Uses `grep -qxF` to avoid duplicates.
+The `_ensure_gitignore()` helper idempotently appends `.dotfiles-state/` to the workspace's `.gitignore`. Uses `grep -qxF` to avoid duplicates.
 
-## Why Deferred
+## Status: Implemented
 
-- Adds ~30 lines of detection/fallback logic
-- Requires `.gitignore` management (modifying files in user's project)
-- Workspace detection heuristic may need edge-case handling (multi-root workspaces, atypical mount points)
-- The volume mount line is a reasonable one-line requirement for now
+This feature was implemented with the following functions in `bootstrap/symlinks.sh`:
+- `detect_state_tier()` -- four-tier detection: volume > codespaces > workspace-local > ephemeral
+- `_ensure_gitignore()` -- idempotent `.gitignore` entry management
 
-## When to Implement
+And in `bootstrap/detect.sh`:
+- `detect_workspace_folder()` -- detects the container workspace path
 
-Consider implementing when:
-- Codespaces becomes a primary target environment
-- Users report friction with the volume mount requirement
-- The workspace detection heuristic can be validated across more environments
+The Codespaces tier uses `/workspaces/.codespaces/.persistedshare/dotfiles-state/` which is more persistent than Docker volumes (survives full rebuilds). No `devcontainer.json` configuration is needed for state persistence.

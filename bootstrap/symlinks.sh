@@ -6,8 +6,9 @@ set -e
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Shared logging functions
+# Shared logging and detection functions
 source "$DOTFILES_DIR/bootstrap/logging.sh"
+source "$DOTFILES_DIR/bootstrap/detect.sh"
 
 # Backup existing file or directory
 backup_if_exists() {
@@ -117,17 +118,251 @@ _ensure_git_include() {
     log_success "Added [include] for dotfiles git settings"
 }
 
+# Idempotently ensure a path is git-ignored in a workspace.
+# Uses .git/info/exclude (local, untracked) for silent operation, plus
+# .gitignore as a safety net for defense-in-depth.
+_ensure_gitignore() {
+    local workspace="$1" entry="$2"
+
+    # Primary: .git/info/exclude (never tracked, no git status noise)
+    if [[ -d "$workspace/.git" ]]; then
+        local exclude="$workspace/.git/info/exclude"
+        mkdir -p "$(dirname "$exclude")"
+        if ! grep -qxF "$entry" "$exclude" 2>/dev/null; then
+            echo "$entry" >> "$exclude"
+        fi
+    fi
+
+    # Safety net: .gitignore (survives fresh clones, protects all contributors)
+    local gitignore="$workspace/.gitignore"
+    if [[ -f "$gitignore" ]] && grep -qxF "$entry" "$gitignore" 2>/dev/null; then
+        return 0
+    fi
+    # Ensure existing file ends with newline before appending
+    if [[ -f "$gitignore" && -s "$gitignore" ]]; then
+        [[ "$(tail -c1 "$gitignore")" != "" ]] && echo "" >> "$gitignore"
+    fi
+    echo "$entry" >> "$gitignore"
+}
+
+# Wire up state persistence based on detect_state_tier() result.
+# Creates directories, symlinks, sets permissions, and manages gitignore.
+setup_state_persistence() {
+    detect_state_tier
+
+    case "$STATE_TIER" in
+        volume)
+            log_info "State persistence: volume (existing mount)"
+            ;;
+        codespaces)
+            if mkdir -p "$STATE_PATH" 2>/dev/null; then
+                ln -snf "$STATE_PATH" "$HOME/.dotfiles-state"
+                chmod 700 "$STATE_PATH"
+                log_info "State persistence: codespaces ($STATE_PATH)"
+            else
+                log_warn "Codespaces persistedshare not writable, falling back to ephemeral"
+                mkdir -p "$HOME/.dotfiles-state"
+                chmod 700 "$HOME/.dotfiles-state"
+                STATE_TIER="ephemeral"
+            fi
+            ;;
+        workspace)
+            if mkdir -p "$STATE_PATH" 2>/dev/null; then
+                ln -snf "$STATE_PATH" "$HOME/.dotfiles-state"
+                chmod 700 "$STATE_PATH"
+                _ensure_gitignore "$(dirname "$STATE_PATH")" ".dotfiles-state/"
+                log_info "State persistence: workspace-local ($STATE_PATH)"
+            else
+                log_warn "Workspace not writable, falling back to ephemeral"
+                mkdir -p "$HOME/.dotfiles-state"
+                chmod 700 "$HOME/.dotfiles-state"
+                STATE_TIER="ephemeral"
+            fi
+            ;;
+        ephemeral)
+            mkdir -p "$HOME/.dotfiles-state"
+            chmod 700 "$HOME/.dotfiles-state"
+            log_warn "State persistence: ephemeral (state lost on rebuild)"
+            ;;
+    esac
+}
+
+# Wire up the target directory for a tool's config in devcontainers.
+# If state persistence is available, uses a volume-backed directory symlink.
+# Otherwise creates a plain directory.
+_wire_tool_dir() {
+    local state_subdir="$1" target_dir="$2"
+    if is_devcontainer && [[ -d "$HOME/.dotfiles-state" ]]; then
+        setup_volume_dir "$HOME/.dotfiles-state/$state_subdir" "$target_dir"
+        log_success "$target_dir -> state"
+    elif is_devcontainer; then
+        mkdir -p "$target_dir"
+    fi
+}
+
+# Make all .sh files in a directory executable.
+_chmod_hooks() {
+    local dir="$1"
+    for f in "$dir"/*.sh; do
+        [[ -f "$f" ]] && chmod +x "$f"
+    done
+}
+
+# Deploy config files and directories from dotfiles source to target.
+# In devcontainers: force-copies (stomp) so configs refresh every boot.
+# On host: creates symlinks to dotfiles repo for live editing.
+# Args: source_dir target_dir files... -- directories...
+#   files and directories are separated by "--"
+_deploy_configs() {
+    local source_dir="$1" target_dir="$2"
+    shift 2
+
+    # Split args into files and directories at "--"
+    local files=() dirs=()
+    local in_dirs=false
+    for arg in "$@"; do
+        if [[ "$arg" == "--" ]]; then
+            in_dirs=true
+            continue
+        fi
+        if $in_dirs; then
+            dirs+=("$arg")
+        else
+            files+=("$arg")
+        fi
+    done
+
+    if is_devcontainer; then
+        stomp_configs "$source_dir" "$target_dir" "${files[@]}" "${dirs[@]}"
+        _chmod_hooks "$target_dir/hooks"
+    else
+        mkdir -p "$target_dir"
+        for f in "${files[@]}"; do
+            if [[ -f "$source_dir/$f" ]]; then
+                [[ "$f" == *.sh ]] && chmod +x "$source_dir/$f"
+                create_symlink "$source_dir/$f" "$target_dir/$f"
+            fi
+        done
+        for d in "${dirs[@]}"; do
+            if [[ -d "$source_dir/$d" ]]; then
+                [[ "$d" == "hooks" ]] && _chmod_hooks "$source_dir/$d"
+                create_symlink "$source_dir/$d" "$target_dir/$d"
+            fi
+        done
+    fi
+}
+
+_setup_claude_code() {
+    log_info "Setting up Claude Code configuration..."
+
+    _wire_tool_dir "claude" "$HOME/.claude"
+
+    # Migrate legacy ~/.claude.json -> ~/.claude/config.json
+    if [[ -f "$HOME/.claude.json" ]] && [[ ! -L "$HOME/.claude.json" ]] && [[ ! -f "$HOME/.claude/config.json" ]]; then
+        mv "$HOME/.claude.json" "$HOME/.claude/config.json"
+        log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
+    fi
+
+    _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
+        settings.json CLAUDE.md statusline.sh -- hooks agents commands
+
+    log_success "Claude Code configuration complete"
+}
+
+_setup_codex() {
+    log_info "Setting up Codex configuration..."
+
+    # Migrate from old whole-directory symlink (local only)
+    if ! is_devcontainer && [[ -L "$HOME/.codex" ]]; then
+        log_warn "Removing old whole-directory symlink ~/.codex (migrating to managed files)"
+        rm "$HOME/.codex"
+    fi
+
+    _wire_tool_dir "codex" "$HOME/.codex"
+
+    _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
+        AGENTS.md -- hooks
+
+    # Skills: copy subdirectories individually (preserves .system in devcontainer)
+    if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
+        if is_devcontainer; then
+            mkdir -p "$HOME/.codex/skills"
+            for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
+                [[ -d "$skill_dir" ]] || continue
+                local skill_name
+                skill_name=$(basename "$skill_dir")
+                rm -rf "$HOME/.codex/skills/$skill_name"
+                cp -rf "$skill_dir" "$HOME/.codex/skills/$skill_name"
+            done
+        else
+            mkdir -p "$HOME/.codex/skills"
+            for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
+                [[ -d "$skill_dir" ]] || continue
+                create_symlink "$skill_dir" "$HOME/.codex/skills/$(basename "$skill_dir")"
+            done
+        fi
+    fi
+
+    # config.toml: preserve existing (local trust + preferences)
+    if [[ -f "$DOTFILES_DIR/codex/config.toml" ]]; then
+        if is_devcontainer; then
+            [[ ! -e "$HOME/.codex/config.toml" ]] && cp -f "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+        else
+            if [[ -e "$HOME/.codex/config.toml" ]] && [[ ! -L "$HOME/.codex/config.toml" ]]; then
+                log_warn "Skipping ~/.codex/config.toml (preserving local Codex settings)"
+            else
+                create_symlink "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+            fi
+        fi
+    fi
+
+    # Ensure notify hook is wired in config.toml
+    _setup_codex_notify
+
+    log_success "Codex configuration complete"
+}
+
+_setup_codex_notify() {
+    [[ -f "$HOME/.codex/hooks/notify.sh" ]] || return 0
+
+    if [[ -f "$HOME/.codex/config.toml" ]]; then
+        # Fix legacy string format -> array format
+        if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
+            log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
+            if command -v sd >/dev/null 2>&1; then
+                # shellcheck disable=SC2016  # $1 is a regex capture group, not a shell variable
+                sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
+            else
+                sed -i 's|^notify\s*=\s*"bash \(.*\)"|notify = ["bash", "\1"]|' "$HOME/.codex/config.toml"
+            fi
+        elif ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
+            log_info "Adding notify hook to ~/.codex/config.toml"
+            printf '\nnotify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" >> "$HOME/.codex/config.toml"
+        fi
+    else
+        log_info "Creating ~/.codex/config.toml with notify hook"
+        printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" > "$HOME/.codex/config.toml"
+    fi
+}
+
 # Main symlink creation
 create_symlinks() {
     log_info "Creating symlinks..."
 
-    source "$DOTFILES_DIR/bootstrap/detect.sh"
+    # Set up state persistence tier (devcontainers only)
+    # Opt-out via DOTFILES_NO_STATE_PERSISTENCE=1
+    if is_devcontainer && [[ "${DOTFILES_NO_STATE_PERSISTENCE:-}" != "1" ]]; then
+        setup_state_persistence
+    elif [[ "${DOTFILES_NO_STATE_PERSISTENCE:-}" == "1" ]]; then
+        log_info "DOTFILES_NO_STATE_PERSISTENCE=1, skipping state persistence setup"
+    fi
 
-    # Fix volume ownership in devcontainers (may be root-owned on first mount)
-    if [[ -d "$HOME/.devcontainer-state" ]]; then
-        if [[ ! -w "$HOME/.devcontainer-state" ]] && command -v sudo >/dev/null 2>&1; then
-            sudo chown -R "$(id -u):$(id -g)" "$HOME/.devcontainer-state"
+    # Fix ownership and permissions (may be root-owned on first mount)
+    if [[ -d "$HOME/.dotfiles-state" ]]; then
+        if [[ ! -w "$HOME/.dotfiles-state" ]] && command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state"
         fi
+        chmod 700 "$HOME/.dotfiles-state"
     fi
 
     # Shell configurations
@@ -189,57 +424,7 @@ create_symlinks() {
 
     # Claude Code configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/claude-code" ]]; then
-        log_info "Setting up Claude Code configuration..."
-
-        if is_devcontainer; then
-            # Devcontainer: config + state live together in ~/.claude.
-            # If the state volume is mounted, ~/.claude is a directory symlink
-            # into the volume so that atomic writes (temp + rename) land on the
-            # volume filesystem instead of breaking a file-level symlink.
-            if [[ -d "$HOME/.devcontainer-state" ]]; then
-                setup_volume_dir "$HOME/.devcontainer-state/claude" "$HOME/.claude"
-                log_success "$HOME/.claude -> volume"
-
-                # Migrate ~/.claude.json -> ~/.claude/config.json for CLAUDE_CONFIG_DIR
-                if [[ -f "$HOME/.claude.json" ]] && [[ ! -L "$HOME/.claude.json" ]] && [[ ! -f "$HOME/.claude/config.json" ]]; then
-                    mv "$HOME/.claude.json" "$HOME/.claude/config.json"
-                    log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
-                fi
-            else
-                mkdir -p "$HOME/.claude"
-            fi
-
-            # Force-copy configs from dotfiles (refreshed every boot)
-            stomp_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-                settings.json CLAUDE.md statusline.sh hooks agents commands
-            # Make scripts executable
-            [[ -f "$HOME/.claude/statusline.sh" ]] && chmod +x "$HOME/.claude/statusline.sh"
-            for f in "$HOME/.claude/hooks"/*.sh; do
-                [[ -f "$f" ]] && chmod +x "$f"
-            done
-
-        else
-            # Local: symlink configs to dotfiles repo
-            for f in settings.json CLAUDE.md statusline.sh; do
-                if [[ -f "$DOTFILES_DIR/claude-code/$f" ]]; then
-                    [[ "$f" == "statusline.sh" ]] && chmod +x "$DOTFILES_DIR/claude-code/$f"
-                    create_symlink "$DOTFILES_DIR/claude-code/$f" "$HOME/.claude/$f"
-                fi
-            done
-            for d in hooks agents commands; do
-                if [[ -d "$DOTFILES_DIR/claude-code/$d" ]]; then
-                    if [[ "$d" == "hooks" ]]; then
-                        for file in "$DOTFILES_DIR/claude-code/hooks"/*.sh; do
-                            [ -f "$file" ] || continue
-                            chmod +x "$file"
-                        done
-                    fi
-                    create_symlink "$DOTFILES_DIR/claude-code/$d" "$HOME/.claude/$d"
-                fi
-            done
-        fi
-
-        log_success "Claude Code configuration complete"
+        _setup_claude_code
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
         log_info "DOTFILES_NO_AI_TOOLS=1, skipping Claude Code setup"
     else
@@ -248,105 +433,14 @@ create_symlinks() {
 
     # Codex configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/codex" ]]; then
-        log_info "Setting up .codex configuration..."
-
-        if is_devcontainer; then
-            # Devcontainer: directory symlink into volume (or plain dir)
-            if [[ -d "$HOME/.devcontainer-state" ]]; then
-                setup_volume_dir "$HOME/.devcontainer-state/codex" "$HOME/.codex"
-                log_success "$HOME/.codex -> volume"
-            else
-                mkdir -p "$HOME/.codex"
-            fi
-
-            # Force-copy configs from dotfiles (refreshed every boot)
-            stomp_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
-                AGENTS.md hooks
-            # Managed skill directories: copy individually to preserve .system
-            if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
-                mkdir -p "$HOME/.codex/skills"
-                for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
-                    [[ -d "$skill_dir" ]] || continue
-                    local skill_name
-                    skill_name=$(basename "$skill_dir")
-                    rm -rf "$HOME/.codex/skills/$skill_name"
-                    cp -rf "$skill_dir" "$HOME/.codex/skills/$skill_name"
-                done
-            fi
-            # config.toml: preserve if it exists (local trust + preferences)
-            if [[ -f "$DOTFILES_DIR/codex/config.toml" ]] && [[ ! -e "$HOME/.codex/config.toml" ]]; then
-                cp -f "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
-            fi
-            # Make hooks executable
-            for f in "$HOME/.codex/hooks"/*.sh; do
-                [[ -f "$f" ]] && chmod +x "$f"
-            done
-        else
-            # Local: symlink configs to dotfiles repo
-            # Migrate from old whole-directory symlink
-            if [[ -L "$HOME/.codex" ]]; then
-                log_warn "Removing old whole-directory symlink ~/.codex (migrating to managed files)"
-                rm "$HOME/.codex"
-            fi
-            mkdir -p "$HOME/.codex"
-
-            if [[ -f "$DOTFILES_DIR/codex/AGENTS.md" ]]; then
-                create_symlink "$DOTFILES_DIR/codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
-            fi
-            if [[ -f "$DOTFILES_DIR/codex/config.toml" ]]; then
-                if [[ -e "$HOME/.codex/config.toml" ]] && [[ ! -L "$HOME/.codex/config.toml" ]]; then
-                    log_warn "Skipping ~/.codex/config.toml (preserving local Codex settings)"
-                else
-                    create_symlink "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
-                fi
-            fi
-            if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
-                mkdir -p "$HOME/.codex/skills"
-                for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
-                    [[ -d "$skill_dir" ]] || continue
-                    create_symlink "$skill_dir" "$HOME/.codex/skills/$(basename "$skill_dir")"
-                done
-            fi
-            if [[ -d "$DOTFILES_DIR/codex/hooks" ]]; then
-                mkdir -p "$HOME/.codex/hooks"
-                for file in "$DOTFILES_DIR/codex/hooks"/*.sh; do
-                    [ -f "$file" ] || continue
-                    chmod +x "$file"
-                    create_symlink "$file" "$HOME/.codex/hooks/$(basename "$file")"
-                done
-            fi
-        fi
-
-        # Ensure notify hook is wired in config.toml (non-destructive)
-        # Codex expects notify as an array of command + args
-        if [[ -f "$HOME/.codex/hooks/notify.sh" ]]; then
-            if [[ -f "$HOME/.codex/config.toml" ]]; then
-                # Fix legacy string format -> array format
-                if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
-                    log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
-                    if command -v sd >/dev/null 2>&1; then
-                        sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
-                    else
-                        sed -i 's|^notify\s*=\s*"bash \(.*\)"|notify = ["bash", "\1"]|' "$HOME/.codex/config.toml"
-                    fi
-                elif ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
-                    log_info "Adding notify hook to ~/.codex/config.toml"
-                    printf '\nnotify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" >> "$HOME/.codex/config.toml"
-                fi
-            else
-                log_info "Creating ~/.codex/config.toml with notify hook"
-                printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" > "$HOME/.codex/config.toml"
-            fi
-        fi
-
-        log_success ".codex configuration complete"
+        _setup_codex
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
         log_info "DOTFILES_NO_AI_TOOLS=1, skipping Codex setup"
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)
-    if is_devcontainer && [[ -d "$HOME/.devcontainer-state" ]]; then
-        setup_volume_dir "$HOME/.devcontainer-state/gh" "$HOME/.config/gh"
+    if is_devcontainer && [[ -d "$HOME/.dotfiles-state" ]]; then
+        setup_volume_dir "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
         log_success "$HOME/.config/gh -> volume"
     fi
 

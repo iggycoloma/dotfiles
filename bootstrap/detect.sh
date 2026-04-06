@@ -96,6 +96,66 @@ is_dotfiles_workspace() {
     [[ -n "${DOTFILES_WORKSPACE:-}" ]]
 }
 
+# Detect the container workspace folder path.
+# Returns path on stdout, or empty string if not detectable.
+detect_workspace_folder() {
+    # Explicit override
+    if [[ -n "${CONTAINER_WORKSPACE_FOLDER:-}" ]]; then
+        echo "$CONTAINER_WORKSPACE_FOLDER"; return
+    fi
+    # Self-edit mode: dotfiles repo IS the workspace
+    if is_dotfiles_workspace; then
+        echo "${DOTFILES_DIR:-}"; return
+    fi
+    # Standard: single directory under /workspaces/ (Codespaces + devcontainers)
+    if [[ -d /workspaces ]]; then
+        local candidates=(/workspaces/*/)
+        if [[ ${#candidates[@]} -eq 1 && -d "${candidates[0]}" ]]; then
+            echo "${candidates[0]%/}"; return
+        elif [[ ${#candidates[@]} -gt 1 ]]; then
+            echo "detect_workspace_folder: multiple dirs under /workspaces/, set CONTAINER_WORKSPACE_FOLDER to disambiguate" >&2
+        fi
+    fi
+    echo ""
+}
+
+# Detect the best available state persistence tier for devcontainers.
+# Pure detection -- sets STATE_TIER and STATE_PATH, no side effects.
+# Tiers: volume > codespaces > workspace > ephemeral
+detect_state_tier() {
+    # shellcheck disable=SC2034  # STATE_TIER/STATE_PATH read by callers and tests
+    STATE_TIER=""
+    STATE_PATH=""
+
+    # Tier 1: Volume mount (real directory, not a symlink from a previous tier)
+    if [[ -d "$HOME/.dotfiles-state" ]] && [[ ! -L "$HOME/.dotfiles-state" ]]; then
+        STATE_TIER="volume"
+        STATE_PATH="$HOME/.dotfiles-state"
+        return
+    fi
+
+    # Tier 2: Codespaces persistent share
+    if [[ "${CODESPACES:-}" == "true" ]]; then
+        STATE_TIER="codespaces"
+        STATE_PATH="/workspaces/.codespaces/.persistedshare/dotfiles-state"
+        return
+    fi
+
+    # Tier 3: Workspace-local (bind mount persists across rebuilds)
+    local ws_folder
+    ws_folder=$(detect_workspace_folder)
+    if [[ -n "$ws_folder" && -d "$ws_folder" ]]; then
+        STATE_TIER="workspace"
+        STATE_PATH="$ws_folder/.dotfiles-state"
+        return
+    fi
+
+    # Tier 4: Ephemeral (lost on rebuild)
+    # shellcheck disable=SC2034  # read by callers (setup_state_persistence)
+    STATE_TIER="ephemeral"
+    STATE_PATH="$HOME/.dotfiles-state"
+}
+
 # Export detection functions for use in other scripts
 export -f detect_environment
 export -f detect_os
@@ -107,6 +167,8 @@ export -f run_sudo
 export -f is_minimal_install
 export -f is_devcontainer
 export -f is_dotfiles_workspace
+export -f detect_workspace_folder
+export -f detect_state_tier
 
 # If sourced, don't execute; if run directly, show info
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -115,5 +177,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Package Manager: $(detect_package_manager)"
     echo "Minimal Install: $(is_minimal_install && echo "yes" || echo "no")"
     echo "Devcontainer: $(is_devcontainer && echo "yes" || echo "no")"
+    echo "Workspace Folder: $(detect_workspace_folder || echo "(none)")"
     echo "Root: $(is_root && echo "yes" || echo "no")"
 fi
