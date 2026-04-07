@@ -65,6 +65,7 @@ SENSITIVE_DIRS=(
     ".gem"
     ".composer"
     ".stripe"
+    ".dotfiles-state"
 )
 
 # Additional sensitive files not covered by SENSITIVE_PATHS above

@@ -119,6 +119,7 @@
       "Read(~/.composer/auth.json)",
       "Read(~/.stripe/**)",
       "Read(~/.git-credentials)",
+      "Read(~/.dotfiles-state/**)",
       "Read(~/.pgpass)",
       "Read(~/.my.cnf)",
       "Read(~/.mongorc.js)",

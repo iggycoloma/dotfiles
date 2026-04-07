@@ -5,13 +5,19 @@
 - No emojis in code, docs, or commit messages
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
-- Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe
+- Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state
 - Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 - Permission hooks enforce credential deny lists in `settings.json`
 - The `pre-security.sh` hook blocks access to sensitive paths at runtime
 - The `pre-commit-validate.sh` hook enforces conventional commits on `git commit`
 - The `pre-code-no-emoji.sh` hook blocks decorative emojis in code files
+
+## Tool Use Discipline
+
+- NEVER use Bash to run `rg`, `grep`, or `find` — use the built-in Grep and Glob tools instead. They require no permission prompts and produce cleaner output.
+- Only use Bash for CLI tools that have no built-in equivalent (e.g., `sg`, `scc`, `yq`, `shellcheck`).
+- Avoid wrapping tool calls in Bash `for`/`while` loops. Use glob patterns to search across multiple files in a single Grep or Glob call. If a loop is truly needed, the command starts with `for`, not the inner tool — so `bash(rg:*)` rules won't match.
 
 ## Preferred CLI Tools
 

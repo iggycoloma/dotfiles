@@ -8,7 +8,7 @@
   },
 
   "mounts": [
-    "source=dotfiles-debian-bash-state,target=/home/vscode/.devcontainer-state,type=volume"
+    "source=dotfiles-debian-bash-state,target=/home/vscode/.dotfiles-state,type=volume"
   ],
 
   "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh",

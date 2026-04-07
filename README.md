@@ -153,27 +153,22 @@ The installer detects devcontainer environments and automatically:
 - Installs Claude Code and Codex CLI as native binaries
 - Installs all configured CLI tools (core + AI-adjacent)
 - Deploys AI tool configs (~/.claude, ~/.codex) with fresh copies from dotfiles
-- Wires state persistence if a volume mount is present
+- Detects the best state persistence tier (no configuration needed)
 
-**What persists** (volume, if mounted): credentials, auth tokens, shell history, sessions, plans, caches.
+**State persistence** is automatic via a tiered fallback:
+
+| Tier | Environment | Storage location | Persists across rebuild? |
+|------|-------------|-----------------|:---:|
+| Volume | Any (if mounted) | Docker named volume | Yes |
+| Codespaces | GitHub Codespaces | `.persistedshare/dotfiles-state/` | Yes |
+| Workspace-local | Local devcontainer | `<project>/.dotfiles-state/` (gitignored) | Yes |
+| Ephemeral | Fallback | `~/.dotfiles-state/` | No |
+
+No `devcontainer.json` changes are needed for state persistence. An optional volume mount is available for users who prefer to keep state outside the project tree (see `.devcontainer/example/`).
+
+**What persists**: credentials, auth tokens, shell history, sessions, plans, caches.
 
 **What refreshes** (copied from dotfiles every boot): settings.json, CLAUDE.md, AGENTS.md, hooks, agents, commands, skills.
-
-### Per-Project Setup
-
-For state persistence across container rebuilds, add a volume mount to your project's `.devcontainer/devcontainer.json`:
-
-```json
-{
-  "mounts": [
-    "source=${devcontainerId}-state,target=/home/vscode/.devcontainer-state,type=volume"
-  ]
-}
-```
-
-This is optional but recommended -- without it, auth tokens and history are lost on rebuild. The dotfiles installer handles everything else: tool installation, ownership fixes, directory wiring, environment variables, and config deployment. See `.devcontainer/example/` for a complete example.
-
-For future plans to eliminate this last piece of boilerplate, see [docs/future-workspace-local-state.md](docs/future-workspace-local-state.md).
 
 ### Git in Devcontainers
 
@@ -263,6 +258,7 @@ Control what gets installed by setting environment variables before running `ins
 | `DOTFILES_NO_AI_TOOLS=1` | off | Skip Claude Code, Codex CLI, ast-grep, difftastic, and all AI config (~/.claude, ~/.codex) |
 | `DOTFILES_NO_ATUIN=1` | off | Skip atuin shell history and bash-preexec |
 | `DOTFILES_NO_GIT_HOOKS=1` | off | Skip global git hooks (conventional commits, gitleaks pre-commit) |
+| `DOTFILES_NO_STATE_PERSISTENCE=1` | off | Skip state persistence (no volume, workspace-local, or Codespaces tier) |
 | `DOTFILES_OPINIONATED_ALIASES=1` | off | Shadow `grep` with rg and `find` with fd |
 
 AI tools (Claude Code + Codex CLI) are installed as native binaries in devcontainer environments only. On host machines, users manage their own AI tool installations.
