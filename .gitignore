@@ -34,9 +34,6 @@ private/
 # User-specific bin scripts (if any)
 bin/private/
 
-# Dotfiles state (CLI auth tokens, sessions -- workspace-local persistence tier)
-.dotfiles-state/
-
 # Prevent circular symlinks (files with same name as parent directory)
 bin/bin
 claude-code/agents/agents
