@@ -92,7 +92,10 @@ else
 fi
 
 # SSH commit signing: auto-detect key from agent or local files
-if ! git config user.signingkey >/dev/null 2>&1; then
+# Opt-out via DOTFILES_NO_SSH_SIGNING=1 (accesses ssh-add and ~/.ssh/*.pub)
+if [[ "${DOTFILES_NO_SSH_SIGNING:-}" == "1" ]]; then
+    log_info "DOTFILES_NO_SSH_SIGNING=1, skipping SSH signing setup"
+elif ! git config user.signingkey >/dev/null 2>&1; then
     signing_key=""
     # Try SSH agent first (works with devcontainer forwarding), prefer ed25519
     agent_keys=$(ssh-add -L 2>/dev/null || true)
