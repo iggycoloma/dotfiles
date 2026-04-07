@@ -57,6 +57,7 @@ These environment variables control what `install.sh` installs:
 | `DOTFILES_NO_ATUIN=1` | Skip atuin and bash-preexec |
 | `DOTFILES_NO_GIT_HOOKS=1` | Skip global git hooks |
 | `DOTFILES_NO_STATE_PERSISTENCE=1` | Skip state persistence tier detection |
+| `DOTFILES_NO_SSH_SIGNING=1` | Skip SSH commit signing auto-detection |
 
 CLI tools in the Preferred CLI Tools table may not be available if toggles are active.
 

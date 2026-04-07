@@ -69,7 +69,7 @@ setup_zsh_completions() {
     if [[ ! -d "$zinit_dir" ]]; then
         log_info "Installing zinit (zsh plugin manager)..."
         mkdir -p "$(dirname "$zinit_dir")"
-        git clone --depth 1 https://github.com/zdharma-continuum/zinit.git "$zinit_dir" 2>/dev/null || true
+        git clone --depth 1 --branch v3.9.0 https://github.com/zdharma-continuum/zinit.git "$zinit_dir" 2>/dev/null || true
     fi
 
     # Generate completions for tools

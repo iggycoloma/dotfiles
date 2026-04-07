@@ -198,7 +198,6 @@ dotfiles/
 |   |-- packages.sh            # Tool installation (apt/apk/brew + GitHub releases)
 |   |-- symlinks.sh            # Symlink creation with backup and devcontainer support
 |   |-- completions.sh         # Shell completion setup (bash + zsh + zinit)
-|   +-- merge-configs.sh       # Config merge utilities
 |-- shell/
 |   |-- .bashrc, .bash_profile # Bash configuration
 |   |-- .zshrc, .zprofile      # Zsh configuration (compinit caching, zprof support)
@@ -266,6 +265,7 @@ Control what gets installed by setting environment variables before running `ins
 | `DOTFILES_NO_ATUIN=1` | off | Skip atuin shell history and bash-preexec |
 | `DOTFILES_NO_GIT_HOOKS=1` | off | Skip global git hooks (conventional commits, gitleaks pre-commit) |
 | `DOTFILES_NO_STATE_PERSISTENCE=1` | off | Skip state persistence (no volume or Codespaces tier) |
+| `DOTFILES_NO_SSH_SIGNING=1` | off | Skip SSH commit signing auto-detection (skips ssh-add and ~/.ssh access) |
 | `DOTFILES_OPINIONATED_ALIASES=1` | off | Shadow `grep` with rg and `find` with fd |
 
 AI tools (Claude Code + Codex CLI) are installed as native binaries in devcontainer environments only. On host machines, users manage their own AI tool installations.

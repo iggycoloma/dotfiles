@@ -18,7 +18,6 @@ source "$SCRIPT_DIR/test-framework.sh"
 # Note: Bootstrap scripts have 'set -e' which we need to override
 source "$DOTFILES_DIR/bootstrap/detect.sh" 2>/dev/null
 source "$DOTFILES_DIR/bootstrap/symlinks.sh" 2>/dev/null
-source "$DOTFILES_DIR/bootstrap/merge-configs.sh" 2>/dev/null
 
 # Re-disable set -e after sourcing (bootstrap scripts enable it)
 set +e
@@ -312,101 +311,6 @@ test_detect_local() {
     if [[ -n "$original_ssh" ]]; then
         export SSH_CONNECTION="$original_ssh"
     fi
-}
-
-#
-# Test Suite: merge_configs function (basic tests)
-#
-
-test_merge_creates_destination() {
-    setup_test_env
-
-    local source="$TEST_TEMP_DIR/dotfiles/claude"
-    local dest="$TEST_TEMP_DIR/home/.claude"
-
-    mock_dir "$source"
-    mock_file "$source/statusline.sh" "# statusline"
-
-    merge_configs "$source" "$dest" &>/dev/null
-
-    assert_dir_exists "$dest" "Destination directory should be created"
-    assert_file_exists "$dest/.dotfiles-version" "Version marker should be created"
-
-    teardown_test_env
-}
-
-test_merge_copies_new_files() {
-    setup_test_env
-
-    local source="$TEST_TEMP_DIR/dotfiles/claude"
-    local dest="$TEST_TEMP_DIR/home/.claude"
-
-    mock_dir "$source"
-    mock_file "$source/statusline.sh" "# statusline content"
-    mock_file "$source/newfile.sh" "# new file"
-
-    merge_configs "$source" "$dest" &>/dev/null
-
-    assert_file_exists "$dest/statusline.sh" "Should copy new files"
-    assert_file_exists "$dest/newfile.sh" "Should copy all new files"
-
-    teardown_test_env
-}
-
-test_merge_skips_settings_json() {
-    setup_test_env
-
-    local source="$TEST_TEMP_DIR/dotfiles/claude"
-    local dest="$TEST_TEMP_DIR/home/.claude"
-
-    mock_dir "$source"
-    mock_file "$source/settings.json" '{"new": "settings"}'
-    mock_dir "$dest"
-    mock_file "$dest/settings.json" '{"old": "settings"}'
-
-    # Read original content
-    local original_content=$(cat "$dest/settings.json")
-
-    merge_configs "$source" "$dest" &>/dev/null
-
-    local final_content=$(cat "$dest/settings.json")
-    assert_equals "$original_content" "$final_content" "Should preserve existing settings.json"
-
-    teardown_test_env
-}
-
-test_merge_force_updates_hooks() {
-    setup_test_env
-
-    local source="$TEST_TEMP_DIR/dotfiles/claude"
-    local dest="$TEST_TEMP_DIR/home/.claude"
-
-    mock_dir "$source/hooks"
-    mock_file "$source/hooks/pre-commit.sh" "# new hook content"
-    mock_dir "$dest/hooks"
-    mock_file "$dest/hooks/pre-commit.sh" "# old hook content"
-
-    merge_configs "$source" "$dest" &>/dev/null
-
-    local content=$(cat "$dest/hooks/pre-commit.sh")
-    assert_contains "$content" "new hook content" "Should force-update hook files"
-
-    teardown_test_env
-}
-
-test_merge_source_missing() {
-    setup_test_env
-
-    local source="$TEST_TEMP_DIR/dotfiles/nonexistent"
-    local dest="$TEST_TEMP_DIR/home/.claude"
-
-    if merge_configs "$source" "$dest" 2>/dev/null; then
-        test_fail "merge_configs should fail with missing source"
-    else
-        test_pass "merge_configs fails with missing source"
-    fi
-
-    teardown_test_env
 }
 
 #
@@ -714,14 +618,6 @@ main() {
     test_detect_codespaces
     test_detect_devcontainer
     test_detect_local
-
-    # Merge configs tests
-    test_suite "merge_configs Function"
-    test_merge_creates_destination
-    test_merge_copies_new_files
-    test_merge_skips_settings_json
-    test_merge_force_updates_hooks
-    test_merge_source_missing
 
     # Logging module tests
     test_suite "Logging Module"
