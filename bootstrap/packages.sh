@@ -441,7 +441,11 @@ install_apt() {
             codename="${VERSION_CODENAME:-}"
         fi
         # First try stock apt (Ubuntu universe / Debian bookworm+) with timeout
-        if timeout 30 run_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit >/dev/null 2>&1; then
+        # Note: timeout requires a real binary, not a shell function, so we
+        # use sudo directly instead of run_sudo here.
+        local _sudo=""
+        is_root || _sudo="sudo"
+        if timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit >/dev/null 2>&1; then
             log_success "Installed lazygit via apt"
         else
             if [[ "$distro_id" == "ubuntu" || "$distro_id" == "pop" ]]; then
@@ -449,13 +453,13 @@ install_apt() {
                 log_info "Attempting to install lazygit via Ubuntu PPA..."
                 local ppa_release_url="https://ppa.launchpadcontent.net/lazygit-team/release/ubuntu/dists/${codename}/Release"
                 if curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
-                    timeout 30 run_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
+                    timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
                     if command -v add-apt-repository >/dev/null 2>&1; then
                         # Use timeout and noninteractive mode to prevent hanging
-                        if timeout 30 run_sudo env DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:lazygit-team/release >/dev/null 2>&1; then
+                        if timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:lazygit-team/release >/dev/null 2>&1; then
                             log_info "Added lazygit PPA"
-                            timeout 30 run_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
-                            if timeout 30 run_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit >/dev/null 2>&1; then
+                            timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
+                            if timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y lazygit >/dev/null 2>&1; then
                                 log_success "Installed lazygit via apt/ppa"
                             else
                                 log_warn "lazygit not available via apt/ppa (install failed)"
