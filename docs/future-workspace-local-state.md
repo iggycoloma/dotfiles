@@ -94,13 +94,21 @@ detect_state_tier() {
 
 The `_ensure_gitignore()` helper idempotently appends `.dotfiles-state/` to the workspace's `.gitignore`. Uses `grep -qxF` to avoid duplicates.
 
-## Status: Implemented
+## Status: Evaluated and Removed
 
-This feature was implemented with the following functions in `bootstrap/symlinks.sh`:
-- `detect_state_tier()` -- four-tier detection: volume > codespaces > workspace-local > ephemeral
-- `_ensure_gitignore()` -- idempotent `.gitignore` entry management
+The workspace-local tier was implemented and then removed due to security concerns.
 
-And in `bootstrap/detect.sh`:
-- `detect_workspace_folder()` -- detects the container workspace path
+**Problem**: Placing auth tokens (Claude Code, Codex, GitHub CLI) inside the project directory tree is a security footgun. Even when protected by both `.git/info/exclude` and `.gitignore`, the state directory could be exposed by:
+- Backup tools that don't respect `.gitignore`
+- Archive uploads (`tar`, `zip` of the project directory)
+- Docker `COPY` or `ADD` commands in Dockerfiles
+- CI/CD tools or scanners that read the full workspace
+- Accidental `git add -A` if the gitignore entry is removed
 
-The Codespaces tier uses `/workspaces/.codespaces/.persistedshare/dotfiles-state/` which is more persistent than Docker volumes (survives full rebuilds). No `devcontainer.json` configuration is needed for state persistence.
+**Decision**: The blast radius of accidental credential exposure outweighs the convenience of avoiding a one-line volume mount in `devcontainer.json`.
+
+**Current system** (three tiers):
+- `detect_state_tier()` in `bootstrap/detect.sh` -- volume > codespaces > ephemeral
+- `setup_state_persistence()` in `bootstrap/symlinks.sh` -- wires up the detected tier
+
+The Codespaces tier uses `/workspaces/.codespaces/.persistedshare/dotfiles-state/` (automatic, no config needed). Local devcontainers use a Docker volume mount (one line in `devcontainer.json`). The ephemeral fallback logs the exact mount line to add.

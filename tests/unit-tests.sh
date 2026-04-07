@@ -635,28 +635,9 @@ test_detect_state_tier_codespaces() {
     teardown_test_env
 }
 
-test_detect_state_tier_workspace() {
-    setup_test_env
-    unset CODESPACES 2>/dev/null || true
-    mkdir -p "$TEST_TEMP_DIR/workspaces/myproject"
-    detect_workspace_folder() { echo "$TEST_TEMP_DIR/workspaces/myproject"; }
-    export -f detect_workspace_folder
-
-    detect_state_tier
-
-    assert_equals "workspace" "$STATE_TIER" "Should detect workspace tier"
-    assert_equals "$TEST_TEMP_DIR/workspaces/myproject/.dotfiles-state" "$STATE_PATH" \
-        "Should set workspace-local path"
-
-    source "$REAL_DOTFILES_DIR/bootstrap/detect.sh" 2>/dev/null
-    teardown_test_env
-}
-
 test_detect_state_tier_ephemeral() {
     setup_test_env
     unset CODESPACES 2>/dev/null || true
-    detect_workspace_folder() { echo ""; }
-    export -f detect_workspace_folder
 
     detect_state_tier
 
@@ -664,35 +645,14 @@ test_detect_state_tier_ephemeral() {
     assert_equals "$TEST_TEMP_DIR/home/.dotfiles-state" "$STATE_PATH" \
         "Ephemeral path should be ~/.dotfiles-state"
 
-    source "$REAL_DOTFILES_DIR/bootstrap/detect.sh" 2>/dev/null
     teardown_test_env
 }
 
 # -- Setup tests (side effects: dirs, symlinks, permissions) --
 
-test_setup_state_workspace_creates_symlink() {
-    setup_test_env
-    unset CODESPACES 2>/dev/null || true
-    mkdir -p "$TEST_TEMP_DIR/workspaces/myproject/.git"
-    detect_workspace_folder() { echo "$TEST_TEMP_DIR/workspaces/myproject"; }
-    export -f detect_workspace_folder
-
-    setup_state_persistence &>/dev/null
-
-    assert_is_symlink "$TEST_TEMP_DIR/home/.dotfiles-state" \
-        "Setup should create symlink for workspace tier"
-    assert_dir_exists "$TEST_TEMP_DIR/workspaces/myproject/.dotfiles-state" \
-        "Setup should create state dir in workspace"
-
-    source "$REAL_DOTFILES_DIR/bootstrap/detect.sh" 2>/dev/null
-    teardown_test_env
-}
-
 test_setup_state_ephemeral_creates_dir() {
     setup_test_env
     unset CODESPACES 2>/dev/null || true
-    detect_workspace_folder() { echo ""; }
-    export -f detect_workspace_folder
 
     setup_state_persistence &>/dev/null
 
@@ -701,7 +661,6 @@ test_setup_state_ephemeral_creates_dir() {
     assert_not_symlink "$TEST_TEMP_DIR/home/.dotfiles-state" \
         "Ephemeral should be a real directory, not symlink"
 
-    source "$REAL_DOTFILES_DIR/bootstrap/detect.sh" 2>/dev/null
     teardown_test_env
 }
 
@@ -719,71 +678,6 @@ test_no_state_persistence_toggle() {
         "Should log state persistence skip message"
 
     unset DOTFILES_NO_STATE_PERSISTENCE REMOTE_CONTAINERS
-    teardown_test_env
-}
-
-test_ensure_gitignore_writes_both() {
-    setup_test_env
-    local ws="$TEST_TEMP_DIR/workspace"
-    mkdir -p "$ws/.git"
-
-    _ensure_gitignore "$ws" ".dotfiles-state/"
-
-    assert_file_exists "$ws/.git/info/exclude" "Should write to .git/info/exclude"
-    assert_file_contains "$ws/.git/info/exclude" ".dotfiles-state/" \
-        "Exclude should contain the entry"
-    assert_file_exists "$ws/.gitignore" "Should also write to .gitignore as safety net"
-    assert_file_contains "$ws/.gitignore" ".dotfiles-state/" \
-        "Gitignore should contain the entry"
-
-    teardown_test_env
-}
-
-test_ensure_gitignore_no_git_dir() {
-    setup_test_env
-    local ws="$TEST_TEMP_DIR/workspace"
-    mkdir -p "$ws"
-    # No .git directory
-
-    _ensure_gitignore "$ws" ".dotfiles-state/"
-
-    assert_file_exists "$ws/.gitignore" "Should create .gitignore when no .git dir"
-    assert_file_contains "$ws/.gitignore" ".dotfiles-state/" \
-        "Should contain the entry"
-
-    teardown_test_env
-}
-
-test_ensure_gitignore_idempotent() {
-    setup_test_env
-    local ws="$TEST_TEMP_DIR/workspace"
-    mkdir -p "$ws/.git"
-
-    _ensure_gitignore "$ws" ".dotfiles-state/"
-    _ensure_gitignore "$ws" ".dotfiles-state/"
-
-    local exclude_count gitignore_count
-    exclude_count=$(grep -cxF ".dotfiles-state/" "$ws/.git/info/exclude")
-    gitignore_count=$(grep -cxF ".dotfiles-state/" "$ws/.gitignore")
-    assert_equals "1" "$exclude_count" "Exclude entry should appear exactly once"
-    assert_equals "1" "$gitignore_count" "Gitignore entry should appear exactly once"
-
-    teardown_test_env
-}
-
-test_ensure_gitignore_no_trailing_newline() {
-    setup_test_env
-    local ws="$TEST_TEMP_DIR/workspace"
-    mkdir -p "$ws"
-    # No .git dir, create .gitignore without trailing newline
-    printf "*.log" > "$ws/.gitignore"
-
-    _ensure_gitignore "$ws" ".dotfiles-state/"
-
-    local count
-    count=$(grep -cxF ".dotfiles-state/" "$ws/.gitignore")
-    assert_equals "1" "$count" "Entry should be on its own line even without trailing newline"
-
     teardown_test_env
 }
 
@@ -845,15 +739,9 @@ main() {
     test_detect_state_tier_volume
     test_detect_state_tier_symlink_not_volume
     test_detect_state_tier_codespaces
-    test_detect_state_tier_workspace
     test_detect_state_tier_ephemeral
-    test_setup_state_workspace_creates_symlink
     test_setup_state_ephemeral_creates_dir
     test_no_state_persistence_toggle
-    test_ensure_gitignore_writes_both
-    test_ensure_gitignore_no_git_dir
-    test_ensure_gitignore_idempotent
-    test_ensure_gitignore_no_trailing_newline
 
     # Installation toggle tests
     test_suite "Installation Toggles"

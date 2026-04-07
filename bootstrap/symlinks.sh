@@ -118,35 +118,8 @@ _ensure_git_include() {
     log_success "Added [include] for dotfiles git settings"
 }
 
-# Idempotently ensure a path is git-ignored in a workspace.
-# Uses .git/info/exclude (local, untracked) for silent operation, plus
-# .gitignore as a safety net for defense-in-depth.
-_ensure_gitignore() {
-    local workspace="$1" entry="$2"
-
-    # Primary: .git/info/exclude (never tracked, no git status noise)
-    if [[ -d "$workspace/.git" ]]; then
-        local exclude="$workspace/.git/info/exclude"
-        mkdir -p "$(dirname "$exclude")"
-        if ! grep -qxF "$entry" "$exclude" 2>/dev/null; then
-            echo "$entry" >> "$exclude"
-        fi
-    fi
-
-    # Safety net: .gitignore (survives fresh clones, protects all contributors)
-    local gitignore="$workspace/.gitignore"
-    if [[ -f "$gitignore" ]] && grep -qxF "$entry" "$gitignore" 2>/dev/null; then
-        return 0
-    fi
-    # Ensure existing file ends with newline before appending
-    if [[ -f "$gitignore" && -s "$gitignore" ]]; then
-        [[ "$(tail -c1 "$gitignore")" != "" ]] && echo "" >> "$gitignore"
-    fi
-    echo "$entry" >> "$gitignore"
-}
-
 # Wire up state persistence based on detect_state_tier() result.
-# Creates directories, symlinks, sets permissions, and manages gitignore.
+# Creates directories, symlinks, and sets permissions.
 setup_state_persistence() {
     detect_state_tier
 
@@ -166,23 +139,12 @@ setup_state_persistence() {
                 STATE_TIER="ephemeral"
             fi
             ;;
-        workspace)
-            if mkdir -p "$STATE_PATH" 2>/dev/null; then
-                ln -snf "$STATE_PATH" "$HOME/.dotfiles-state"
-                chmod 700 "$STATE_PATH"
-                _ensure_gitignore "$(dirname "$STATE_PATH")" ".dotfiles-state/"
-                log_info "State persistence: workspace-local ($STATE_PATH)"
-            else
-                log_warn "Workspace not writable, falling back to ephemeral"
-                mkdir -p "$HOME/.dotfiles-state"
-                chmod 700 "$HOME/.dotfiles-state"
-                STATE_TIER="ephemeral"
-            fi
-            ;;
         ephemeral)
             mkdir -p "$HOME/.dotfiles-state"
             chmod 700 "$HOME/.dotfiles-state"
             log_warn "State persistence: ephemeral (state lost on rebuild)"
+            log_info "Add this to your devcontainer.json for persistent state:"
+            log_info '  "mounts": ["source=${devcontainerId}-state,target=/home/vscode/.dotfiles-state,type=volume"]'
             ;;
     esac
 }
