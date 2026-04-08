@@ -257,7 +257,8 @@ test_detect_codespaces() {
     local original="${CODESPACES:-}"
     export CODESPACES="true"
 
-    local result=$(detect_environment)
+    local result
+    result=$(detect_environment)
     assert_equals "codespaces" "$result" "Should detect Codespaces"
 
     # Restore original value
@@ -275,7 +276,8 @@ test_detect_devcontainer() {
     unset CODESPACES
     export REMOTE_CONTAINERS="true"
 
-    local result=$(detect_environment)
+    local result
+    result=$(detect_environment)
     assert_equals "devcontainer" "$result" "Should detect devcontainer"
 
     # Restore original values
@@ -298,7 +300,8 @@ test_detect_local() {
     unset REMOTE_CONTAINERS
     unset SSH_CONNECTION
 
-    local result=$(detect_environment)
+    local result
+    result=$(detect_environment)
     assert_equals "local" "$result" "Should detect local environment"
 
     # Restore original values
@@ -590,6 +593,7 @@ test_no_state_persistence_toggle() {
 #
 
 main() {
+    # shellcheck disable=SC2031  # NC is not modified in subshell here
     echo -e "${CYAN}Starting Dotfiles Unit Tests${NC}\n"
 
     # Symlink function tests

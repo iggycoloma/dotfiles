@@ -121,6 +121,7 @@ detect_state_tier() {
     # Tier 3: Ephemeral (lost on rebuild)
     # shellcheck disable=SC2034  # read by callers (setup_state_persistence)
     STATE_TIER="ephemeral"
+    # shellcheck disable=SC2034  # read by callers (setup_state_persistence)
     STATE_PATH="$HOME/.dotfiles-state"
 }
 

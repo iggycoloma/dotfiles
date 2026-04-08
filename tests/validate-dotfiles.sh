@@ -55,7 +55,8 @@ check_symlink() {
     local optional=${4:-false}
 
     if [[ -L "$link" ]]; then
-        local actual=$(readlink "$link")
+        local actual
+        actual=$(readlink "$link")
         if [[ "$actual" == "$expected" ]]; then
             log_pass "$name: correctly linked"
         else
@@ -86,7 +87,8 @@ check_symlink_target() {
     local name=$2
 
     if [[ -L "$link" ]]; then
-        local target=$(readlink "$link")
+        local target
+        target=$(readlink "$link")
         if [[ -e "$target" ]]; then
             if [[ -r "$target" ]]; then
                 log_pass "$name: target exists and is readable"
@@ -186,7 +188,7 @@ fi
 log_section "Git Configuration"
 # Test git config hierarchy
 if git config --get core.pager &>/dev/null; then
-    local pager=$(git config --get core.pager)
+    pager=$(git config --get core.pager)
     if echo "$pager" | grep -q "delta"; then
         log_pass "Git core.pager configured with delta"
     else
@@ -212,12 +214,12 @@ fi
 
 # Check git hooks directory
 if git config --get core.hooksPath &>/dev/null; then
-    local hooks_path=$(git config --get core.hooksPath)
+    hooks_path=$(git config --get core.hooksPath)
     log_pass "Git hooks directory configured: $hooks_path"
 
     # Verify hooks are executable
     if [[ -d "$hooks_path" ]]; then
-        local hooks_count=$(find "$hooks_path" -type f -name "*.sh" | wc -l)
+        hooks_count=$(find "$hooks_path" -type f -name "*.sh" | wc -l)
         if [[ $hooks_count -gt 0 ]]; then
             log_pass "Found $hooks_count hook script(s)"
         fi
@@ -273,7 +275,7 @@ if is_devcontainer; then
 
         # Check for version marker from merge script
         if [[ -f "$HOME/.claude-code/.dotfiles-version" ]]; then
-            local version_date=$(cat "$HOME/.claude-code/.dotfiles-version" 2>/dev/null || echo "unknown")
+            version_date=$(cat "$HOME/.claude-code/.dotfiles-version" 2>/dev/null || echo "unknown")
             log_pass "Config merge version: $version_date"
         fi
     fi

@@ -1,0 +1,5 @@
+# Dotfiles project shellcheck configuration
+#
+# SC1090: Can't follow non-constant source - unavoidable in dotfiles
+# SC1091: Not following (file not specified as input) - we source external files
+disable=SC1090,SC1091,SC2317

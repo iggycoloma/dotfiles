@@ -64,6 +64,8 @@
       "Bash(python3 -c:*)",
       "Bash(jq:*)",
       "Bash(yq:*)",
+      "Bash(make lint:*)",
+      "Bash(make test:*)",
       "Bash(shellcheck:*)",
       "Bash(ast-grep:*)",
       "Bash(sg:*)",
@@ -170,18 +172,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/post-shellcheck.sh",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
     "Notification": [
       {
         "matcher": "idle_prompt",
@@ -199,7 +189,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits. Prefer: ast-grep (sg) for structural search, difft for diffs, shellcheck for shell validation, sd for find/replace, scc for code stats, yq for YAML/TOML editing.'"
+            "command": "echo 'Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits. Prefer: ast-grep (sg) for structural search, difft for diffs, sd for find/replace, scc for code stats, yq for YAML/TOML editing.'"
           }
         ]
       }

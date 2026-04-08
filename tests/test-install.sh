@@ -52,7 +52,8 @@ test_exists() {
 test_command() {
     local cmd=$1
     if command -v "$cmd" &> /dev/null; then
-        local version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
+        local version
+        version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
         log_pass "$cmd is available ($version)"
     else
         log_fail "$cmd is not available"
@@ -63,7 +64,8 @@ test_command() {
 test_command_optional() {
     local cmd=$1
     if command -v "$cmd" &> /dev/null; then
-        local version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
+        local version
+        version=$(${cmd} --version 2>&1 | head -n 1 || echo "unknown")
         log_pass "$cmd is available ($version)"
         ((OPTIONAL_AVAILABLE++)) || true
     else
@@ -79,7 +81,8 @@ test_symlink() {
     local name=$3
 
     if [[ -L "$link" ]]; then
-        local actual=$(readlink "$link")
+        local actual
+        actual=$(readlink "$link")
         if [[ "$actual" == "$expected" ]]; then
             log_pass "$name is correctly linked"
         else
@@ -158,13 +161,17 @@ for link in "${!required_config_symlinks[@]}"; do
     if [[ -L "$link" ]]; then
         actual=$(readlink "$link")
         if [[ "$actual" == "$target" ]]; then
+            # shellcheck disable=SC2088  # tilde is display text, not a path
             log_pass "~/.config/$name symlink correct"
         else
+            # shellcheck disable=SC2088
             log_fail "~/.config/$name points to wrong target: $actual"
         fi
     elif [[ -e "$link" ]]; then
+        # shellcheck disable=SC2088
         log_fail "~/.config/$name exists but is not a symlink"
     else
+        # shellcheck disable=SC2088
         log_fail "~/.config/$name symlink missing"
     fi
 done
@@ -184,6 +191,7 @@ for link in "${!optional_config_symlinks[@]}"; do
     if [[ -L "$link" ]]; then
         actual=$(readlink "$link")
         if [[ "$actual" == "$target" ]]; then
+            # shellcheck disable=SC2088  # tilde is display text
             log_pass "~/.config/$name symlink correct (optional)"
         else
             echo -e "${YELLOW}⚠${NC} ~/.config/$name points to wrong target: $actual (optional)"

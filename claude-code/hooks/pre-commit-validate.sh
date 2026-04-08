@@ -54,6 +54,7 @@ fi
 
 # Check for AI tool attribution (case-insensitive)
 if echo "$FULL_MSG" | grep -qiE "(claude code|claude\.com|anthropic\.com|generated with|powered by.*claude|gpt-|copilot|ai-generated|ai generated)"; then
+    # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
     \"hookEventName\": \"PreToolUse\",
@@ -66,6 +67,7 @@ fi
 
 # Check for co-authoring tags
 if echo "$FULL_MSG" | grep -qiE "co-authored-by:|co-authored by:"; then
+    # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
     \"hookEventName\": \"PreToolUse\",
@@ -78,6 +80,7 @@ fi
 
 # Check for emojis (Unicode emoji ranges) using perl for portability (grep -P unavailable on macOS)
 if echo "$FULL_MSG" | perl -CSD -ne 'BEGIN{$f=1} if(/[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B50}\x{2B55}\x{FE00}-\x{FE0F}\x{200D}]/){$f=0} END{exit $f}'; then
+    # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
     \"hookEventName\": \"PreToolUse\",

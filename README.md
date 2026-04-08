@@ -101,26 +101,27 @@ This repo configures two AI coding assistants with shared guardrails and workflo
 
 **Architecture:**
 
-| File | Deployed to | Read by | Purpose |
-|------|-------------|---------|---------|
-| `AGENTS.md` (root) | Stays in repo | Copilot, Cursor, Windsurf, Amp, Devin | Per-repo shared instructions |
-| `claude-code/CLAUDE.md` | `~/.claude/CLAUDE.md` | Claude Code | Global Claude Code instructions |
-| `codex/AGENTS.md` | `~/.codex/AGENTS.md` | Codex CLI | Global Codex instructions |
+| File | Scope | Read by | Purpose |
+|------|-------|---------|---------|
+| `AGENTS.md` (root) | This repo | All AI tools | Per-repo shared instructions (guardrails, tools, quality gates) |
+| `CLAUDE.md` (root) | This repo | Claude Code | Per-repo Claude-specific instructions |
+| `claude-code/CLAUDE.md` | Global | Claude Code | Global Claude Code instructions (deployed to `~/.claude/`) |
+| `codex/AGENTS.md` | Global | Codex CLI | Global Codex instructions (deployed to `~/.codex/`) |
 
-Each tool-specific file is **self-contained** (full guardrails + CLI preferences) because these tools don't follow cross-file references. The root `AGENTS.md` serves tools that discover it by convention when working inside this repo.
+Project-specific instructions (quality gates, installation toggles, security model) live in root files. Global files contain only preferences and guardrails that apply across all repositories.
 
 **Shared guardrails** (enforced in all three files):
 - No emoji in code, docs, or commits
 - Conventional commits; no AI attribution or Co-Authored-By
 - Never access credential files or directories (~50 blocked patterns)
 - Prefer modern CLI tools (rg, fd, sg, difft, sd, bat, scc, yq)
-- Run shellcheck on shell scripts before committing
+- `make lint` (shellcheck) required before merging; CI enforces this
 
 **Claude Code** (`claude-code/`):
 
 | Component | Count | Purpose |
 |-----------|-------|---------|
-| Hooks | 5 | Security (credential blocking), conventional commits, no-emoji, auto-shellcheck (PostToolUse), idle notification |
+| Hooks | 4 | Security (credential blocking), conventional commits, no-emoji, idle notification |
 | Agents | 5 | PM spec writer, architect reviewer, implementer-tester, QA reviewer, code reviewer |
 | Commands | 16 | commit, pr-create, review-pr, debug, test, refactor, security-audit, pipeline, etc. |
 | Status line | 1 | Git branch/status, context usage bar, model info |
@@ -191,7 +192,9 @@ If no volume mount is detected, the installer logs this line so you can copy-pas
 ```
 dotfiles/
 |-- install.sh                 # Main installer (detects env, orchestrates everything)
-|-- AGENTS.md                  # Shared AI tool instructions (per-repo)
+|-- Makefile                   # make lint (shellcheck), make test
+|-- AGENTS.md                  # Shared AI tool instructions (per-repo, all tools)
+|-- CLAUDE.md                  # Claude Code project instructions (per-repo)
 |-- bootstrap/
 |   |-- detect.sh              # Environment/OS/package manager detection
 |   |-- logging.sh             # Colored log functions
@@ -216,7 +219,7 @@ dotfiles/
 |   |-- CLAUDE.md              # Global Claude Code instructions
 |   |-- settings.json          # Permissions, hooks, status line config
 |   |-- statusline.sh          # Status bar (git, context usage, model)
-|   |-- hooks/                 # 5 hooks (security, commits, emoji, shellcheck, notify)
+|   |-- hooks/                 # 4 hooks (security, commits, emoji, notify)
 |   |-- agents/                # 5 agents (PM, architect, implementer, QA, reviewer)
 |   +-- commands/              # 16 slash commands (/commit, /pipeline, /debug, etc.)
 |-- codex/
@@ -325,7 +328,6 @@ A global `pre-commit` hook scans every commit for secrets (API keys, passwords, 
 | `pre-security.sh` | Read/Write/Edit/Bash | Blocks access to ~50 sensitive file patterns and credential directories |
 | `pre-commit-validate.sh` | `git commit` | Enforces conventional commits, blocks AI attribution |
 | `pre-code-no-emoji.sh` | Write/Edit | Blocks decorative emoji in code files |
-| `post-shellcheck.sh` | Write/Edit | Auto-runs shellcheck on .sh files (informational) |
 
 ### Credential Protection
 
@@ -356,17 +358,20 @@ Applied globally via `core.hooksPath = ~/.config/git/hooks`:
 ## Testing
 
 ```bash
-# Run all validation tests
-bash tests/test-install.sh
+# Lint all shell scripts
+make lint
 
-# Run security hook tests (89 test cases)
-bash tests/test-security-hook.sh
+# Run full test suite (unit + packages + integration)
+make test
 
-# Run unit tests
-bash tests/unit-tests.sh
+# Run individual suites
+make test-unit
+make test-packages
+make test-integration
 
-# Run function tests
-bash tests/test-functions.sh
+# Additional test scripts
+bash tests/test-security-hook.sh   # Security hook tests (89 cases)
+bash tests/test-functions.sh       # Shell function tests
 ```
 
 | Test File | Coverage |

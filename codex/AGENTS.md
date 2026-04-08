@@ -19,7 +19,6 @@
   - Use `sg --help` to learn more patterns
 - Use `difft` for file comparisons (AST-aware, ignores formatting noise)
 - Use `bat` for viewing files with syntax highlighting (instead of `cat`)
-- Run `shellcheck` on shell scripts before committing; fix all warnings
 - Use `sd` for find/replace (modern sed with PCRE regex, no escaping hell)
 - Use `scc` for codebase statistics (fast LOC/complexity counts)
 - Use `yq` for YAML/TOML/XML editing (preserves comments and formatting)
