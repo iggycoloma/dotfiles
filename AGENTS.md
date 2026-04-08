@@ -1,7 +1,17 @@
 # Dotfiles Repository -- Agent Instructions
 
-Shared instructions for all AI coding tools (Claude Code, Codex, Copilot, Cursor, Windsurf, Amp, Devin).
-Tool-specific overrides live in `claude-code/CLAUDE.md` and `codex/AGENTS.md`.
+Shared instructions for all AI coding tools working in this repository.
+Global tool-specific configs live in `claude-code/CLAUDE.md` (deployed to `~/.claude/`)
+and `codex/AGENTS.md` (deployed to `~/.codex/`).
+
+## About This Repo
+
+Portable dotfiles that lay down a productive, agentic coding environment on local
+hosts (macOS/Linux), VS Code devcontainers, and GitHub Codespaces. A single
+`install.sh` detects the environment and adapts automatically. It is safe to re-run.
+
+Key concerns: shell productivity, modern CLI tooling, agentic AI tool configuration,
+defense-in-depth credential security, and zero-config devcontainer support.
 
 ## Guardrails
 
@@ -12,6 +22,12 @@ Tool-specific overrides live in `claude-code/CLAUDE.md` and `codex/AGENTS.md`.
 - Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 
+## Quality
+
+- All shell scripts must pass `make lint` (shellcheck) before merging; CI enforces this
+- Run `make test` to execute the full test suite locally (unit + packages + integration)
+- Run `shellcheck` on any new or modified `.sh` file before committing
+
 ## Preferred CLI Tools
 
 Use these tools when available instead of standard Unix alternatives:
@@ -19,33 +35,24 @@ Use these tools when available instead of standard Unix alternatives:
 | Instead of | Use | When |
 |-----------|-----|------|
 | `grep` (pattern search) | `rg` (ripgrep) | Text/regex search across files |
-| `grep` (structural) | `sg` (ast-grep) | Finding code patterns by AST structure (function calls, imports, class definitions) |
+| `grep` (structural) | `sg` (ast-grep) | Finding code patterns by AST structure |
 | `find` | `fd` | Finding files by name/pattern |
 | `diff` | `difft` (difftastic) | Comparing files (AST-aware, ignores formatting noise) |
-| `sed` | `sd` | Find/replace with PCRE regex (no escaping hell) |
+| `sed` | `sd` | Find/replace with PCRE regex |
 | `cat` (highlighted) | `bat` | Viewing files with syntax highlighting |
 | `wc -l` / `cloc` | `scc` | Code statistics (LOC, complexity, languages) |
-| manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments/formatting) |
+| manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments) |
 | `jq` | `jq` | JSON processing (keep using jq, it's the standard) |
 
-## Shell Script Quality
+## Security Model
 
-- Run `shellcheck` on shell scripts before committing
-- Fix all shellcheck warnings unless there's a documented reason to suppress
+Defense-in-depth across multiple layers:
 
-## Structural Code Search (ast-grep)
-
-When searching for code patterns like "all function calls to X" or "all imports of Y",
-prefer `sg` over `rg`. Examples:
-
-- `sg --pattern 'console.log($$$)' --lang js` -- find all console.log calls
-- `sg --pattern 'import $_ from "react"' --lang tsx` -- find React imports
-- Use `sg --help` to learn more patterns
-
-## File Watching
-
-- Use `watchexec` for auto-test/rebuild loops when iterating on changes
-- Example: `watchexec -e py -- pytest tests/`
+- **Secret scanning**: gitleaks pre-commit hook on all repos via `core.hooksPath`
+- **Credential blocking**: ~50 sensitive file/directory patterns blocked in AI tool configs and hooks
+- **Conventional commits**: enforced globally; AI attribution and Co-Authored-By blocked
+- **SSH commit signing**: auto-detected from SSH agent (prefers ed25519)
+- **Path traversal**: blocked unless explicitly approved
 
 ## Installation Toggles
 
@@ -59,10 +66,8 @@ These environment variables control what `install.sh` installs:
 | `DOTFILES_NO_STATE_PERSISTENCE=1` | Skip state persistence tier detection |
 | `DOTFILES_NO_SSH_SIGNING=1` | Skip SSH commit signing auto-detection |
 
-CLI tools in the Preferred CLI Tools table may not be available if toggles are active.
-
 ## Working Style
 
 - Keep changes minimal and focused; do not refactor unrelated code
-- Run relevant tests/lint after changes when practical and report what was run
+- Run `make lint` and relevant tests after changes; report what was run
 - If asked for a review, prioritize bugs/regressions/security issues first, then style

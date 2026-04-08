@@ -62,6 +62,7 @@ function gcof {
         return 1
     fi
     local branch
+    # shellcheck disable=SC2016  # single quotes intentional: fzf evaluates the preview command
     branch=$(git branch --all | grep -v HEAD | fzf --preview 'git log --oneline --graph --date=short --pretty="format:%C(auto)%cd %h%d %s" $(sed s/^..// <<< {} | cut -d" " -f1)' | sed "s/.* //" | sed "s#remotes/origin/##")
     if [[ -n "$branch" ]]; then
         git checkout "$branch"
@@ -170,7 +171,8 @@ function usage {
 function note {
     local notes_dir="$HOME/notes"
     mkdir -p "$notes_dir"
-    local note_file="$notes_dir/$(date +%Y-%m-%d).md"
+    local note_file
+    note_file="$notes_dir/$(date +%Y-%m-%d).md"
 
     if [[ -n "$1" ]]; then
         echo "$(date +%H:%M:%S) - $*" >> "$note_file"

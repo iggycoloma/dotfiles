@@ -27,7 +27,6 @@ setup_bash_completions() {
 
     for tool_pair in "${tools[@]}"; do
         local tool="${tool_pair%%:*}"
-        local name="${tool_pair##*:}"
 
         if has_tool "$tool"; then
             case "$tool" in

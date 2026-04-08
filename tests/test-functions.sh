@@ -13,6 +13,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+# shellcheck disable=SC2034  # used for future test output
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
@@ -77,6 +78,7 @@ log_section "Shell Functions - cat()"
 
 # Test 1: cat with piped output should not have decorations
 log_info "Test 1: Piped output should use plain cat (no decorations)"
+# shellcheck disable=SC2002  # intentional: testing piped cat behavior
 PIPED_OUTPUT=$(cat "$TEST_FILE" | cat)
 if has_ansi_codes "$PIPED_OUTPUT"; then
     log_fail "Piped cat output has ANSI codes (should be plain text)"

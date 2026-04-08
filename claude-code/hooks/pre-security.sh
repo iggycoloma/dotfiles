@@ -145,6 +145,7 @@ FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 
 # Check if file path matches sensitive path patterns (glob match, not substring)
 for pattern in "${SENSITIVE_PATHS[@]}"; do
+    # shellcheck disable=SC2053  # intentional glob matching
     if [[ "$FILE_PATH" == $pattern ]]; then
         jq -n -c --arg reason "This file may contain sensitive information: $FILE_PATH" \
             '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'
@@ -154,6 +155,7 @@ done
 
 # Check sensitive extensions
 for pattern in "${SENSITIVE_EXTENSIONS[@]}"; do
+    # shellcheck disable=SC2053  # intentional glob matching
     if [[ "$FILE_PATH" == $pattern ]]; then
         jq -n -c --arg reason "This file may contain sensitive information: $FILE_PATH" \
             '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'

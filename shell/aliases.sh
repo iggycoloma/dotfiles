@@ -165,6 +165,7 @@ alias j='jobs -l'
 alias c='clear'
 alias q='exit'
 
+# shellcheck disable=SC2139  # intentional: expand $HOME at definition time
 alias cclog="$HOME/.dotfiles/claude-code/hooks/query-tool-logs.sh"
 
 # Codex CLI shortcuts

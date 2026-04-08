@@ -144,6 +144,7 @@ setup_state_persistence() {
             chmod 700 "$HOME/.dotfiles-state"
             log_warn "State persistence: ephemeral (state lost on rebuild)"
             log_info "Add this to your devcontainer.json for persistent state:"
+            # shellcheck disable=SC2016  # literal JSON example, not meant to expand
             log_info '  "mounts": ["source=${devcontainerId}-state,target=/home/vscode/.dotfiles-state,type=volume"]'
             ;;
     esac

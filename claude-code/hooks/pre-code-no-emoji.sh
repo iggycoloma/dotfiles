@@ -38,6 +38,7 @@ fi
 ALLOWED_SYMBOLS='☐☑✓✗□■▪▫✔✘'
 
 # Remove allowed symbols before checking for emojis
+# shellcheck disable=SC2001  # can't use ${//} with character class from variable
 FILTERED_CONTENT=$(echo "$CONTENT_TO_CHECK" | sed "s/[$ALLOWED_SYMBOLS]//g")
 
 # Check for decorative emojis using perl for portability (grep -P unavailable on macOS)
@@ -45,6 +46,7 @@ FILTERED_CONTENT=$(echo "$CONTENT_TO_CHECK" | sed "s/[$ALLOWED_SYMBOLS]//g")
 # Covers: Emoticons, Symbols, Pictographs, Transport, Flags, etc.
 # Excludes the allowed markdown task symbols filtered above
 if echo "$FILTERED_CONTENT" | perl -CSD -ne 'BEGIN{$f=1} if(/[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B50}\x{2B55}\x{FE00}-\x{FE0F}\x{200D}]/){$f=0} END{exit $f}'; then
+    # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
     \"hookEventName\": \"PreToolUse\",

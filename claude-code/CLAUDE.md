@@ -35,11 +35,6 @@ Use these tools when available instead of standard Unix alternatives:
 | manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments/formatting) |
 | `jq` | `jq` | JSON processing (keep using jq, it's the standard) |
 
-## Shell Script Quality
-
-- Run `shellcheck` on shell scripts before committing
-- Fix all shellcheck warnings unless there's a documented reason to suppress
-
 ## Structural Code Search (ast-grep)
 
 When searching for code patterns like "all function calls to X" or "all imports of Y",

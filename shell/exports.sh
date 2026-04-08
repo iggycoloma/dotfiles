@@ -142,7 +142,8 @@ export LESS_TERMCAP_us=$'\e[1;4;31m'    # begin underline
 export LESS_TERMCAP_ue=$'\e[0m'         # reset underline
 
 # GPG TTY
-export GPG_TTY=$(tty)
+GPG_TTY=$(tty)
+export GPG_TTY
 
 # Docker BuildKit
 export DOCKER_BUILDKIT=1
