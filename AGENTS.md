@@ -10,8 +10,16 @@ Portable dotfiles that lay down a productive, agentic coding environment on loca
 hosts (macOS/Linux), VS Code devcontainers, and GitHub Codespaces. A single
 `install.sh` detects the environment and adapts automatically. It is safe to re-run.
 
-Key concerns: shell productivity, modern CLI tooling, agentic AI tool configuration,
-defense-in-depth credential security, and zero-config devcontainer support.
+This repo provides a **developer-specific** environment, not a project-specific one.
+It installs universally useful shell tools (rg, fd, bat, fzf, etc.) and deeply
+integrates agentic coding tools (Claude Code, Codex CLI). For project-dependent
+tools (gh, docker, kubectl, mise, uv), the repo supplies configuration -- aliases,
+completions, state persistence -- but does not install them. Projects bring their
+own tooling via `devcontainer.json`; this repo ensures the developer's workflow is
+ready when they arrive.
+
+Tested platforms: Ubuntu (20.04/22.04/24.04), Debian (11/12), Alpine, macOS (15/26),
+GitHub Codespaces.
 
 ## Guardrails
 

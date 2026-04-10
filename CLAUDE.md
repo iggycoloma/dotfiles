@@ -3,6 +3,18 @@
 See `AGENTS.md` for shared guardrails, CLI tool preferences, and security model.
 This file covers Claude-specific context for working in this repository.
 
+## Design Philosophy
+
+This repo is developer-specific, not project-specific. It installs universally useful
+CLI tools and agentic coding tools (Claude Code, Codex CLI). For project-dependent tools
+(gh, docker, kubectl, etc.), it supplies configuration surface (aliases, completions,
+state persistence) without installing them. Projects own their own tooling; this repo
+ensures the developer's preferences are ready.
+
+When making changes, respect this boundary: don't add installation logic for tools that
+belong to individual projects. Do add configuration, completions, and state persistence
+for tools developers commonly encounter.
+
 ## Quality Gates
 
 - `make lint` -- shellcheck all `.sh` files (CI blocks merge on failure)
