@@ -21,6 +21,19 @@ cd ~/.dotfiles && ./install.sh
 
 The installer detects your environment (macOS/Linux, apt/apk/brew, devcontainer/local) and adapts automatically. It is safe to re-run.
 
+### Prerequisites
+
+Set your git identity on your host machine (this is what VS Code copies into devcontainers):
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+For **Codespaces**, your GitHub profile name and email are used automatically -- no host config needed.
+
+For **SSH commit signing**, the installer auto-detects SSH keys from your agent (prefers ed25519). If you have a key loaded (`ssh-add -L`), signing is enabled automatically. No key? Signing stays disabled -- no broken commits. You can skip detection entirely with `DOTFILES_NO_SSH_SIGNING=1`.
+
 ---
 
 ## Design Philosophy
