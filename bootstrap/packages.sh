@@ -174,6 +174,10 @@ _tool_config() {
             _tc_os_override="linux"
             _tc_pattern='procs-v[0-9.]+-ARCH-OS\.zip$'
             ;;
+        hyperfine)
+            _tc_checksum="none"
+            _tc_pattern='hyperfine-v[0-9.]+-ARCH-OS\.tar\.gz$'
+            ;;
         *)
             return 1
             ;;
@@ -386,6 +390,7 @@ get_github_repo() {
         duf) echo "muesli/duf" ;;
         procs) echo "dalance/procs" ;;
         dust) echo "bootandy/dust" ;;
+        hyperfine) echo "sharkdp/hyperfine" ;;
         sd) echo "chmln/sd" ;;
         sg) echo "ast-grep/ast-grep" ;;
         difft) echo "Wilfred/difftastic" ;;
@@ -537,7 +542,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine")
 
     # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
     if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
@@ -744,6 +749,7 @@ install_packages() {
         install_from_github "duf" "$(get_github_repo duf)"
         install_from_github "dust" "$(get_github_repo dust)"
         install_from_github "procs" "$(get_github_repo procs)"
+        install_from_github "hyperfine" "$(get_github_repo hyperfine)"
 
         # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
         if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
