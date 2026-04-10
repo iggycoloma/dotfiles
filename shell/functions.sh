@@ -273,6 +273,21 @@ function cat {
 # Alias for original cat without any wrappers
 alias ccat='command cat'
 
+# Yazi file manager wrapper: cd to last directory on exit
+function y {
+    if ! command -v yazi &>/dev/null; then
+        echo "yazi is not installed" >&2
+        return 1
+    fi
+    local tmp
+    tmp=$(mktemp -t "yazi-cwd.XXXXXX")
+    yazi "$@" --cwd-file="$tmp"
+    if cwd=$(command cat -- "$tmp") && [[ -n "$cwd" ]] && [[ "$cwd" != "$PWD" ]]; then
+        builtin cd -- "$cwd" || return
+    fi
+    rm -f -- "$tmp"
+}
+
 # Verify dotfiles installation state (read-only diagnostic)
 function dotfiles-doctor {
     local pass=0 fail=0 warn=0
@@ -340,6 +355,7 @@ function dotfiles-doctor {
     _doc_check_tool dust
     _doc_check_tool procs
     _doc_check_tool hyperfine
+    _doc_check_tool yazi
     echo ""
 
     echo "== Enhanced Tools =="
