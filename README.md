@@ -1,6 +1,6 @@
 # Dotfiles
 
-Modern CLI productivity toolkit with agentic coding tool configuration, automatic devcontainer/Codespaces integration, and defense-in-depth security.
+Portable developer environment that lays down a productive, agentic coding setup on local hosts (macOS/Linux), VS Code devcontainers, and GitHub Codespaces.
 
 ## Quick Start
 
@@ -23,36 +23,91 @@ The installer detects your environment (macOS/Linux, apt/apk/brew, devcontainer/
 
 ---
 
+## Design Philosophy
+
+This repo provides a **developer-specific** environment, not a project-specific one.
+
+| Responsibility | Belongs to |
+|---|---|
+| Install universally useful shell tools (rg, fd, bat, fzf, etc.) | This repo |
+| Deeply integrate tools used everywhere (Claude Code, Codex CLI) | This repo |
+| Supply preferences for project-dependent tools (aliases, completions, config, state persistence) | This repo |
+| Install project-dependent executables (gh, docker, kubectl, etc.) | Project devcontainer.json |
+
+**Developer tools** are installed by this repo because they improve every terminal session regardless of what you're working on -- fast search, syntax highlighting, modern git diffs, smart directory jumping, shell history.
+
+**Agentic coding tools** (Claude Code, Codex CLI) are installed by this repo because they're part of how the developer works, not tied to any specific project. They get full treatment: installation, configuration, hooks, agents, commands, and state persistence.
+
+**Project-dependent tools** (gh, docker, kubectl, mise, uv, etc.) are NOT installed by this repo. Projects install their own tooling via `devcontainer.json` or similar. This repo supplies the *configuration surface* -- aliases, completions, state persistence, shell integration -- so when a project brings in a tool, the developer's preferred workflow is already there waiting. An alias for a missing tool is harmless ("command not found" is fine).
+
+### Supported Platforms
+
+Tested in CI and fully supported:
+
+- **Ubuntu** 20.04, 22.04, 24.04 (bash and zsh)
+- **Debian** 11 (Bullseye), 12 (Bookworm) (bash and zsh)
+- **Alpine** latest (musl libc)
+- **macOS** 15, 26 (bash and zsh)
+- **GitHub Codespaces** (Ubuntu-based devcontainer)
+
+WSL2 runs Ubuntu/Debian underneath and is covered by the Linux matrix.
+
+---
+
 ## What's Included
 
 ### CLI Tools
 
-All tools are installed automatically. On Linux, most come from GitHub releases with checksum verification (musl-static builds for portability). On macOS, Homebrew handles everything.
+On Linux, most tools come from GitHub releases with checksum verification (musl-static builds for portability). On macOS, Homebrew handles everything.
 
-| Tool | Purpose | Category |
-|------|---------|----------|
-| [fzf](https://github.com/junegunn/fzf) | Fuzzy finder for files, history, and more | Core |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) | Fast regex search across files | Core |
-| [fd](https://github.com/sharkdp/fd) | Fast file finder | Core |
-| [bat](https://github.com/sharkdp/bat) | Cat with syntax highlighting | Core |
-| [jq](https://github.com/jqlang/jq) | JSON processor | Core |
-| [starship](https://starship.rs/) | Cross-shell prompt with git status | Core |
-| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smart directory jumping (replaces cd) | Core |
-| [eza](https://github.com/eza-community/eza) | Modern ls replacement with git integration | Core |
-| [git-delta](https://github.com/dandavison/delta) | Beautiful, syntax-highlighted git diffs | Core |
-| [sd](https://github.com/chmln/sd) | Find-and-replace (modern sed, PCRE regex) | Core |
-| [scc](https://github.com/boyter/scc) | Fast code statistics (LOC, complexity) | Core |
-| [yq](https://github.com/mikefarah/yq) | YAML/TOML/XML editor (preserves comments) | Core |
-| [watchexec](https://github.com/watchexec/watchexec) | File watcher for auto-test/rebuild | Core |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | Secret scanner (pre-commit hook) | Core |
-| [shellcheck](https://github.com/koalaman/shellcheck) | Shell script linter | Core |
-| [atuin](https://github.com/atuinsh/atuin) | Shell history with SQLite and context search | Enhanced |
-| [ast-grep](https://ast-grep.github.io/) (sg) | Structural code search by AST | AI |
-| [difftastic](https://github.com/Wilfred/difftastic) (difft) | AST-aware file diff (ignores formatting) | AI |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | AI coding assistant CLI (devcontainer) | AI |
-| [Codex CLI](https://github.com/openai/codex) | AI coding assistant CLI (devcontainer) | AI |
-| [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for git (host only) | Optional |
-| [bottom](https://github.com/ClementTsang/bottom) (btm) | System monitor (host only) | Optional |
+**Core tools** -- installed everywhere, improve every terminal session:
+
+| Tool | Purpose |
+|------|---------|
+| [fzf](https://github.com/junegunn/fzf) | Fuzzy finder for files, history, and more |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) | Fast regex search across files |
+| [fd](https://github.com/sharkdp/fd) | Fast file finder |
+| [bat](https://github.com/sharkdp/bat) | Cat with syntax highlighting |
+| [jq](https://github.com/jqlang/jq) | JSON processor |
+| [starship](https://starship.rs/) | Cross-shell prompt with git status |
+| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smart directory jumping (replaces cd) |
+| [eza](https://github.com/eza-community/eza) | Modern ls replacement with git integration |
+| [git-delta](https://github.com/dandavison/delta) | Beautiful, syntax-highlighted git diffs |
+| [sd](https://github.com/chmln/sd) | Find-and-replace (modern sed, PCRE regex) |
+| [scc](https://github.com/boyter/scc) | Fast code statistics (LOC, complexity) |
+| [yq](https://github.com/mikefarah/yq) | YAML/TOML/XML editor (preserves comments) |
+| [watchexec](https://github.com/watchexec/watchexec) | File watcher for auto-test/rebuild |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Secret scanner (pre-commit hook) |
+| [shellcheck](https://github.com/koalaman/shellcheck) | Shell script linter |
+| [atuin](https://github.com/atuinsh/atuin) | Shell history with SQLite and context search |
+| [duf](https://github.com/muesli/duf) | Modern disk free utility |
+| [dust](https://github.com/bootandy/dust) | Intuitive disk usage (modern du) |
+| [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
+
+**Agentic tools** -- installed in devcontainers, deeply configured:
+
+| Tool | Purpose |
+|------|---------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | AI coding assistant CLI |
+| [Codex CLI](https://github.com/openai/codex) | AI coding assistant CLI |
+| [ast-grep](https://ast-grep.github.io/) (sg) | Structural code search by AST |
+| [difftastic](https://github.com/Wilfred/difftastic) (difft) | AST-aware file diff (ignores formatting) |
+
+**Optional tools** -- installed on hosts, skipped in CI/lightweight environments:
+
+| Tool | Purpose |
+|------|---------|
+| [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for git |
+| [bottom](https://github.com/ClementTsang/bottom) (btm) | System monitor |
+
+**Developer preferences** -- NOT installed, but aliases, completions, and config are supplied:
+
+| Tool | What this repo provides |
+|------|------------------------|
+| [gh](https://cli.github.com/) | Aliases, completions, `~/.config/gh` state persistence, `ghpr` function |
+| [docker](https://www.docker.com/) | Aliases (`d`, `dc`, `dps`, `di`, `dex`), functions (`dclean`, `dkill`, `dlogs`) |
+| [kubectl](https://kubernetes.io/) | Aliases (`k`, `kgp`, `kgs`, `kgd`), completions |
+| [direnv](https://direnv.net/) | Shell activation (deferred on zsh for performance) |
 
 ### Shell Configuration
 
