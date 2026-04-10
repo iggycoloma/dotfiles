@@ -613,6 +613,11 @@ install_system_basics() {
         brew)
             # Homebrew handles its own dependencies
             ;;
+        *)
+            log_warn "Unsupported package manager -- skipping system packages"
+            log_info "Ensure git, curl, and unzip are installed manually"
+            log_info "GitHub release tools, shell config, and symlinks will still install"
+            ;;
     esac
 }
 
@@ -703,7 +708,8 @@ install_packages() {
             install_brew "$minimal"
             ;;
         *)
-            log_warn "No supported package manager found, will try GitHub releases"
+            log_warn "No supported package manager (apt/apk/brew) found"
+            log_info "Skipping package-manager installs; GitHub release tools will still install"
             ;;
     esac
 
