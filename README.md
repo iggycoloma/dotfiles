@@ -183,6 +183,7 @@ This repo configures two AI coding assistants with shared guardrails and workflo
 |------|-------|---------|---------|
 | `AGENTS.md` (root) | This repo | All AI tools | Per-repo shared instructions (guardrails, tools, quality gates) |
 | `CLAUDE.md` (root) | This repo | Claude Code | Per-repo Claude-specific instructions |
+| `.github/copilot-instructions.md` | This repo | GitHub Copilot | Per-repo Copilot instructions |
 | `claude-code/CLAUDE.md` | Global | Claude Code | Global Claude Code instructions (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global | Codex CLI | Global Codex instructions (deployed to `~/.codex/`) |
 

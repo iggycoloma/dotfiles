@@ -1,0 +1,37 @@
+# GitHub Copilot Instructions
+
+Instructions for GitHub Copilot when working in this repository.
+See `AGENTS.md` for full context shared across all AI coding tools.
+
+## About This Repo
+
+Portable dotfiles providing a developer-specific environment for local hosts,
+devcontainers, and Codespaces. Installs universally useful CLI tools and agentic
+coding tools. For project-dependent tools (gh, docker, kubectl), the repo supplies
+configuration (aliases, completions, state persistence) but does not install them.
+
+## Guardrails
+
+- No emojis in code, docs, or commit messages
+- Use conventional commits; no AI attribution or Co-Authored-By lines
+- Never read .env, credentials, secrets, .pem, .key files
+- Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube
+- Deny path traversal patterns (`../`) unless explicitly confirmed
+
+## Quality
+
+- All shell scripts must pass `make lint` (shellcheck) before merging; CI enforces this
+- Run `make test` to execute the full test suite locally (unit + packages + integration)
+
+## Security Model
+
+- Secret scanning via gitleaks pre-commit hook on all repos
+- ~50 sensitive file/directory patterns blocked in AI tool configs and hooks
+- Conventional commits enforced globally; AI attribution blocked
+- SSH commit signing auto-detected from SSH agent
+
+## Working Style
+
+- Keep changes minimal and focused; do not refactor unrelated code
+- Run `make lint` and relevant tests after changes; report what was run
+- If asked for a review, prioritize bugs/regressions/security issues first, then style

@@ -39,8 +39,9 @@ This repo deploys a portable CLI environment. Key directories:
 
 | File | Scope | Read by |
 |------|-------|---------|
-| `AGENTS.md` (root) | This repo | All AI tools (Copilot, Cursor, etc.) |
+| `AGENTS.md` (root) | This repo | All AI tools (Cursor, Windsurf, etc.) |
 | `CLAUDE.md` (root, this file) | This repo | Claude Code only |
+| `.github/copilot-instructions.md` | This repo | GitHub Copilot |
 | `claude-code/CLAUDE.md` | Global (all projects) | Claude Code (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
 
