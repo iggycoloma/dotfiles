@@ -51,6 +51,9 @@ Use these tools when available instead of standard Unix alternatives:
 | `wc -l` / `cloc` | `scc` | Code statistics (LOC, complexity, languages) |
 | manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments) |
 | `jq` | `jq` | JSON processing (keep using jq, it's the standard) |
+| `df` | `duf` | Disk free with color-coded bars |
+| `du` | `dust` | Directory disk usage as a visual tree |
+| `ps` | `procs` | Process viewer with color and search |
 
 ## Security Model
 

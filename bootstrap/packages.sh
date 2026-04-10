@@ -159,6 +159,21 @@ _tool_config() {
             # tells _install_tool to find by glob and rename to "codex"
             _tc_binary_rename="codex-*"
             ;;
+        duf)
+            _tc_arch_remap="arm64"
+            _tc_os_override="linux"
+            _tc_pattern='duf_[0-9.]+_OS_ARCH\.tar\.gz$'
+            ;;
+        dust)
+            _tc_checksum="none"
+            _tc_pattern='dust-v[0-9.]+-ARCH-OS\.tar\.gz$'
+            ;;
+        procs)
+            _tc_format="zip"
+            _tc_checksum="none"
+            _tc_os_override="linux"
+            _tc_pattern='procs-v[0-9.]+-ARCH-OS\.zip$'
+            ;;
         *)
             return 1
             ;;
@@ -522,7 +537,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs")
 
     # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
     if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
@@ -726,6 +741,9 @@ install_packages() {
         install_from_github "yq" "$(get_github_repo yq)"
         install_from_github "watchexec" "$(get_github_repo watchexec)"
         install_from_github "gitleaks" "$(get_github_repo gitleaks)"
+        install_from_github "duf" "$(get_github_repo duf)"
+        install_from_github "dust" "$(get_github_repo dust)"
+        install_from_github "procs" "$(get_github_repo procs)"
 
         # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
         if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
