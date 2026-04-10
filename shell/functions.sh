@@ -306,10 +306,23 @@ function dotfiles-doctor {
     echo "dotfiles doctor -- checking installation health"
     echo ""
 
+    _doc_check_git_include() {
+        local config="$HOME/.config/git/config"
+        if [[ -f "$config" ]] && grep -qF "git/.gitconfig" "$config" 2>/dev/null; then
+            _doc_pass "git config includes dotfiles settings"
+        elif [[ -L "$config" ]]; then
+            _doc_warn "git config is a symlink (legacy, run install.sh to migrate)"
+        elif [[ -f "$config" ]]; then
+            _doc_fail "git config exists but missing dotfiles [include]"
+        else
+            _doc_fail "git config (XDG) missing"
+        fi
+    }
+
     echo "== Symlinks =="
     _doc_check_symlink "$HOME/.bashrc" ".bashrc"
     _doc_check_symlink "$HOME/.zshrc" ".zshrc"
-    _doc_check_symlink "$HOME/.config/git/config" "git config (XDG)"
+    _doc_check_git_include
     _doc_check_symlink "$HOME/.config/git/hooks" "git hooks"
     _doc_check_symlink "$HOME/.config/starship.toml" "starship config"
     _doc_check_symlink "$HOME/.gitignore_global" ".gitignore_global"
@@ -323,6 +336,9 @@ function dotfiles-doctor {
     _doc_check_tool fd
     _doc_check_tool bat
     _doc_check_tool jq
+    _doc_check_tool duf
+    _doc_check_tool dust
+    _doc_check_tool procs
     echo ""
 
     echo "== Enhanced Tools =="
@@ -338,6 +354,7 @@ function dotfiles-doctor {
     _doc_check_tool yq
     _doc_check_tool watchexec
     _doc_check_tool gitleaks
+    _doc_check_tool shellcheck
     echo ""
 
     echo "== Git Configuration =="
@@ -367,7 +384,7 @@ function dotfiles-doctor {
     echo -e "  \033[0;32m$pass passed\033[0m, \033[1;33m$warn warnings\033[0m, \033[0;31m$fail failed\033[0m"
 
     # Clean up helper functions from shell namespace
-    unset -f _doc_pass _doc_fail _doc_warn _doc_check_symlink _doc_check_tool
+    unset -f _doc_pass _doc_fail _doc_warn _doc_check_symlink _doc_check_tool _doc_check_git_include
     [[ $fail -eq 0 ]] && return 0 || return 1
 }
 
