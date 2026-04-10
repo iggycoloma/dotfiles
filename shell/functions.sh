@@ -339,6 +339,7 @@ function dotfiles-doctor {
     _doc_check_tool duf
     _doc_check_tool dust
     _doc_check_tool procs
+    _doc_check_tool hyperfine
     echo ""
 
     echo "== Enhanced Tools =="

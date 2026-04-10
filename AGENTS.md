@@ -54,6 +54,7 @@ Use these tools when available instead of standard Unix alternatives:
 | `df` | `duf` | Disk free with color-coded bars |
 | `du` | `dust` | Directory disk usage as a visual tree |
 | `ps` | `procs` | Process viewer with color and search |
+| `time` | `hyperfine` | Benchmarking commands with statistical analysis |
 
 ## Security Model
 

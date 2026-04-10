@@ -96,6 +96,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [duf](https://github.com/muesli/duf) | Modern disk free utility |
 | [dust](https://github.com/bootandy/dust) | Intuitive disk usage (modern du) |
 | [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
+| [hyperfine](https://github.com/sharkdp/hyperfine) | Command-line benchmarking tool |
 
 **Agentic tools** -- installed in devcontainers, deeply configured:
 
