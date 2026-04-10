@@ -132,7 +132,17 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 
 ### Git Configuration
 
-Git settings live in `git/.gitconfig` and are included via `[include]` into your personal `~/.gitconfig`. Your identity (name/email) stays separate and is never overwritten.
+Git uses three config files, each with a distinct role:
+
+| File | Purpose | Managed by |
+|------|---------|------------|
+| `~/.gitconfig` | User identity (name, email, signing key) | You (or VS Code/Codespaces) |
+| `~/.config/git/config` | XDG config with `[include]` pointing to dotfiles settings | install.sh |
+| `git/.gitconfig` (this repo) | Shared settings: delta, aliases, hooks, merge, rebase, etc. | This repo |
+
+**How it works:** `install.sh` prepends an `[include]` directive to `~/.config/git/config` that pulls in `git/.gitconfig` from this repo. Git reads configs in order (`~/.gitconfig` first, then `~/.config/git/config`), and later values override earlier ones. This means your personal identity in `~/.gitconfig` is never touched, while dotfiles settings (delta, aliases, hooks) load via the include.
+
+The XDG config file (`~/.config/git/config`) is a real file, not a symlink, so `git config --global` writes go there safely without dirtying the dotfiles repo. If the installer finds a legacy symlink from an older version, it migrates automatically.
 
 **Delta integration** -- syntax-highlighted diffs with line numbers, side-by-side optional, OneHalfDark theme.
 
@@ -235,10 +245,22 @@ If no volume mount is detected, the installer logs this line so you can copy-pas
 
 ### Git in Devcontainers
 
-- **VS Code** copies your local `~/.gitconfig` (with identity) into the container automatically
-- **Codespaces** configures git identity from your GitHub profile
-- The installer adds an `[include]` directive for dotfiles settings (delta, aliases, hooks, etc.)
+Git identity (name/email) must be present in the container for commits to work. How it gets there depends on the environment:
+
+**Local devcontainers (VS Code Remote - Containers):**
+- VS Code copies your host `~/.gitconfig` into the container at startup, bringing your identity (name, email, signing key) along automatically
+- The installer then prepends the `[include]` for dotfiles settings (delta, aliases, hooks) into `~/.config/git/config`
+- Result: your identity from the host + dotfiles settings from this repo
+
+**GitHub Codespaces:**
+- Codespaces configures `git config --system user.name` and `user.email` from your GitHub profile automatically
+- There is no host `~/.gitconfig` to copy -- identity comes from Codespaces infrastructure
+- The installer adds the `[include]` the same way as local devcontainers
+
+**In both cases:**
 - SSH agent is forwarded by VS Code -- commit signing works without distributing keys
+- `git config --global` writes go to `~/.config/git/config` (the XDG file), not the dotfiles repo
+- The three-file git config model (see Git Configuration above) applies identically
 
 ---
 
@@ -339,7 +361,7 @@ dotfiles doctor -- checking installation health
 == Symlinks ==
   ok  .bashrc -> /home/user/.dotfiles/shell/.bashrc
   ok  .zshrc -> /home/user/.dotfiles/shell/.zshrc
-  ok  git config (XDG) -> /home/user/.dotfiles/git/.gitconfig
+  ok  git config includes dotfiles settings
   ...
 
 == Core Tools ==
