@@ -23,8 +23,6 @@ detect_os() {
         case "$ID" in
             ubuntu|debian|pop) echo "debian" ;;
             alpine) echo "alpine" ;;
-            fedora|rhel|centos) echo "fedora" ;;
-            arch|manjaro) echo "arch" ;;
             *) echo "linux" ;;
         esac
     else
@@ -40,10 +38,6 @@ detect_package_manager() {
         echo "apt"
     elif command -v apk &> /dev/null; then
         echo "apk"
-    elif command -v dnf &> /dev/null; then
-        echo "dnf"
-    elif command -v pacman &> /dev/null; then
-        echo "pacman"
     else
         echo "none"
     fi
