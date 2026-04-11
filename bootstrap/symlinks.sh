@@ -196,8 +196,8 @@ _deploy_configs() {
     done
 
     if is_devcontainer; then
-        stomp_configs "$source_dir" "$target_dir" "${files[@]}" "${dirs[@]}"
-        _chmod_hooks "$target_dir/hooks"
+        stomp_configs "$source_dir" "$target_dir" "${files[@]}" ${dirs[@]+"${dirs[@]}"}
+        [[ -d "$target_dir/hooks" ]] && _chmod_hooks "$target_dir/hooks"
     else
         mkdir -p "$target_dir"
         for f in "${files[@]}"; do
@@ -291,7 +291,7 @@ _setup_copilot() {
     _wire_tool_dir "copilot" "$HOME/.copilot"
 
     _deploy_configs "$DOTFILES_DIR/copilot" "$HOME/.copilot" \
-        copilot-instructions.md --
+        copilot-instructions.md
 
     log_success "Copilot CLI configuration complete"
 }
