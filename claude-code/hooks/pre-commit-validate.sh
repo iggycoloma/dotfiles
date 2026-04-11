@@ -53,7 +53,12 @@ fi
 # ============================================================================
 
 # Check for AI tool attribution (case-insensitive)
-if echo "$FULL_MSG" | grep -qiE "(claude code|claude\.com|anthropic\.com|generated with|powered by.*claude|gpt-|copilot|ai-generated|ai generated)"; then
+# Match attribution phrases, not bare tool names -- file paths like
+# ~/.copilot/ or "Claude Code configuration" are technical references,
+# not attribution. The pattern requires context words around tool names.
+if echo "$FULL_MSG" | grep -qiE "(generated (with|by)|powered by|created (with|by)|written (with|by)|assisted by|produced by|authored by|built with|made with).*(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai)" ||
+   echo "$FULL_MSG" | grep -qiE "(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai).*(generated|powered|created|wrote|assisted|produced|authored|built)" ||
+   echo "$FULL_MSG" | grep -qiE "(claude\.com|anthropic\.com|ai-generated|ai generated)"; then
     # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
