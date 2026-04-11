@@ -98,6 +98,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
 | [hyperfine](https://github.com/sharkdp/hyperfine) | Command-line benchmarking tool |
 | [yazi](https://github.com/sxyazi/yazi) | Terminal file manager with async I/O and preview |
+| [mise](https://mise.jdx.dev/) | Runtime version manager (replaces asdf/nvm/pyenv) |
 
 **Agentic tools** -- installed in devcontainers, deeply configured:
 
@@ -123,7 +124,6 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [docker](https://www.docker.com/) | Aliases (`d`, `dc`, `dps`, `di`, `dex`), functions (`dclean`, `dkill`, `dlogs`) |
 | [kubectl](https://kubernetes.io/) | Aliases (`k`, `kgp`, `kgs`, `kgd`), completions |
 | [direnv](https://direnv.net/) | Shell activation (deferred on zsh for performance) |
-| [mise](https://mise.jdx.dev/) | Shell activation (deferred on zsh); replaces asdf/nvm/pyenv |
 
 ### Shell Configuration
 

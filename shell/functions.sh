@@ -356,6 +356,7 @@ function dotfiles-doctor {
     _doc_check_tool procs
     _doc_check_tool hyperfine
     _doc_check_tool yazi
+    _doc_check_tool mise
     echo ""
 
     echo "== Enhanced Tools =="
