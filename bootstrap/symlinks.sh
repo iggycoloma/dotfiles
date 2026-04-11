@@ -244,7 +244,7 @@ _setup_codex() {
     _wire_tool_dir "codex" "$HOME/.codex"
 
     _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
-        AGENTS.md -- hooks
+        AGENTS.md hooks.json -- hooks
 
     # Skills: copy subdirectories individually (preserves .system in devcontainer)
     if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
@@ -291,7 +291,7 @@ _setup_copilot() {
     _wire_tool_dir "copilot" "$HOME/.copilot"
 
     _deploy_configs "$DOTFILES_DIR/copilot" "$HOME/.copilot" \
-        copilot-instructions.md
+        copilot-instructions.md hooks.json
 
     log_success "Copilot CLI configuration complete"
 }
