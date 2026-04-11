@@ -24,22 +24,29 @@ if [[ -n "$BASH_VERSION" ]]; then
         done
     fi
 
-    # Tool-specific completions
-    if command -v gh &> /dev/null; then
-        eval "$(gh completion -s bash 2>/dev/null)"
+    # Carapace: unified multi-tool completions (covers 500+ tools)
+    # Falls back to per-tool completions if carapace is not installed
+    if command -v carapace &> /dev/null; then
+        source <(carapace _carapace bash)
+    else
+        # Legacy per-tool completions
+        if command -v gh &> /dev/null; then
+            eval "$(gh completion -s bash 2>/dev/null)"
+        fi
+        if command -v kubectl &> /dev/null; then
+            source <(kubectl completion bash 2>/dev/null)
+        fi
+        if command -v docker &> /dev/null && [[ -f /usr/share/bash-completion/completions/docker ]]; then
+            source /usr/share/bash-completion/completions/docker
+        fi
+        if command -v terraform &> /dev/null; then
+            complete -C "$(which terraform)" terraform
+        fi
     fi
 
+    # kubectl alias completion (works with both carapace and native)
     if command -v kubectl &> /dev/null; then
-        source <(kubectl completion bash 2>/dev/null)
-        complete -F __start_kubectl k  # alias completion
-    fi
-
-    if command -v docker &> /dev/null && [[ -f /usr/share/bash-completion/completions/docker ]]; then
-        source /usr/share/bash-completion/completions/docker
-    fi
-
-    if command -v terraform &> /dev/null; then
-        complete -C "$(which terraform)" terraform
+        complete -F __start_kubectl k 2>/dev/null || true
     fi
 
 elif [[ -n "$ZSH_VERSION" ]]; then
@@ -54,6 +61,11 @@ elif [[ -n "$ZSH_VERSION" ]]; then
             _after_zinit=$EPOCHREALTIME
             echo "[CI-TIMING] Zinit + plugins loaded in $(( (_after_zinit - _before_zinit) * 1000 ))ms" >&2
         fi
+    fi
+
+    # Carapace: unified multi-tool completions (must come after compinit)
+    if command -v carapace &> /dev/null; then
+        source <(carapace _carapace zsh)
     fi
 fi
 
