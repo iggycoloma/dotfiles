@@ -76,6 +76,7 @@ SENSITIVE_FILES=(
     ".htpasswd"
     ".git/config"
     ".env.vault"
+    "settings.local.json"
 )
 
 # Glob-adjacent patterns near sensitive files - catches .en*, .env?, etc.

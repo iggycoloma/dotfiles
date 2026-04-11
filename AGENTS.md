@@ -27,7 +27,7 @@ GitHub Codespaces.
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
-- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 
 ## Quality
@@ -65,6 +65,7 @@ Defense-in-depth across multiple layers:
 - **Conventional commits**: enforced globally; AI attribution and Co-Authored-By blocked
 - **SSH commit signing**: auto-detected from SSH agent (prefers ed25519)
 - **Path traversal**: blocked unless explicitly approved
+- **MCP posture**: No MCP servers installed by default. MCP servers run as child processes with full filesystem/network access and bypass credential deny lists. Do not install MCPs without explicit user request. MCP auth tokens belong in tool-specific local config (e.g., settings.local.json), never in dotfiles-tracked files.
 
 ## Installation Toggles
 
