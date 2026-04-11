@@ -133,6 +133,20 @@ if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]] && command -v atuin &> /dev/null; then
     fi
 fi
 
+# mise (runtime version manager) -- lazy-load on zsh, eager on bash
+# Not installed by dotfiles; projects bring it via devcontainer.json
+if command -v mise &> /dev/null; then
+    if [[ -n "$ZSH_VERSION" ]]; then
+        _mise_lazy_init() {
+            precmd_functions=("${precmd_functions[@]:#_mise_lazy_init}")
+            eval "$(mise activate zsh)"
+        }
+        precmd_functions+=(_mise_lazy_init)
+    else
+        eval "$(mise activate bash)"
+    fi
+fi
+
 # direnv (directory environment) -- lazy-load on zsh, eager on bash
 if command -v direnv &> /dev/null; then
     [[ -n "$CI" ]] && _before_direnv=$EPOCHREALTIME

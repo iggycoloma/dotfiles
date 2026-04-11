@@ -123,6 +123,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [docker](https://www.docker.com/) | Aliases (`d`, `dc`, `dps`, `di`, `dex`), functions (`dclean`, `dkill`, `dlogs`) |
 | [kubectl](https://kubernetes.io/) | Aliases (`k`, `kgp`, `kgs`, `kgd`), completions |
 | [direnv](https://direnv.net/) | Shell activation (deferred on zsh for performance) |
+| [mise](https://mise.jdx.dev/) | Shell activation (deferred on zsh); replaces asdf/nvm/pyenv |
 
 ### Shell Configuration
 
