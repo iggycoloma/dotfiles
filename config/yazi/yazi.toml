@@ -1,0 +1,31 @@
+# Yazi file manager configuration
+# See https://yazi-rs.github.io/docs/configuration/yazi
+
+[manager]
+# Show hidden files by default
+show_hidden = true
+# Sort directories first
+sort_dir_first = true
+# Sort by natural order (file1, file2, file10 instead of file1, file10, file2)
+sort_by = "natural"
+
+[preview]
+# Maximum file size to preview (5MB)
+max_file_size = 5242880
+
+[opener]
+edit = [
+    { run = '${EDITOR:-vim} "$@"', block = true, for = "unix" },
+]
+
+[open]
+rules = [
+    { mime = "text/*", use = "edit" },
+    { mime = "application/json", use = "edit" },
+    { mime = "*/xml", use = "edit" },
+    { name = "*.sh", use = "edit" },
+    { name = "*.md", use = "edit" },
+    { name = "*.toml", use = "edit" },
+    { name = "*.yaml", use = "edit" },
+    { name = "*.yml", use = "edit" },
+]

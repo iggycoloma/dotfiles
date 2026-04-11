@@ -97,6 +97,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [dust](https://github.com/bootandy/dust) | Intuitive disk usage (modern du) |
 | [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
 | [hyperfine](https://github.com/sharkdp/hyperfine) | Command-line benchmarking tool |
+| [yazi](https://github.com/sxyazi/yazi) | Terminal file manager with async I/O and preview |
 
 **Agentic tools** -- installed in devcontainers, deeply configured:
 
@@ -127,7 +128,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 
 **Aliases** (`shell/aliases.sh`): 80+ aliases for git, docker, kubernetes, python, navigation, and modern tool replacements. Core utilities like `grep` and `find` are not shadowed by default -- set `DOTFILES_OPINIONATED_ALIASES=1` to enable.
 
-**Functions** (`shell/functions.sh`): 25+ utility functions including `mkcd`, `extract`, `killport`, `gcof` (fzf branch picker), `glf` (fzf git log), `dotfiles-doctor` (installation diagnostic), `serve` (quick HTTP server), docker helpers, and smart `cat` (uses bat in terminal, plain cat in pipes).
+**Functions** (`shell/functions.sh`): 25+ utility functions including `mkcd`, `extract`, `killport`, `gcof` (fzf branch picker), `glf` (fzf git log), `dotfiles-doctor` (installation diagnostic), `serve` (quick HTTP server), `y` (yazi with cd-on-exit), docker helpers, and smart `cat` (uses bat in terminal, plain cat in pipes).
 
 **Environment** (`shell/exports.sh`): XDG base directory compliance, large history (100K entries), fzf with TokyoNight theme, bat/eza/ripgrep themes, editor preference chain (nvim > vim > vi), Docker BuildKit enabled.
 

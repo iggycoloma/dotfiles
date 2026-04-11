@@ -1,0 +1,18 @@
+# Yazi theme -- TokyoNight-aligned colors
+# Minimal overrides; inherits yazi defaults for everything else.
+# See https://yazi-rs.github.io/docs/configuration/theme
+
+[manager]
+border_style = { fg = "#565f89" }
+
+[status]
+separator_open  = ""
+separator_close = ""
+
+[filetype]
+rules = [
+    { name = "*/", is = "dir", style = { fg = "#7aa2f7", bold = true } },
+    { name = "*", is = "link", style = { fg = "#73daca", italic = true } },
+    { name = "*", is = "orphan", style = { fg = "#f7768e", italic = true } },
+    { name = "*", is = "exec", style = { fg = "#9ece6a" } },
+]

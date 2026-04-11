@@ -380,6 +380,11 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/lazygit" "$HOME/.config/lazygit"
     fi
 
+    # Yazi configuration
+    if [[ -d "$DOTFILES_DIR/config/yazi" ]]; then
+        create_symlink "$DOTFILES_DIR/config/yazi" "$HOME/.config/yazi"
+    fi
+
     # Ripgrep configuration
     if [[ -d "$DOTFILES_DIR/config/ripgrep" ]]; then
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
