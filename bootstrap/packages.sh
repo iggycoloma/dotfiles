@@ -520,6 +520,18 @@ install_apt() {
             fi
         fi
     fi
+
+    # Install carapace-bin via apt (fury.io repo)
+    if ! has_tool carapace; then
+        log_info "Adding carapace-bin apt repository..."
+        echo "deb [trusted=yes] https://apt.fury.io/rsteube/ /" | run_sudo tee /etc/apt/sources.list.d/fury.list >/dev/null
+        run_sudo apt-get update -qq
+        if run_sudo apt-get install -y carapace-bin; then
+            log_success "Installed carapace-bin via apt"
+        else
+            log_warn "carapace-bin apt install failed; will try GitHub release"
+        fi
+    fi
 }
 
 # Install via apk (Alpine)
