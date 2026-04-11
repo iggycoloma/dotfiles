@@ -206,7 +206,7 @@ _deploy_configs() {
                 create_symlink "$source_dir/$f" "$target_dir/$f"
             fi
         done
-        for d in "${dirs[@]}"; do
+        for d in ${dirs[@]+"${dirs[@]}"}; do
             if [[ -d "$source_dir/$d" ]]; then
                 [[ "$d" == "hooks" ]] && _chmod_hooks "$source_dir/$d"
                 create_symlink "$source_dir/$d" "$target_dir/$d"
