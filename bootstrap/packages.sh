@@ -765,7 +765,6 @@ install_packages() {
         install_from_github "procs" "$(get_github_repo procs)"
         install_from_github "hyperfine" "$(get_github_repo hyperfine)"
         install_from_github "yazi" "$(get_github_repo yazi)"
-        install_from_github "mise" "$(get_github_repo mise)"
 
         # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
         if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
@@ -783,6 +782,7 @@ install_packages() {
         if [[ "$minimal" != "true" ]]; then
             install_from_github "lazygit" "$(get_github_repo lazygit)"
             install_from_github "bottom" "$(get_github_repo bottom)"
+            install_from_github "mise" "$(get_github_repo mise)"
         fi
     fi
 

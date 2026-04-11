@@ -98,7 +98,6 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
 | [hyperfine](https://github.com/sharkdp/hyperfine) | Command-line benchmarking tool |
 | [yazi](https://github.com/sxyazi/yazi) | Terminal file manager with async I/O and preview |
-| [mise](https://mise.jdx.dev/) | Runtime version manager (replaces asdf/nvm/pyenv) |
 
 **Agentic tools** -- installed in devcontainers, deeply configured:
 
@@ -115,6 +114,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 |------|---------|
 | [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for git |
 | [bottom](https://github.com/ClementTsang/bottom) (btm) | System monitor |
+| [mise](https://mise.jdx.dev/) | Runtime version manager (replaces asdf/nvm/pyenv) |
 
 **Developer preferences** -- NOT installed, but aliases, completions, and config are supplied:
 
