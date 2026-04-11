@@ -196,8 +196,8 @@ _deploy_configs() {
     done
 
     if is_devcontainer; then
-        stomp_configs "$source_dir" "$target_dir" "${files[@]}" "${dirs[@]}"
-        _chmod_hooks "$target_dir/hooks"
+        stomp_configs "$source_dir" "$target_dir" "${files[@]}" ${dirs[@]+"${dirs[@]}"}
+        [[ -d "$target_dir/hooks" ]] && _chmod_hooks "$target_dir/hooks"
     else
         mkdir -p "$target_dir"
         for f in "${files[@]}"; do
@@ -206,7 +206,7 @@ _deploy_configs() {
                 create_symlink "$source_dir/$f" "$target_dir/$f"
             fi
         done
-        for d in "${dirs[@]}"; do
+        for d in ${dirs[@]+"${dirs[@]}"}; do
             if [[ -d "$source_dir/$d" ]]; then
                 [[ "$d" == "hooks" ]] && _chmod_hooks "$source_dir/$d"
                 create_symlink "$source_dir/$d" "$target_dir/$d"
@@ -283,6 +283,17 @@ _setup_codex() {
     _setup_codex_notify
 
     log_success "Codex configuration complete"
+}
+
+_setup_copilot() {
+    log_info "Setting up Copilot CLI configuration..."
+
+    _wire_tool_dir "copilot" "$HOME/.copilot"
+
+    _deploy_configs "$DOTFILES_DIR/copilot" "$HOME/.copilot" \
+        copilot-instructions.md
+
+    log_success "Copilot CLI configuration complete"
 }
 
 _setup_codex_notify() {
@@ -404,6 +415,11 @@ create_symlinks() {
         _setup_codex
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
         log_info "DOTFILES_NO_AI_TOOLS=1, skipping Codex setup"
+    fi
+
+    # Copilot CLI configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/copilot" ]]; then
+        _setup_copilot
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)

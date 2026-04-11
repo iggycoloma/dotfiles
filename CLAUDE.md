@@ -44,6 +44,7 @@ This repo deploys a portable CLI environment. Key directories:
 | `.github/copilot-instructions.md` | This repo | GitHub Copilot |
 | `claude-code/CLAUDE.md` | Global (all projects) | Claude Code (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
+| `copilot/copilot-instructions.md` | Global (all projects) | Copilot CLI (deployed to `~/.copilot/`) |
 
 Project-specific instructions belong in root files. Global files should contain
 only preferences and guardrails that apply across all repositories.

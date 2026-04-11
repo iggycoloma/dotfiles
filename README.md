@@ -192,6 +192,7 @@ This repo configures two AI coding assistants with shared guardrails and workflo
 | `.github/copilot-instructions.md` | This repo | GitHub Copilot | Per-repo Copilot instructions |
 | `claude-code/CLAUDE.md` | Global | Claude Code | Global Claude Code instructions (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global | Codex CLI | Global Codex instructions (deployed to `~/.codex/`) |
+| `copilot/copilot-instructions.md` | Global | Copilot CLI | Global instructions (deployed to `~/.copilot/`) |
 
 Project-specific instructions (quality gates, installation toggles, security model) live in root files. Global files contain only preferences and guardrails that apply across all repositories.
 
@@ -323,6 +324,8 @@ dotfiles/
 |   |-- AGENTS.md              # Global Codex instructions
 |   |-- hooks/                 # Notification hook
 |   +-- skills/                # Claude-parity workflow skills
+|-- copilot/
+|   +-- copilot-instructions.md # Global Copilot CLI instructions
 |-- config/
 |   |-- starship.toml          # Starship prompt configuration
 |   +-- ripgrep/config         # Ripgrep defaults
