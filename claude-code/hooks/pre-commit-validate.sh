@@ -2,6 +2,10 @@
 # Pre-tool commit validation hook - Universal commit message validation
 # Ensures commit messages follow best practices (format, no AI attribution, no emojis)
 
+# Source shared detection patterns
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HOOK_DIR/shared-patterns.sh"
+
 # Validate jq is available
 if ! command -v jq &> /dev/null; then
     echo "Error: jq is required for this hook" >&2
@@ -52,13 +56,8 @@ fi
 # 1. COMMIT MESSAGE VALIDATION
 # ============================================================================
 
-# Check for AI tool attribution (case-insensitive)
-# Match attribution phrases, not bare tool names -- file paths like
-# ~/.copilot/ or "Claude Code configuration" are technical references,
-# not attribution. The pattern requires context words around tool names.
-if echo "$FULL_MSG" | grep -qiE "(generated (with|by)|powered by|created (with|by)|written (with|by)|assisted by|produced by|authored by|built with|made with).*(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai)" ||
-   echo "$FULL_MSG" | grep -qiE "(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai).*(generated|powered|created|wrote|assisted|produced|authored|built)" ||
-   echo "$FULL_MSG" | grep -qiE "(claude\.com|anthropic\.com|ai-generated|ai generated)"; then
+# Check for AI tool attribution (uses shared patterns)
+if has_ai_attribution "$FULL_MSG"; then
     # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
@@ -70,8 +69,8 @@ if echo "$FULL_MSG" | grep -qiE "(generated (with|by)|powered by|created (with|b
     exit 0
 fi
 
-# Check for co-authoring tags
-if echo "$FULL_MSG" | grep -qiE "co-authored-by:|co-authored by:"; then
+# Check for co-authoring tags (uses shared patterns)
+if has_coauthor_tag "$FULL_MSG"; then
     # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
@@ -83,8 +82,8 @@ if echo "$FULL_MSG" | grep -qiE "co-authored-by:|co-authored by:"; then
     exit 0
 fi
 
-# Check for emojis (Unicode emoji ranges) using perl for portability (grep -P unavailable on macOS)
-if echo "$FULL_MSG" | perl -CSD -ne 'BEGIN{$f=1} if(/[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B50}\x{2B55}\x{FE00}-\x{FE0F}\x{200D}]/){$f=0} END{exit $f}'; then
+# Check for emojis (uses shared patterns)
+if has_emoji "$FULL_MSG"; then
     # shellcheck disable=SC2028  # JSON literal, not escape sequences
     echo "{
   \"hookSpecificOutput\": {
