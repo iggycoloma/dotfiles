@@ -285,6 +285,17 @@ _setup_codex() {
     log_success "Codex configuration complete"
 }
 
+_setup_copilot() {
+    log_info "Setting up Copilot CLI configuration..."
+
+    _wire_tool_dir "copilot" "$HOME/.copilot"
+
+    _deploy_configs "$DOTFILES_DIR/copilot" "$HOME/.copilot" \
+        copilot-instructions.md --
+
+    log_success "Copilot CLI configuration complete"
+}
+
 _setup_codex_notify() {
     [[ -f "$HOME/.codex/hooks/notify.sh" ]] || return 0
 
@@ -404,6 +415,11 @@ create_symlinks() {
         _setup_codex
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
         log_info "DOTFILES_NO_AI_TOOLS=1, skipping Codex setup"
+    fi
+
+    # Copilot CLI configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/copilot" ]]; then
+        _setup_copilot
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)
