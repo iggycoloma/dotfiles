@@ -142,6 +142,19 @@ alias pip='pip3'
 alias venv='python3 -m venv'
 alias activate='source venv/bin/activate'
 
+# uv (modern Python package manager) -- project-dependent, not installed by dotfiles
+if command -v uv &> /dev/null; then
+    alias uvr='uv run'
+    alias uvs='uv sync'
+    alias uva='uv add'
+fi
+
+# xh (modern HTTP client) -- project-dependent, not installed by dotfiles
+if command -v xh &> /dev/null; then
+    alias http='xh'
+    alias https='xh --https'
+fi
+
 # Quick edits
 alias reload='exec $SHELL -l'
 if [[ -n "${ZSH_VERSION:-}" ]]; then
