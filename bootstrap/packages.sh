@@ -629,12 +629,12 @@ install_system_basics() {
         apt)
             log_info "Installing system prerequisites via apt..."
             run_sudo apt-get update -qq
-            run_sudo apt-get install -y curl wget git ca-certificates build-essential unzip xz-utils
+            run_sudo apt-get install -y curl wget git ca-certificates build-essential unzip xz-utils file
             ;;
         apk)
             log_info "Installing system prerequisites via apk..."
             run_sudo apk update
-            run_sudo apk add curl wget git bash ca-certificates build-base unzip xz
+            run_sudo apk add curl wget git bash ca-certificates build-base unzip xz file
             ;;
         brew)
             # Homebrew handles its own dependencies
