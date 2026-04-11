@@ -183,6 +183,13 @@ _tool_config() {
             _tc_checksum="none"
             _tc_pattern='yazi-ARCH-OS\.zip$'
             ;;
+        mise)
+            _tc_arch_remap="arm64"
+            _tc_x86_remap="x64"
+            _tc_os_override="linux"
+            _tc_checksum="sha256sums"
+            _tc_pattern='mise-v[0-9.]+-OS-ARCH-musl\.tar\.gz$'
+            ;;
         *)
             return 1
             ;;
@@ -397,6 +404,7 @@ get_github_repo() {
         dust) echo "bootandy/dust" ;;
         hyperfine) echo "sharkdp/hyperfine" ;;
         yazi) echo "sxyazi/yazi" ;;
+        mise) echo "jdx/mise" ;;
         sd) echo "chmln/sd" ;;
         sg) echo "ast-grep/ast-grep" ;;
         difft) echo "Wilfred/difftastic" ;;
@@ -548,7 +556,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi" "mise")
 
     # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
     if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
@@ -774,6 +782,7 @@ install_packages() {
         if [[ "$minimal" != "true" ]]; then
             install_from_github "lazygit" "$(get_github_repo lazygit)"
             install_from_github "bottom" "$(get_github_repo bottom)"
+            install_from_github "mise" "$(get_github_repo mise)"
         fi
     fi
 

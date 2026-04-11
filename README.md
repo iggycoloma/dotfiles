@@ -114,6 +114,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 |------|---------|
 | [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for git |
 | [bottom](https://github.com/ClementTsang/bottom) (btm) | System monitor |
+| [mise](https://mise.jdx.dev/) | Runtime version manager (replaces asdf/nvm/pyenv) |
 
 **Developer preferences** -- NOT installed, but aliases, completions, and config are supplied:
 
