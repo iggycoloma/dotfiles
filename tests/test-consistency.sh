@@ -217,6 +217,22 @@ test_attribution_regex_shared_vs_commit_msg() {
 }
 
 # ============================================================================
+# Test Suite: MCP Guidance Presence
+# ============================================================================
+
+test_mcp_guidance_present() {
+    for file in "${INSTRUCTION_FILES[@]}"; do
+        local basename
+        basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+        if grep -qi 'MCP' "$file"; then
+            test_pass "MCP guidance found in $basename"
+        else
+            test_fail "MCP guidance missing from $basename"
+        fi
+    done
+}
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -236,6 +252,9 @@ main() {
 
     test_suite "Attribution Regex Patterns"
     test_attribution_regex_shared_vs_commit_msg
+
+    test_suite "MCP Guidance"
+    test_mcp_guidance_present
 
     print_test_summary
 }

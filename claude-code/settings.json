@@ -130,7 +130,8 @@
       "Read(**/*.jks)",
       "Read(**/*.keystore)",
       "Read(**/*.pfx)",
-      "Read(**/*.p12)"
+      "Read(**/*.p12)",
+      "Read(~/.claude/settings.local.json)"
     ]
   },
   "hooks": {
