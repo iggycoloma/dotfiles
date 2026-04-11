@@ -124,6 +124,8 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [docker](https://www.docker.com/) | Aliases (`d`, `dc`, `dps`, `di`, `dex`), functions (`dclean`, `dkill`, `dlogs`) |
 | [kubectl](https://kubernetes.io/) | Aliases (`k`, `kgp`, `kgs`, `kgd`), completions |
 | [direnv](https://direnv.net/) | Shell activation (deferred on zsh for performance) |
+| [uv](https://docs.astral.sh/uv/) | Aliases (`uvr`, `uvs`, `uva`) |
+| [xh](https://github.com/ducaale/xh) | Aliases (`http`, `https`) |
 
 ### Shell Configuration
 
