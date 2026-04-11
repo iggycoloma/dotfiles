@@ -98,6 +98,7 @@ On Linux, most tools come from GitHub releases with checksum verification (musl-
 | [procs](https://github.com/dalance/procs) | Modern process viewer with color and search |
 | [hyperfine](https://github.com/sharkdp/hyperfine) | Command-line benchmarking tool |
 | [yazi](https://github.com/sxyazi/yazi) | Terminal file manager with async I/O and preview |
+| [carapace](https://github.com/carapace-sh/carapace-bin) | Unified shell completions for 500+ tools |
 
 **Agentic tools** -- installed in devcontainers, deeply configured:
 

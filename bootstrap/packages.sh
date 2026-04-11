@@ -190,6 +190,13 @@ _tool_config() {
             _tc_checksum="sha256sums"
             _tc_pattern='mise-v[0-9.]+-OS-ARCH-musl\.tar\.gz$'
             ;;
+        carapace)
+            _tc_arch_remap="arm64"
+            _tc_x86_remap="amd64"
+            _tc_os_override="linux"
+            _tc_pattern='carapace-bin_[0-9.]+_OS_ARCH\.tar\.gz$'
+            _tc_binary_name="carapace"
+            ;;
         *)
             return 1
             ;;
@@ -405,6 +412,7 @@ get_github_repo() {
         hyperfine) echo "sharkdp/hyperfine" ;;
         yazi) echo "sxyazi/yazi" ;;
         mise) echo "jdx/mise" ;;
+        carapace) echo "carapace-sh/carapace-bin" ;;
         sd) echo "chmln/sd" ;;
         sg) echo "ast-grep/ast-grep" ;;
         difft) echo "Wilfred/difftastic" ;;
@@ -556,7 +564,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi" "mise")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi" "mise" "carapace")
 
     # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
     if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
@@ -765,6 +773,7 @@ install_packages() {
         install_from_github "procs" "$(get_github_repo procs)"
         install_from_github "hyperfine" "$(get_github_repo hyperfine)"
         install_from_github "yazi" "$(get_github_repo yazi)"
+        install_from_github "carapace" "$(get_github_repo carapace)"
 
         # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
         if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
