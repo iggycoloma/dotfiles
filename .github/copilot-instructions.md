@@ -15,7 +15,8 @@ configuration (aliases, completions, state persistence) but does not install the
 - No emojis in code, docs, or commit messages
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
-- Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube
+- Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
 - Deny path traversal patterns (`../`) unless explicitly confirmed
 
 ## Quality
