@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
@@ -6,7 +6,7 @@ SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path '.
 lint:
 	shellcheck $(SHELL_SCRIPTS)
 
-test: test-unit test-packages test-integration test-consistency
+test: test-unit test-packages test-integration test-consistency test-policy
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -19,6 +19,9 @@ test-integration:
 
 test-consistency:
 	bash tests/test-consistency.sh
+
+test-policy:
+	bash tests/test-gh-repo-policy.sh
 
 # Alias for integration tests
 test-install: test-integration
