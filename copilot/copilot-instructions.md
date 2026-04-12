@@ -6,7 +6,7 @@
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
-- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json
 - Deny path traversal patterns (`../`) unless explicitly confirmed
 
 ## Preferred CLI Tools
@@ -28,6 +28,11 @@ Use these tools when available instead of standard Unix alternatives:
 | `du` | `dust` | Directory disk usage as a visual tree |
 | `ps` | `procs` | Process viewer with color and search |
 | `time` | `hyperfine` | Benchmarking commands with statistical analysis |
+
+## MCP Servers
+
+MCP servers are not installed by dotfiles. If one is configured, use it. Do not install
+new MCP servers without explicit user request. MCP servers bypass credential deny lists.
 
 ## Working Style
 

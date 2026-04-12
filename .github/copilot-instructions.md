@@ -16,7 +16,7 @@ configuration (aliases, completions, state persistence) but does not install the
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
-- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json
 - Deny path traversal patterns (`../`) unless explicitly confirmed
 
 ## Quality
@@ -30,6 +30,11 @@ configuration (aliases, completions, state persistence) but does not install the
 - ~50 sensitive file/directory patterns blocked in AI tool configs and hooks
 - Conventional commits enforced globally; AI attribution blocked
 - SSH commit signing auto-detected from SSH agent
+
+## MCP Servers
+
+MCP servers are not installed by dotfiles. If one is configured, use it. Do not install
+new MCP servers without explicit user request. MCP servers bypass credential deny lists.
 
 ## Working Style
 

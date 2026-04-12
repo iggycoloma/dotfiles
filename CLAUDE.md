@@ -56,6 +56,8 @@ The installer auto-detects devcontainers and Codespaces. In these environments:
 - AI tool configs are copied fresh from dotfiles on every rebuild
 - Credential state persists via volume mounts or Codespaces storage
 - Shell history, auth tokens, and sessions survive container rebuilds
+- MCP configs (in settings.local.json) persist via the same volume mount as other Claude state
+- Project-level .mcp.json files persist in the project repo naturally
 
 ## Testing Across Platforms
 

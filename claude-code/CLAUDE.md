@@ -6,12 +6,28 @@
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
-- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 - Permission hooks enforce credential deny lists in `settings.json`
 - The `pre-security.sh` hook blocks access to sensitive paths at runtime
 - The `pre-commit-validate.sh` hook enforces conventional commits on `git commit`
 - The `pre-code-no-emoji.sh` hook blocks decorative emojis in code files
+
+## MCP Servers
+
+MCP servers are NOT installed by dotfiles. Claude Code's built-in tools (Bash, Read,
+Write, Edit, Glob, Grep, WebFetch, WebSearch) cover most workflows without the context
+overhead of MCP tool descriptions.
+
+If an MCP server is already configured (in settings.local.json or .mcp.json), use it.
+Do not install or configure new MCP servers without explicit user request.
+
+Security notes:
+- MCP servers run as child processes with full filesystem and network access
+- They bypass settings.json deny rules (credential blocking does not apply to MCPs)
+- Treat .mcp.json files as security-sensitive (they configure arbitrary child processes)
+- Never store MCP auth tokens in settings.json (use settings.local.json, which is not
+  tracked by dotfiles)
 
 ## Tool Use Discipline
 

@@ -5,7 +5,7 @@
 - Never access secrets or credential files without explicit user approval
 - Treat these paths as sensitive: `.env*`, `credentials.json`, `.credentials`, `secrets.yaml`, `secrets.json`, `*.pem`, `*.key`, `*.p12`, `*.pfx`
 - Never access credential directories: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.docker`, `~/.kube`, `~/.config/heroku`, `~/.config/doctl`, `~/.gradle`, `~/.m2`, `~/.minikube`, `~/.cargo`, `~/.gem`, `~/.composer`, `~/.stripe`, `~/.dotfiles-state`, `~/.copilot`
-- Never access credential files: `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.git-credentials`, `~/.pgpass`, `~/.my.cnf`, `~/.mongorc.js`, `*.tfvars`, `*.ppk`, `*.jks`, `*.keystore`, `*.pfx`, `*.p12`
+- Never access credential files: `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.git-credentials`, `~/.pgpass`, `~/.my.cnf`, `~/.mongorc.js`, `*.tfvars`, `*.ppk`, `*.jks`, `*.keystore`, `*.pfx`, `*.p12`, `settings.local.json`
 - Deny path traversal patterns (for example paths containing `../`) unless the user explicitly asks and confirms
 - Do not add decorative emoji characters to code, docs, or commit messages
 - Use conventional commits and do not include AI attribution or `Co-Authored-By` lines
@@ -29,6 +29,14 @@ Use these tools when available instead of standard Unix alternatives:
 | `du` | `dust` | Directory disk usage as a visual tree |
 | `ps` | `procs` | Process viewer with color and search |
 | `time` | `hyperfine` | Benchmarking commands with statistical analysis |
+
+## MCP Servers
+
+MCP servers are not installed by dotfiles. If an MCP server is already configured, use
+it. Do not install or configure new MCP servers without explicit user request.
+
+MCP servers run as child processes with full filesystem and network access and bypass
+the credential deny lists above.
 
 ## Working Style
 
