@@ -12,7 +12,7 @@ source "$DOTFILES_DIR/bootstrap/logging.sh"
 
 # --- Constants ---
 
-readonly SEMANTIC_ACTION_REF="step-security/action-semantic-pull-request@bc0cf74f5be4ce34accdec1ae908dff38dc5def1"
+readonly SEMANTIC_ACTION_REF="amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017"
 readonly SEMANTIC_CHECK_NAME="Semantic PR title"
 
 # --- Defaults ---
