@@ -25,10 +25,14 @@ PROMPT_FILE=""
 PRD_FILE=""
 MAX_ITERATIONS=20
 PROGRESS_FILE="./progress.txt"
-PERMISSION_MODE="acceptEdits"
+PERMISSION_MODE="plan"
 WORKTREE=""
 BARE=false
 NOTIFY=true
+YOLO=false
+ITERATION_TIMEOUT="${RALPH_ITERATION_TIMEOUT:-900}"
+MAX_WALL_CLOCK="${RALPH_MAX_WALL_CLOCK:-14400}"
+UNSAFE_MODE_MAX_ITER_CAP=50
 
 # Max-subscription mode: skip budget cap (rate-limit gated), default to sonnet
 # Enable by setting RALPH_MAX_MODE=1
@@ -55,18 +59,28 @@ Options:
   --max-iterations <N>         Max loop iterations (default: 20)
   --max-budget-usd <N>         Cost cap per Claude invocation (default: 10, unset on Max)
   --progress-file <path>       Progress tracking file (default: ./progress.txt)
-  --permission-mode <mode>     Claude permission mode (default: acceptEdits)
+  --permission-mode <mode>     Claude permission mode (default: plan; use --yolo for acceptEdits)
+  --iteration-timeout <secs>   Wall-clock timeout per iteration (default: 900 = 15 min)
+  --max-wall-clock <secs>      Total wall-clock budget for the run (default: 14400 = 4h)
   --worktree <branch>          Run in a git worktree
   --model <model>              Model override (e.g., sonnet, opus)
   --bare                       Use bare mode (skip hooks, LSP, plugins)
+  --yolo                       Use --permission-mode acceptEdits (auto-approve edits).
+                               Equivalent to RALPH_UNSAFE_MODE=1.
   --no-notify                  Disable Pushover notifications
   -h, --help                   Show this help
 
 Environment:
   RALPH_MAX_MODE=1             Max subscription mode: skip budget cap, default
                                to sonnet. Override with --model or --max-budget-usd.
+                               Capped at 50 iterations unless RALPH_UNSAFE_MODE=1.
+  RALPH_UNSAFE_MODE=1          Equivalent to --yolo. Gates acceptEdits and removes
+                               the Max-mode iteration cap. Intended for hardened
+                               sandboxes (e.g., the unattended devcontainer profile).
   RALPH_DEFAULT_MODEL          Default model when --model not passed
   RALPH_DEFAULT_BUDGET         Default budget when --max-budget-usd not passed
+  RALPH_ITERATION_TIMEOUT      Per-iteration timeout in seconds (default: 900)
+  RALPH_MAX_WALL_CLOCK         Total wall-clock budget in seconds (default: 14400)
 
 Guardrails:
   The loop stops when any of these conditions is met:
@@ -74,6 +88,8 @@ Guardrails:
   - Max iterations reached
   - Claude exits with an error
   - Per-iteration budget exceeded (--max-budget-usd)
+  - Per-iteration wall-clock timeout exceeded (--iteration-timeout)
+  - Total wall-clock budget exceeded (--max-wall-clock)
 
 Examples:
   ralph.sh --prompt-file PROMPT.md
@@ -136,6 +152,26 @@ parse_args() {
                 BARE=true
                 shift
                 ;;
+            --yolo)
+                YOLO=true
+                shift
+                ;;
+            --iteration-timeout)
+                ITERATION_TIMEOUT="${2:?--iteration-timeout requires a value}"
+                if ! [[ "$ITERATION_TIMEOUT" =~ ^[0-9]+$ ]]; then
+                    log_error "--iteration-timeout must be a positive integer (seconds)"
+                    return 1
+                fi
+                shift 2
+                ;;
+            --max-wall-clock)
+                MAX_WALL_CLOCK="${2:?--max-wall-clock requires a value}"
+                if ! [[ "$MAX_WALL_CLOCK" =~ ^[0-9]+$ ]]; then
+                    log_error "--max-wall-clock must be a positive integer (seconds)"
+                    return 1
+                fi
+                shift 2
+                ;;
             --no-notify)
                 NOTIFY=false
                 shift
@@ -171,6 +207,58 @@ parse_args() {
     if [[ -n "$PRD_FILE" ]] && [[ ! -f "$PRD_FILE" ]]; then
         log_error "PRD file not found: $PRD_FILE"
         return 1
+    fi
+}
+
+# --- Safety resolution ---
+#
+# Decide the effective permission mode and iteration cap based on --yolo,
+# RALPH_UNSAFE_MODE, and RALPH_MAX_MODE. Emits warnings for dangerous
+# combinations.
+
+resolve_safety() {
+    local unsafe=false
+    if [[ "$YOLO" == true ]] || [[ "${RALPH_UNSAFE_MODE:-0}" == "1" ]]; then
+        unsafe=true
+    fi
+
+    # --yolo / RALPH_UNSAFE_MODE unlocks acceptEdits. Without it, we stay in
+    # plan mode by default so the agent cannot auto-approve file edits.
+    if [[ "$unsafe" == true ]] && [[ "$PERMISSION_MODE" == "plan" ]]; then
+        PERMISSION_MODE="acceptEdits"
+    fi
+
+    # Cap iterations under RALPH_MAX_MODE unless the user has explicitly
+    # opted into unsafe mode. Rationale: without a budget cap, a stuck
+    # loop at 20+ iterations can burn significant time and API usage.
+    if [[ "${RALPH_MAX_MODE:-0}" == "1" ]]; then
+        log_warn "RALPH_MAX_MODE=1: budget cap is disabled (rate-limit gated only)."
+        if [[ "$unsafe" != true ]] && [[ "$MAX_ITERATIONS" -gt "$UNSAFE_MODE_MAX_ITER_CAP" ]]; then
+            log_warn "Capping --max-iterations at $UNSAFE_MODE_MAX_ITER_CAP under RALPH_MAX_MODE."
+            log_warn "Set RALPH_UNSAFE_MODE=1 or pass --yolo to remove the cap."
+            MAX_ITERATIONS=$UNSAFE_MODE_MAX_ITER_CAP
+        fi
+    fi
+
+    # Loud warning when --bare (which skips hooks) combines with acceptEdits.
+    # This bypasses every guardrail: pre-security, pre-commit-validate,
+    # pre-code-no-emoji, and any PostToolUse audit.
+    if [[ "$BARE" == true ]] && [[ "$PERMISSION_MODE" == "acceptEdits" ]]; then
+        log_warn "=================================================================="
+        log_warn "DANGER: --bare + --permission-mode acceptEdits disables ALL hooks"
+        log_warn "and auto-approves every file edit. The credential deny list in"
+        log_warn "settings.json still applies, but hook-based scope/emoji/commit"
+        log_warn "checks do NOT. Only use inside a hardened sandbox."
+        log_warn "=================================================================="
+    fi
+
+    if [[ "$PERMISSION_MODE" == "acceptEdits" ]] && [[ "$unsafe" != true ]]; then
+        # Defensive: someone passed --permission-mode acceptEdits explicitly
+        # without --yolo. Allow but log. (We don't force --yolo because
+        # --permission-mode is a generic pass-through; tightening would be
+        # surprising.)
+        log_warn "--permission-mode acceptEdits was set without --yolo / RALPH_UNSAFE_MODE."
+        log_warn "This auto-approves file edits. Prefer --yolo so the intent is explicit."
     fi
 }
 
@@ -245,6 +333,9 @@ run_loop() {
     else
         log_info "Budget:     (unset -- Max subscription mode)"
     fi
+    log_info "Permission: $PERMISSION_MODE"
+    log_info "Iter-to:    ${ITERATION_TIMEOUT}s"
+    log_info "Wall-clock: ${MAX_WALL_CLOCK}s (total)"
     [[ -n "$MODEL" ]] && log_info "Model:      $MODEL"
     log_info "Progress:   $PROGRESS_FILE"
     log_info "Session:    ${session_id:0:8}..."
@@ -267,13 +358,33 @@ run_loop() {
         log_info "Copied PRD to ./PRD.md"
     fi
 
+    local have_timeout=false
+    if command -v timeout &>/dev/null; then
+        have_timeout=true
+    else
+        log_warn "coreutils 'timeout' not found; per-iteration timeout disabled."
+    fi
+
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
         iteration=$((iteration + 1))
         local elapsed=$(( $(date +%s) - start_time ))
+
+        # Total wall-clock guard before firing the next iteration.
+        if [[ $elapsed -ge $MAX_WALL_CLOCK ]]; then
+            log_warn "Max wall-clock ($MAX_WALL_CLOCK s) reached at iteration $iteration (${elapsed}s)"
+            ralph_notify "wall-clock-exceeded" "$iteration" "$elapsed"
+            return 3
+        fi
+
         log_info "--- Iteration $iteration/$MAX_ITERATIONS (${elapsed}s elapsed) ---"
 
         # Build claude command
-        local -a cmd=(claude --print
+        local -a cmd=()
+        if [[ "$have_timeout" == true ]]; then
+            # --kill-after gives Claude 10s to clean up before SIGKILL.
+            cmd+=(timeout --kill-after=10 "$ITERATION_TIMEOUT")
+        fi
+        cmd+=(claude --print
             --session-id "$session_id"
             --permission-mode "$PERMISSION_MODE")
         [[ -n "$MAX_BUDGET" ]] && cmd+=(--max-budget-usd "$MAX_BUDGET")
@@ -288,6 +399,15 @@ run_loop() {
         # Run Claude
         local exit_code=0
         "${cmd[@]}" "$prompt" || exit_code=$?
+
+        # timeout(1) returns 124 on SIGTERM, 137 on SIGKILL. Treat as a
+        # stall rather than an error so the caller can distinguish.
+        if [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 137 ]]; then
+            elapsed=$(( $(date +%s) - start_time ))
+            log_error "Iteration $iteration timed out after ${ITERATION_TIMEOUT}s (exit $exit_code)"
+            ralph_notify "iteration-timeout" "$iteration" "$elapsed"
+            return 4
+        fi
 
         # Check for completion
         if grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
@@ -317,6 +437,7 @@ run_loop() {
 main() {
     parse_args "$@"
     check_dependencies
+    resolve_safety
     run_loop
 }
 

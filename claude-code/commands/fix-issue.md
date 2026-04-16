@@ -1,5 +1,11 @@
 ---
-description: Analyze and fix a GitHub issue
+description: |
+  Analyze and fix a GitHub issue end-to-end (investigate, reproduce, fix, test,
+  branch, commit, PR). TRIGGER when the user references a GitHub issue by
+  number (#NNN), issue URL (github.com/owner/repo/issues/N), or pastes
+  `gh issue view` output and asks to address it. SKIP for bugs the user is
+  reporting in chat without a filed issue (use debug instead) or when they
+  only want investigation without implementation.
 argument-hint: <issue-number>
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
