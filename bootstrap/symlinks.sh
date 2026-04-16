@@ -227,7 +227,12 @@ _setup_claude_code() {
     fi
 
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-        settings.json CLAUDE.md statusline.sh -- hooks agents commands
+        settings.json CLAUDE.md statusline.sh -- hooks agents commands scripts templates
+
+    # Ensure scripts are executable after deployment
+    if [[ -d "$HOME/.claude/scripts" ]]; then
+        chmod +x "$HOME/.claude/scripts"/*.sh 2>/dev/null || true
+    fi
 
     log_success "Claude Code configuration complete"
 }
