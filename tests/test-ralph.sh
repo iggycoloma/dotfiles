@@ -41,6 +41,10 @@ assert_contains "$help_output" "--permission-mode" "--help mentions --permission
 assert_contains "$help_output" "--worktree" "--help mentions --worktree"
 assert_contains "$help_output" "--no-notify" "--help mentions --no-notify"
 assert_contains "$help_output" "--bare" "--help mentions --bare"
+assert_contains "$help_output" "--verify-cmd" "--help mentions --verify-cmd"
+assert_contains "$help_output" "--no-checkpoint" "--help mentions --no-checkpoint"
+assert_contains "$help_output" "--circuit-breaker" "--help mentions --circuit-breaker"
+assert_contains "$help_output" "--yolo" "--help mentions --yolo"
 
 # --- Argument validation ---
 
@@ -70,6 +74,11 @@ output=$("$RALPH_SCRIPT" --prompt-file "$RALPH_SCRIPT" --prd /nonexistent/prd.md
 rc=$?
 assert_not_equals 0 "$rc" "Fails with nonexistent PRD file"
 assert_contains "$output" "PRD file not found" "Error message for missing PRD"
+
+output=$("$RALPH_SCRIPT" --prompt-file "$RALPH_SCRIPT" --circuit-breaker abc 2>&1)
+rc=$?
+assert_not_equals 0 "$rc" "Fails with non-numeric circuit-breaker"
+assert_contains "$output" "non-negative integer" "Error message for bad circuit-breaker"
 
 # --- Template substitution ---
 
@@ -101,6 +110,61 @@ test_suite "ralph.sh: Session ID generation"
 
 sid=$(generate_session_id)
 assert_not_equals "" "$sid" "Session ID is not empty"
+
+# --- Verification helper ---
+
+test_suite "ralph.sh: Verification gating"
+
+VERIFY_CMD="true"
+run_verify >/dev/null 2>&1
+assert_return_code 0 $? "run_verify passes when VERIFY_CMD=true"
+
+VERIFY_CMD="false"
+run_verify >/dev/null 2>&1
+rc=$?
+assert_not_equals 0 "$rc" "run_verify fails when VERIFY_CMD=false"
+
+# shellcheck disable=SC2034  # used by sourced run_verify
+VERIFY_CMD=""
+run_verify >/dev/null 2>&1
+assert_return_code 0 $? "run_verify is a no-op when VERIFY_CMD is empty"
+
+# --- Progress hash ---
+
+test_suite "ralph.sh: Circuit breaker helpers"
+
+progress_temp=$(mktemp)
+echo "## Status: IN_PROGRESS" > "$progress_temp"
+PROGRESS_FILE="$progress_temp"
+
+hash1=$(progress_hash)
+assert_not_equals "" "$hash1" "progress_hash returns non-empty for existing file"
+
+hash2=$(progress_hash)
+assert_equals "$hash1" "$hash2" "progress_hash is stable for unchanged file"
+
+echo "## Completed Tasks: task-1" >> "$progress_temp"
+hash3=$(progress_hash)
+assert_not_equals "$hash1" "$hash3" "progress_hash changes when file changes"
+
+PROGRESS_FILE="/nonexistent/file"
+hash4=$(progress_hash)
+assert_equals "empty" "$hash4" "progress_hash returns 'empty' for missing file"
+
+rm -f "$progress_temp"
+# shellcheck disable=SC2034  # used by sourced progress_hash
+PROGRESS_FILE="./progress.txt"
+
+# --- Git checkpoint ---
+
+test_suite "ralph.sh: Git checkpoint"
+
+CHECKPOINT=false
+git_checkpoint 1 >/dev/null 2>&1
+assert_return_code 0 $? "git_checkpoint is a no-op when CHECKPOINT=false"
+
+# shellcheck disable=SC2034  # reset for subsequent tests
+CHECKPOINT=true
 
 # =================================================================
 # ralph-parallel.sh
@@ -160,7 +224,10 @@ assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{ITERATIO
 assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{MAX_ITERATIONS}}" "PROMPT.md has MAX_ITERATIONS placeholder"
 assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{PROGRESS_FILE}}" "PROMPT.md has PROGRESS_FILE placeholder"
 assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "## COMPLETE" "PROMPT.md references COMPLETE signal"
+assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "Phase 1" "PROMPT.md has Phase 1 (Orient)"
+assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "Phase 4" "PROMPT.md has Phase 4 (Verify)"
 assert_file_contains "$DOTFILES_DIR/claude-code/templates/progress.txt" "IN_PROGRESS" "progress.txt has initial status"
+assert_file_contains "$DOTFILES_DIR/claude-code/templates/progress.txt" "Learnings" "progress.txt has Learnings section"
 
 # =================================================================
 # Shell functions

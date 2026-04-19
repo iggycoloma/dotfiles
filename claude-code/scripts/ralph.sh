@@ -33,6 +33,9 @@ YOLO=false
 ITERATION_TIMEOUT="${RALPH_ITERATION_TIMEOUT:-900}"
 MAX_WALL_CLOCK="${RALPH_MAX_WALL_CLOCK:-14400}"
 UNSAFE_MODE_MAX_ITER_CAP=50
+VERIFY_CMD="${RALPH_VERIFY_CMD:-}"
+CHECKPOINT=true
+CIRCUIT_BREAKER_THRESHOLD="${RALPH_CIRCUIT_BREAKER:-3}"
 
 # Max-subscription mode: skip budget cap (rate-limit gated), default to sonnet
 # Enable by setting RALPH_MAX_MODE=1
@@ -67,6 +70,11 @@ Options:
   --bare                       Use bare mode (skip hooks, LSP, plugins)
   --yolo                       Use --permission-mode acceptEdits (auto-approve edits).
                                Equivalent to RALPH_UNSAFE_MODE=1.
+  --verify-cmd <command>        Verify command run after each iteration (e.g., "make test").
+                               Blocks COMPLETE unless it passes. Default: none.
+  --no-checkpoint              Disable automatic git commit after each iteration
+  --circuit-breaker <N>        Halt after N consecutive iterations with no progress
+                               change (default: 3). Set 0 to disable.
   --no-notify                  Disable Pushover notifications
   -h, --help                   Show this help
 
@@ -81,15 +89,18 @@ Environment:
   RALPH_DEFAULT_BUDGET         Default budget when --max-budget-usd not passed
   RALPH_ITERATION_TIMEOUT      Per-iteration timeout in seconds (default: 900)
   RALPH_MAX_WALL_CLOCK         Total wall-clock budget in seconds (default: 14400)
+  RALPH_VERIFY_CMD             Verify command (same as --verify-cmd)
+  RALPH_CIRCUIT_BREAKER        Circuit breaker threshold (same as --circuit-breaker)
 
 Guardrails:
   The loop stops when any of these conditions is met:
-  - Claude writes "## COMPLETE" to the progress file
+  - Claude writes "## COMPLETE" to the progress file AND verify passes
   - Max iterations reached
   - Claude exits with an error
   - Per-iteration budget exceeded (--max-budget-usd)
   - Per-iteration wall-clock timeout exceeded (--iteration-timeout)
   - Total wall-clock budget exceeded (--max-wall-clock)
+  - Circuit breaker: N consecutive iterations with no progress change
 
 Examples:
   ralph.sh --prompt-file PROMPT.md
@@ -168,6 +179,22 @@ parse_args() {
                 MAX_WALL_CLOCK="${2:?--max-wall-clock requires a value}"
                 if ! [[ "$MAX_WALL_CLOCK" =~ ^[0-9]+$ ]]; then
                     log_error "--max-wall-clock must be a positive integer (seconds)"
+                    return 1
+                fi
+                shift 2
+                ;;
+            --verify-cmd)
+                VERIFY_CMD="${2:?--verify-cmd requires a value}"
+                shift 2
+                ;;
+            --no-checkpoint)
+                CHECKPOINT=false
+                shift
+                ;;
+            --circuit-breaker)
+                CIRCUIT_BREAKER_THRESHOLD="${2:?--circuit-breaker requires a value}"
+                if ! [[ "$CIRCUIT_BREAKER_THRESHOLD" =~ ^[0-9]+$ ]]; then
+                    log_error "--circuit-breaker must be a non-negative integer"
                     return 1
                 fi
                 shift 2
@@ -315,6 +342,48 @@ generate_session_id() {
     fi
 }
 
+# --- Verification ---
+
+run_verify() {
+    [[ -z "$VERIFY_CMD" ]] && return 0
+    log_info "Verifying: $VERIFY_CMD"
+    local rc=0
+    eval "$VERIFY_CMD" >/dev/null 2>&1 || rc=$?
+    if [[ $rc -ne 0 ]]; then
+        log_warn "Verify failed (exit $rc): $VERIFY_CMD"
+    else
+        log_info "Verify passed."
+    fi
+    return $rc
+}
+
+# --- Git checkpoint ---
+
+git_checkpoint() {
+    [[ "$CHECKPOINT" != true ]] && return 0
+    if ! command -v git &>/dev/null; then return 0; fi
+    if ! git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then return 0; fi
+
+    local iteration="$1"
+    if git diff --quiet && git diff --cached --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
+        log_info "Checkpoint: nothing to commit."
+        return 0
+    fi
+    git add -A
+    git commit -q -m "chore(ralph): checkpoint iteration $iteration" || true
+    log_info "Checkpoint: committed iteration $iteration."
+}
+
+# --- Circuit breaker ---
+
+progress_hash() {
+    if [[ -f "$PROGRESS_FILE" ]]; then
+        md5sum "$PROGRESS_FILE" 2>/dev/null | cut -d' ' -f1
+    else
+        echo "empty"
+    fi
+}
+
 # --- Main loop ---
 
 run_loop() {
@@ -334,6 +403,9 @@ run_loop() {
         log_info "Budget:     (unset -- Max subscription mode)"
     fi
     log_info "Permission: $PERMISSION_MODE"
+    [[ -n "$VERIFY_CMD" ]] && log_info "Verify:     $VERIFY_CMD"
+    log_info "Checkpoint: $CHECKPOINT"
+    [[ "$CIRCUIT_BREAKER_THRESHOLD" -gt 0 ]] && log_info "Circuit-brk: $CIRCUIT_BREAKER_THRESHOLD consecutive stalls"
     log_info "Iter-to:    ${ITERATION_TIMEOUT}s"
     log_info "Wall-clock: ${MAX_WALL_CLOCK}s (total)"
     [[ -n "$MODEL" ]] && log_info "Model:      $MODEL"
@@ -365,6 +437,11 @@ run_loop() {
         log_warn "coreutils 'timeout' not found; per-iteration timeout disabled."
     fi
 
+    # Circuit breaker state
+    local prev_hash=""
+    local stall_count=0
+    prev_hash=$(progress_hash)
+
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
         iteration=$((iteration + 1))
         local elapsed=$(( $(date +%s) - start_time ))
@@ -381,7 +458,6 @@ run_loop() {
         # Build claude command
         local -a cmd=()
         if [[ "$have_timeout" == true ]]; then
-            # --kill-after gives Claude 10s to clean up before SIGKILL.
             cmd+=(timeout --kill-after=10 "$ITERATION_TIMEOUT")
         fi
         cmd+=(claude --print
@@ -400,8 +476,7 @@ run_loop() {
         local exit_code=0
         "${cmd[@]}" "$prompt" || exit_code=$?
 
-        # timeout(1) returns 124 on SIGTERM, 137 on SIGKILL. Treat as a
-        # stall rather than an error so the caller can distinguish.
+        # timeout(1) returns 124 on SIGTERM, 137 on SIGKILL.
         if [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 137 ]]; then
             elapsed=$(( $(date +%s) - start_time ))
             log_error "Iteration $iteration timed out after ${ITERATION_TIMEOUT}s (exit $exit_code)"
@@ -409,20 +484,53 @@ run_loop() {
             return 4
         fi
 
-        # Check for completion
-        if grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
-            elapsed=$(( $(date +%s) - start_time ))
-            log_success "All tasks complete at iteration $iteration (${elapsed}s)"
-            ralph_notify "completed" "$iteration" "$elapsed"
-            return 0
-        fi
-
-        # Check for errors
+        # Check for errors (before verify/checkpoint — nothing to gate on a crash).
         if [[ $exit_code -ne 0 ]]; then
             elapsed=$(( $(date +%s) - start_time ))
             log_error "Claude exited with code $exit_code at iteration $iteration"
             ralph_notify "error (exit $exit_code)" "$iteration" "$elapsed"
             return 1
+        fi
+
+        # --- Post-iteration verification ---
+        local verify_passed=true
+        if ! run_verify; then
+            verify_passed=false
+        fi
+
+        # Completion gate: agent wrote ## COMPLETE, but only accept if verify passes.
+        if grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
+            if [[ "$verify_passed" == true ]]; then
+                git_checkpoint "$iteration"
+                elapsed=$(( $(date +%s) - start_time ))
+                log_success "All tasks complete at iteration $iteration (${elapsed}s)"
+                ralph_notify "completed" "$iteration" "$elapsed"
+                return 0
+            else
+                log_warn "## COMPLETE found but verify failed. Removing sentinel; loop continues."
+                sed -i '/^## COMPLETE/d' "$PROGRESS_FILE"
+            fi
+        fi
+
+        # --- Git checkpoint ---
+        git_checkpoint "$iteration"
+
+        # --- Circuit breaker ---
+        local cur_hash
+        cur_hash=$(progress_hash)
+        if [[ "$cur_hash" == "$prev_hash" ]]; then
+            stall_count=$((stall_count + 1))
+            log_warn "No progress change (stall $stall_count/$CIRCUIT_BREAKER_THRESHOLD)"
+        else
+            stall_count=0
+            prev_hash="$cur_hash"
+        fi
+
+        if [[ "$CIRCUIT_BREAKER_THRESHOLD" -gt 0 ]] && [[ $stall_count -ge $CIRCUIT_BREAKER_THRESHOLD ]]; then
+            elapsed=$(( $(date +%s) - start_time ))
+            log_error "Circuit breaker: $stall_count consecutive iterations with no progress change."
+            ralph_notify "stuck (circuit-breaker)" "$iteration" "$elapsed"
+            return 5
         fi
     done
 
