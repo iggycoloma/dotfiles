@@ -1,0 +1,16 @@
+{
+  "name": "Unattended with forbidden credential mount",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "runArgs": [
+    "--cap-drop=ALL",
+    "--pids-limit=1024",
+    "--memory=8g",
+    "--security-opt=no-new-privileges"
+  ],
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"
+  ],
+  "containerEnv": {
+    "CLAUDE_UNATTENDED": "1"
+  }
+}
