@@ -103,4 +103,4 @@ Overall ~72%. The main remaining gaps are context sharing across parallel loops 
 - **Per-devcontainer**: add `DOTFILES_INSTALL_AGENTIC=1` to `containerEnv` in any profile that should deploy the harness
 - **Opt out**: `./install.sh --without-agentic` (explicit) or just omit the flag
 
-When deployed, the harness lives at `~/.agentic/`. Back-compat symlinks are created at `~/.claude/scripts/`, `~/.claude/templates/`, and `~/.claude/devcontainer-rubric.json` so pre-reorg references keep working for one release cycle.
+When deployed, the harness lives at `~/.agentic/`.
