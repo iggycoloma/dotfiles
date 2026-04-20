@@ -7,18 +7,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RALPH_SCRIPT="$SCRIPT_DIR/ralph.sh"
 
-# Resolve DOTFILES_DIR for logging
+# Resolve logging.sh (same cascade as ralph.sh).
+LOGGING_SH=""
 if [[ -f "$SCRIPT_DIR/../../bootstrap/logging.sh" ]]; then
     DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    LOGGING_SH="$DOTFILES_DIR/bootstrap/logging.sh"
+elif [[ -f "$SCRIPT_DIR/../lib/logging.sh" ]]; then
+    LOGGING_SH="$SCRIPT_DIR/../lib/logging.sh"
 elif [[ -f "${DOTFILES_DIR:-}/bootstrap/logging.sh" ]]; then
-    : # DOTFILES_DIR already set
+    LOGGING_SH="$DOTFILES_DIR/bootstrap/logging.sh"
 else
-    echo "Error: cannot locate bootstrap/logging.sh" >&2
+    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.agentic/lib/)" >&2
     exit 1
 fi
 
 # shellcheck source=../../bootstrap/logging.sh
-source "$DOTFILES_DIR/bootstrap/logging.sh"
+source "$LOGGING_SH"
 
 # --- Defaults ---
 

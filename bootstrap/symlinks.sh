@@ -226,15 +226,60 @@ _setup_claude_code() {
         log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
     fi
 
+    # Personal Claude Code config. scripts/ and templates/ used to live here
+    # but moved to the agentic/ subtree. See _setup_agentic for deployment of
+    # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-        settings.json CLAUDE.md statusline.sh -- hooks agents commands scripts templates
-
-    # Ensure scripts are executable after deployment
-    if [[ -d "$HOME/.claude/scripts" ]]; then
-        chmod +x "$HOME/.claude/scripts"/*.sh 2>/dev/null || true
-    fi
+        settings.json CLAUDE.md statusline.sh -- hooks agents commands
 
     log_success "Claude Code configuration complete"
+}
+
+# Deploy the agentic (unattended) harness to ~/.agentic/. Only runs when
+# DOTFILES_INSTALL_AGENTIC=1 is set (opt-in). Terminal-QoL users never see
+# ralph.sh or the devcontainer rubric in their home.
+_setup_agentic() {
+    log_info "Setting up agentic harness (DOTFILES_INSTALL_AGENTIC=1)..."
+
+    mkdir -p "$HOME/.agentic/lib"
+
+    _deploy_configs "$DOTFILES_DIR/agentic" "$HOME/.agentic" \
+        devcontainer-rubric.json egress-allowlist.txt -- scripts templates bootstrap hooks
+
+    # Vendor logging.sh so deployed ralph can source it without DOTFILES_DIR.
+    cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.agentic/lib/logging.sh"
+
+    # Ensure scripts are executable.
+    if [[ -d "$HOME/.agentic/scripts" ]]; then
+        chmod +x "$HOME/.agentic/scripts"/*.sh 2>/dev/null || true
+    fi
+    if [[ -d "$HOME/.agentic/bootstrap" ]]; then
+        chmod +x "$HOME/.agentic/bootstrap"/*.sh 2>/dev/null || true
+    fi
+
+    # Back-compat symlinks so pre-reorg references (~/.claude/scripts/ralph.sh,
+    # ~/.claude/templates/*, ~/.claude/devcontainer-rubric.json) keep working.
+    # These will be removed one release after this PR merges.
+    _agentic_backcompat_link "$HOME/.agentic/scripts" "$HOME/.claude/scripts"
+    _agentic_backcompat_link "$HOME/.agentic/templates" "$HOME/.claude/templates"
+    if [[ ! -e "$HOME/.claude/devcontainer-rubric.json" ]] \
+       || [[ -L "$HOME/.claude/devcontainer-rubric.json" ]]; then
+        ln -sfn "$HOME/.agentic/devcontainer-rubric.json" \
+            "$HOME/.claude/devcontainer-rubric.json" 2>/dev/null || true
+    fi
+
+    log_success "Agentic harness deployed to ~/.agentic/"
+}
+
+# Create a directory symlink for back-compat, but only if the target path is
+# absent or is already a symlink (don't clobber real directories).
+_agentic_backcompat_link() {
+    local src="$1" dst="$2"
+    if [[ ! -e "$dst" ]] || [[ -L "$dst" ]]; then
+        ln -sfn "$src" "$dst" 2>/dev/null || true
+    else
+        log_warn "Skipping back-compat link: $dst is a real directory (remove it to enable)"
+    fi
 }
 
 _setup_codex() {
@@ -425,6 +470,14 @@ create_symlinks() {
     # Copilot CLI configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/copilot" ]]; then
         _setup_copilot
+    fi
+
+    # Agentic harness (opt-in via DOTFILES_INSTALL_AGENTIC=1). Default is off
+    # so terminal-QoL installs do not deploy ralph, the rubric, templates, or
+    # unattended bootstrap scripts. The unattended devcontainer profile sets
+    # this env var in containerEnv so it always installs there.
+    if [[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/agentic" ]]; then
+        _setup_agentic
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)

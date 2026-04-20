@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Tests for claude-code/scripts/ralph.sh and ralph-parallel.sh
+# Tests for agentic/scripts/ralph.sh and ralph-parallel.sh
 # Tests syntax, help output, argument parsing, and template substitution
 
 set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RALPH_SCRIPT="$DOTFILES_DIR/claude-code/scripts/ralph.sh"
-PARALLEL_SCRIPT="$DOTFILES_DIR/claude-code/scripts/ralph-parallel.sh"
+RALPH_SCRIPT="$DOTFILES_DIR/agentic/scripts/ralph.sh"
+PARALLEL_SCRIPT="$DOTFILES_DIR/agentic/scripts/ralph-parallel.sh"
 
 source "$SCRIPT_DIR/test-framework.sh"
 
@@ -250,7 +250,7 @@ test_suite "ralph-spec.sh: YAML frontmatter parsing"
 
 # Use a subshell so the sourced functions don't leak further.
 (
-    source "$DOTFILES_DIR/claude-code/scripts/ralph-spec.sh"
+    source "$DOTFILES_DIR/agentic/scripts/ralph-spec.sh"
     set +e
 
     spec=$(mktemp)
@@ -510,18 +510,18 @@ assert_equals "0" "$bad_idiom_hits" "ralph-parallel.sh has zero ((var++)) occurr
 
 test_suite "Templates"
 
-assert_file_exists "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "PROMPT.md template exists"
-assert_file_exists "$DOTFILES_DIR/claude-code/templates/PRD.md" "PRD.md template exists"
-assert_file_exists "$DOTFILES_DIR/claude-code/templates/progress.txt" "progress.txt template exists"
+assert_file_exists "$DOTFILES_DIR/agentic/templates/PROMPT.md" "PROMPT.md template exists"
+assert_file_exists "$DOTFILES_DIR/agentic/templates/PRD.md" "PRD.md template exists"
+assert_file_exists "$DOTFILES_DIR/agentic/templates/progress.txt" "progress.txt template exists"
 
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{ITERATION}}" "PROMPT.md has ITERATION placeholder"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{MAX_ITERATIONS}}" "PROMPT.md has MAX_ITERATIONS placeholder"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "{{PROGRESS_FILE}}" "PROMPT.md has PROGRESS_FILE placeholder"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "## COMPLETE" "PROMPT.md references COMPLETE signal"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "Phase 1" "PROMPT.md has Phase 1 (Orient)"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/PROMPT.md" "Phase 4" "PROMPT.md has Phase 4 (Verify)"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/progress.txt" "IN_PROGRESS" "progress.txt has initial status"
-assert_file_contains "$DOTFILES_DIR/claude-code/templates/progress.txt" "Learnings" "progress.txt has Learnings section"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "{{ITERATION}}" "PROMPT.md has ITERATION placeholder"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "{{MAX_ITERATIONS}}" "PROMPT.md has MAX_ITERATIONS placeholder"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "{{PROGRESS_FILE}}" "PROMPT.md has PROGRESS_FILE placeholder"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "## COMPLETE" "PROMPT.md references COMPLETE signal"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "Phase 1" "PROMPT.md has Phase 1 (Orient)"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/PROMPT.md" "Phase 4" "PROMPT.md has Phase 4 (Verify)"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/progress.txt" "IN_PROGRESS" "progress.txt has initial status"
+assert_file_contains "$DOTFILES_DIR/agentic/templates/progress.txt" "Learnings" "progress.txt has Learnings section"
 
 # =================================================================
 # Shell functions

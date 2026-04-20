@@ -8,6 +8,44 @@ set -u  # Error on undefined variables
 # Shared logging functions
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bootstrap/logging.sh"
 
+# Parse minimal CLI args. Keep this tiny -- the only knob the installer
+# cares about right now is opting in to the agentic harness.
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --with-agentic)
+            export DOTFILES_INSTALL_AGENTIC=1
+            shift
+            ;;
+        --without-agentic)
+            export DOTFILES_INSTALL_AGENTIC=0
+            shift
+            ;;
+        -h|--help)
+            cat <<'HELP'
+Usage: install.sh [--with-agentic] [--without-agentic]
+
+Options:
+  --with-agentic      Deploy the agentic harness (ralph, dc-audit rubric,
+                      templates, unattended bootstrap scripts) to ~/.agentic/.
+                      Equivalent to DOTFILES_INSTALL_AGENTIC=1.
+  --without-agentic   Explicit opt-out (sets DOTFILES_INSTALL_AGENTIC=0).
+  -h, --help          Show this help.
+
+Default: P1 (terminal QoL + personal Claude Code config) only. The unattended
+devcontainer profile sets DOTFILES_INSTALL_AGENTIC=1 in containerEnv so this
+script opts in automatically there.
+HELP
+            exit 0
+            ;;
+        *)
+            # Unknown flag -- let it through; older callers may pass env vars
+            # as positional args in some CI paths. The installer itself does
+            # not take positional arguments.
+            shift
+            ;;
+    esac
+done
+
 # Dotfiles directory (prefer env var, then script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$SCRIPT_DIR}"
@@ -44,6 +82,11 @@ log_info "Environment: $ENV_TYPE"
 log_info "Operating System: $OS_TYPE"
 log_info "Package Manager: $PKG_MGR"
 log_info "Minimal Install: $IS_MINIMAL"
+if [[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]]; then
+    log_info "Agentic Harness: enabled (deploying ~/.agentic/)"
+else
+    log_info "Agentic Harness: disabled (pass --with-agentic to opt in)"
+fi
 
 # Make bootstrap scripts executable
 chmod +x "$DOTFILES_DIR"/bootstrap/*.sh
