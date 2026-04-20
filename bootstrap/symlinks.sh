@@ -257,29 +257,7 @@ _setup_agentic() {
         chmod +x "$HOME/.agentic/bootstrap"/*.sh 2>/dev/null || true
     fi
 
-    # Back-compat symlinks so pre-reorg references (~/.claude/scripts/ralph.sh,
-    # ~/.claude/templates/*, ~/.claude/devcontainer-rubric.json) keep working.
-    # These will be removed one release after this PR merges.
-    _agentic_backcompat_link "$HOME/.agentic/scripts" "$HOME/.claude/scripts"
-    _agentic_backcompat_link "$HOME/.agentic/templates" "$HOME/.claude/templates"
-    if [[ ! -e "$HOME/.claude/devcontainer-rubric.json" ]] \
-       || [[ -L "$HOME/.claude/devcontainer-rubric.json" ]]; then
-        ln -sfn "$HOME/.agentic/devcontainer-rubric.json" \
-            "$HOME/.claude/devcontainer-rubric.json" 2>/dev/null || true
-    fi
-
     log_success "Agentic harness deployed to ~/.agentic/"
-}
-
-# Create a directory symlink for back-compat, but only if the target path is
-# absent or is already a symlink (don't clobber real directories).
-_agentic_backcompat_link() {
-    local src="$1" dst="$2"
-    if [[ ! -e "$dst" ]] || [[ -L "$dst" ]]; then
-        ln -sfn "$src" "$dst" 2>/dev/null || true
-    else
-        log_warn "Skipping back-compat link: $dst is a real directory (remove it to enable)"
-    fi
 }
 
 _setup_codex() {

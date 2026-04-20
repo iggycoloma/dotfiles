@@ -5,8 +5,7 @@ set -euo pipefail
 #
 # Works standalone in any repo. Reads agentic/devcontainer-rubric.json from
 # the repo or from the deployed ~/.agentic/ location (or a --rubric path) and
-# evaluates each rule against the target file(s). Falls back to the legacy
-# claude-code/ location for one release of back-compat.
+# evaluates each rule against the target file(s).
 #
 # devcontainer.json is valid JSON with comments (JSONC). Comments are stripped
 # before jq parsing so the tool does not choke on real-world files.
@@ -117,14 +116,9 @@ parse_args() {
     done
 
     if [[ -z "$RUBRIC" ]]; then
-        # Primary locations (post-separation): agentic/ in the repo and
-        # ~/.agentic/ when deployed. Legacy claude-code/ paths stay for one
-        # release so pre-reorg installs keep working during the transition.
         for candidate in \
             "$DOTFILES_DIR/agentic/devcontainer-rubric.json" \
-            "$HOME/.agentic/devcontainer-rubric.json" \
-            "$DOTFILES_DIR/claude-code/devcontainer-rubric.json" \
-            "$HOME/.claude/devcontainer-rubric.json"
+            "$HOME/.agentic/devcontainer-rubric.json"
         do
             if [[ -f "$candidate" ]]; then
                 RUBRIC="$candidate"
