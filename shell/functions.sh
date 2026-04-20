@@ -407,6 +407,58 @@ function dotfiles-doctor {
     [[ $fail -eq 0 ]] && return 0 || return 1
 }
 
+# --- Claude Code worktree helpers ---
+
+# Launch Claude Code in a new git worktree
+function ccw {
+    if ! command -v claude &>/dev/null; then
+        echo "claude CLI not found"
+        return 1
+    fi
+    if [[ -z "${1:-}" ]]; then
+        echo "Usage: ccw <branch> [prompt...]"
+        return 1
+    fi
+    local branch="$1"
+    shift
+    if [[ $# -gt 0 ]]; then
+        claude --worktree "$branch" --print "$*"
+    else
+        claude --worktree "$branch"
+    fi
+}
+
+# List active git worktrees
+function ccwls {
+    git worktree list
+}
+
+# Prune stale and merged worktrees
+function ccwclean {
+    git worktree prune
+    local main_branch
+    main_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+    main_branch="${main_branch:-main}"
+    local worktrees
+    worktrees=$(git worktree list --porcelain)
+    git branch --merged "$main_branch" 2>/dev/null | grep -v '\*\|main\|master\|develop' | while read -r branch; do
+        # Trim surrounding whitespace without xargs (breaks on quotes/metachars).
+        branch="${branch#"${branch%%[![:space:]]*}"}"
+        branch="${branch%"${branch##*[![:space:]]}"}"
+        [[ -z "$branch" ]] && continue
+        local branch_escaped wt_path
+        # Escape regex metachars in the branch name before feeding to grep.
+        branch_escaped=$(printf '%s\n' "$branch" | sed 's/[][\\.^$*+?(){}|/]/\\&/g')
+        wt_path=$(echo "$worktrees" | grep -B1 "branch refs/heads/${branch_escaped}$" | grep "^worktree " | sed 's/^worktree //')
+        if [[ -n "$wt_path" ]]; then
+            echo "Removing worktree for merged branch: $branch ($wt_path)"
+            git worktree remove "$wt_path" --force 2>/dev/null || true
+            git branch -d "$branch" 2>/dev/null || true
+        fi
+    done
+    echo "Worktree cleanup complete"
+}
+
 # Load local functions if they exist
 if [[ -f "$HOME/.functions.local" ]]; then
     source "$HOME/.functions.local"

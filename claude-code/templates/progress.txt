@@ -1,0 +1,13 @@
+# Progress Log
+# Auto-updated by Ralph loop runner.
+# Write "## COMPLETE" as the last line when all tasks are done.
+
+## Status: IN_PROGRESS
+
+## Completed Tasks
+
+## Current Task
+
+## Blockers
+
+## Learnings

@@ -13,6 +13,38 @@
 - The `pre-commit-validate.sh` hook enforces conventional commits on `git commit`
 - The `pre-code-no-emoji.sh` hook blocks decorative emojis in code files
 
+## Deny-list semantics
+
+`settings.json` has three kinds of deny entries; they do not all use the same matching
+rules, so treat them with different confidence.
+
+- `Read(<glob>)` / `Write(<glob>)` / `Edit(<glob>)` -- real glob matching against the
+  `file_path` argument. These are the primary boundary for credential paths; the list
+  covers `.env*`, `~/.ssh/**`, `~/.aws/**`, etc.
+- `Bash(<prefix>:*)` -- prefix match against the command string. `Bash(rm -rf:*)` only
+  blocks commands that literally start with `rm -rf`; it does not catch `sudo rm -rf /`,
+  `bash -c 'rm -rf /'`, `env rm -rf /`, `xargs rm -rf`, or subshells / pipes. Useful as
+  a tripwire but never relied on as a security boundary.
+- The real defense for dangerous Bash commands is the `pre-security.sh` hook (which
+  scans the full command string for sensitive-path substrings and sensitive-directory
+  access) plus the credential glob rules above.
+
+If you are adding a new deny entry, prefer `Read`/`Write`/`Edit` with a glob when the
+risk is about file contents, and use `Bash(...)` only as a best-effort tripwire.
+
+## Skill trigger precedence
+
+Several skills have overlapping triggers. When multiple match, apply this order:
+
+- `review-pr` vs `security-audit`: prefer `review-pr` unless the user explicitly asks
+  for a security audit or the diff is clearly security-focused (auth/crypto/secrets).
+  Incidental touches to a file in one of those areas do not promote to `security-audit`.
+- `debug` vs everything else: `debug` takes precedence only when the user pastes a
+  stack trace, stderr block, or failing test output. "The UI looks wrong" is not
+  `debug`.
+- `fix-issue` vs `debug`: `fix-issue` wins when the user references a filed GitHub
+  issue (#NNN or issue URL). Without one, stay in `debug`.
+
 ## MCP Servers
 
 MCP servers are NOT installed by dotfiles. Claude Code's built-in tools (Bash, Read,

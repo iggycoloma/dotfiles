@@ -181,6 +181,14 @@ alias q='exit'
 # shellcheck disable=SC2139  # intentional: expand $HOME at definition time
 alias cclog="$HOME/.dotfiles/claude-code/hooks/query-tool-logs.sh"
 
+# Ralph autonomous loop runner
+if [[ -f "$HOME/.claude/scripts/ralph.sh" ]]; then
+    # shellcheck disable=SC2139  # intentional: expand $HOME at definition time
+    alias ralph="$HOME/.claude/scripts/ralph.sh"
+    # shellcheck disable=SC2139
+    alias ralph-parallel="$HOME/.claude/scripts/ralph-parallel.sh"
+fi
+
 # Codex CLI shortcuts
 if command -v codex &> /dev/null; then
     alias cx='codex'

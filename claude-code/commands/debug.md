@@ -1,5 +1,10 @@
 ---
-description: Systematic error analysis and debugging assistance
+description: |
+  Systematic root-cause analysis for errors and failing tests. TRIGGER when the
+  user pastes a stack trace, stderr block, failing test output, panic, segfault,
+  or asks to debug a specific error. SKIP for feature work, refactors, or
+  questions about intended behavior where there is no actual failure to
+  diagnose.
 argument-hint: [error message or file with error]
 allowed-tools: Read, Edit, Bash, Grep, Glob
 ---
