@@ -12,8 +12,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=./logging.sh
-source "$SCRIPT_DIR/logging.sh"
+DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=../../bootstrap/logging.sh
+source "$DOTFILES_DIR/bootstrap/logging.sh"
 
 if [[ $EUID -ne 0 ]]; then
     log_error "unattended-deps.sh must run as root (use sudo in postCreateCommand)."

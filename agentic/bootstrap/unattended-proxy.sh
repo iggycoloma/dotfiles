@@ -16,12 +16,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# shellcheck source=./logging.sh
-source "$SCRIPT_DIR/logging.sh"
+# shellcheck source=../../bootstrap/logging.sh
+source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-ALLOWLIST_FILE="${ALLOWLIST_FILE:-$DOTFILES_DIR/claude-code/unattended/egress-allowlist.txt}"
+ALLOWLIST_FILE="${ALLOWLIST_FILE:-$DOTFILES_DIR/agentic/egress-allowlist.txt}"
 MITMPROXY_DIR="${MITMPROXY_DIR:-/etc/mitmproxy}"
 PROXY_PORT="${PROXY_PORT:-8080}"
 PROXY_USER="${PROXY_USER:-mitmproxy}"

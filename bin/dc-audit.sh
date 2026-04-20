@@ -3,9 +3,10 @@ set -euo pipefail
 
 # dc-audit.sh -- Audit devcontainer.json files against a best-practices rubric.
 #
-# Works standalone in any repo. Reads claude-code/devcontainer-rubric.json
-# from the deployed dotfiles location (~/.claude/devcontainer-rubric.json)
-# or from a --rubric path, and evaluates each rule against the target file(s).
+# Works standalone in any repo. Reads agentic/devcontainer-rubric.json from
+# the repo or from the deployed ~/.agentic/ location (or a --rubric path) and
+# evaluates each rule against the target file(s). Falls back to the legacy
+# claude-code/ location for one release of back-compat.
 #
 # devcontainer.json is valid JSON with comments (JSONC). Comments are stripped
 # before jq parsing so the tool does not choke on real-world files.
@@ -116,12 +117,22 @@ parse_args() {
     done
 
     if [[ -z "$RUBRIC" ]]; then
-        if [[ -f "$DOTFILES_DIR/claude-code/devcontainer-rubric.json" ]]; then
-            RUBRIC="$DOTFILES_DIR/claude-code/devcontainer-rubric.json"
-        elif [[ -f "$HOME/.claude/devcontainer-rubric.json" ]]; then
-            RUBRIC="$HOME/.claude/devcontainer-rubric.json"
-        else
-            log_error "Rubric not found. Pass --rubric or deploy claude-code/ to ~/.claude/."
+        # Primary locations (post-separation): agentic/ in the repo and
+        # ~/.agentic/ when deployed. Legacy claude-code/ paths stay for one
+        # release so pre-reorg installs keep working during the transition.
+        for candidate in \
+            "$DOTFILES_DIR/agentic/devcontainer-rubric.json" \
+            "$HOME/.agentic/devcontainer-rubric.json" \
+            "$DOTFILES_DIR/claude-code/devcontainer-rubric.json" \
+            "$HOME/.claude/devcontainer-rubric.json"
+        do
+            if [[ -f "$candidate" ]]; then
+                RUBRIC="$candidate"
+                break
+            fi
+        done
+        if [[ -z "$RUBRIC" ]]; then
+            log_error "Rubric not found. Pass --rubric, or deploy agentic/ via DOTFILES_INSTALL_AGENTIC=1 ./install.sh."
             return 1
         fi
     fi

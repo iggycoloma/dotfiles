@@ -10,8 +10,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=./logging.sh
-source "$SCRIPT_DIR/logging.sh"
+DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=../../bootstrap/logging.sh
+source "$DOTFILES_DIR/bootstrap/logging.sh"
 
 target_repo="${GITHUB_REPOSITORY:-${1:-}}"
 

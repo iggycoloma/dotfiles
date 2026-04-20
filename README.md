@@ -2,6 +2,11 @@
 
 Portable developer environment that lays down a productive, agentic coding setup on local hosts (macOS/Linux), VS Code devcontainers, and GitHub Codespaces.
 
+## Two products in this repo
+
+1. **Dotfiles / terminal QoL (default)** -- CLI tools, shell config, git config, personal Claude Code config. Installed by `./install.sh`. What you want on any machine.
+2. **Agentic harness (opt-in)** -- `ralph.sh` autonomous loop runner, `dc-audit.sh` devcontainer linter, `.devcontainer/unattended/` hardened profile, mitmproxy egress allowlist. Lives under `agentic/`. Installed by `./install.sh --with-agentic` (or `DOTFILES_INSTALL_AGENTIC=1`). Not deployed by default. See [`agentic/README.md`](agentic/README.md) for details.
+
 ## Quick Start
 
 ### VS Code Devcontainers / Codespaces
@@ -286,7 +291,7 @@ Profiles:
 - `attended` (default) -- ergonomic dev profiles: light safety, credential mounts allowed
 - `unattended` -- hardened profiles: `--cap-drop=ALL`, resource caps, no host credential mounts, egress control expected
 
-Auto-fixes are strictly additive: `--fix` appends missing `runArgs` entries and sets missing top-level keys, but never overwrites an existing value or removes anything. Rules and fix expressions live in `claude-code/devcontainer-rubric.json`; add or tweak rules there.
+Auto-fixes are strictly additive: `--fix` appends missing `runArgs` entries and sets missing top-level keys, but never overwrites an existing value or removes anything. Rules and fix expressions live in `agentic/devcontainer-rubric.json`; add or tweak rules there. For the rubric to be available on the machine that runs `dc-audit`, deploy the agentic harness via `./install.sh --with-agentic` (or run from a repo checkout).
 
 ### Git in Devcontainers
 

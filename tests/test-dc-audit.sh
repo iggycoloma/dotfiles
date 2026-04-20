@@ -6,7 +6,7 @@ set +e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DC_AUDIT="$DOTFILES_DIR/bin/dc-audit.sh"
-RUBRIC="$DOTFILES_DIR/claude-code/devcontainer-rubric.json"
+RUBRIC="$DOTFILES_DIR/agentic/devcontainer-rubric.json"
 FIXTURES="$SCRIPT_DIR/fixtures/devcontainers"
 
 source "$SCRIPT_DIR/test-framework.sh"

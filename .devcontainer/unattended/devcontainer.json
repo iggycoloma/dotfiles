@@ -28,7 +28,7 @@
     "source=ralph-state,target=/home/vscode/.local/state/ralph,type=volume"
   ],
 
-  "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh && sudo bash ${containerWorkspaceFolder}/bootstrap/unattended-deps.sh && sudo bash ${containerWorkspaceFolder}/bootstrap/unattended-proxy.sh",
+  "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh --with-agentic && sudo bash ${containerWorkspaceFolder}/agentic/bootstrap/unattended-deps.sh && sudo bash ${containerWorkspaceFolder}/agentic/bootstrap/unattended-proxy.sh",
   "waitFor": "postCreateCommand",
 
   "customizations": {
@@ -41,6 +41,7 @@
 
   "containerEnv": {
     "CLAUDE_UNATTENDED": "1",
+    "DOTFILES_INSTALL_AGENTIC": "1",
     "RALPH_DEFAULT_BUDGET": "5",
     "RALPH_MAX_WALL_CLOCK": "14400"
   },
