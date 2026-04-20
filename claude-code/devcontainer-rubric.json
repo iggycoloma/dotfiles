@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "description": "Rubric for dc-audit. Each rule is evaluated against a devcontainer.json. `check` is a jq expression that returns true when the rule FAILS (i.e., the condition indicates a problem). `fix` is applied only when `fixable: true` and --fix is passed; it is a jq program that receives the current document and must return the corrected document. Fixes must be additive and never overwrite existing values.",
+  "profiles": {
+    "attended": "Ergonomic dev profiles. Light safety, credential mounts allowed, lower resource caps.",
+    "unattended": "Hardened profiles for autonomous runs. Strict capability drops, no credential mounts, resource caps, egress control expected."
+  },
+  "rules": [
+    {
+      "id": "image-pinned",
+      "profile": "all",
+      "severity": "warn",
+      "message": "`image` should include a tag or digest (floating names like `:debian` drift).",
+      "check": ".image != null and (.image | test(\":[^/]+$|@sha256:\") | not)",
+      "fixable": false
+    },
+    {
+      "id": "image-required",
+      "profile": "all",
+      "severity": "error",
+      "message": "Must set either `image` or `dockerFile` / `build`.",
+      "check": "(.image // null) == null and (.build // null) == null and (.dockerFile // null) == null and (.dockerComposeFile // null) == null",
+      "fixable": false
+    },
+    {
+      "id": "features-pinned",
+      "profile": "all",
+      "severity": "warn",
+      "message": "`features` keys should include a version suffix (e.g., `git:1` or `git:1.2.5`).",
+      "check": "(.features // {}) | to_entries | map(select(.key | test(\":[^/]+$\") | not)) | length > 0",
+      "fixable": false
+    },
+    {
+      "id": "shutdown-action",
+      "profile": "all",
+      "severity": "info",
+      "message": "Set `shutdownAction` so dangling containers do not accumulate.",
+      "check": "(.shutdownAction // null) == null",
+      "fixable": true,
+      "fix": ". + {shutdownAction: \"stopContainer\"}"
+    },
+    {
+      "id": "update-remote-user-uid",
+      "profile": "all",
+      "severity": "info",
+      "message": "Set `updateRemoteUserUID: true` for Codespaces-safe UID mapping.",
+      "check": "(.updateRemoteUserUID // null) == null",
+      "fixable": true,
+      "fix": ". + {updateRemoteUserUID: true}"
+    },
+    {
+      "id": "no-new-privileges",
+      "profile": "all",
+      "severity": "warn",
+      "message": "`runArgs` should include `--security-opt=no-new-privileges`.",
+      "check": "[(.runArgs // [])[] | select(test(\"no-new-privileges\"))] | length == 0",
+      "fixable": true,
+      "fix": ".runArgs = ((.runArgs // []) + [\"--security-opt=no-new-privileges\"])"
+    },
+    {
+      "id": "pids-limit-attended",
+      "profile": "attended",
+      "severity": "info",
+      "message": "Set a `--pids-limit` in `runArgs` to bound forkbomb blast radius (recommend 2048).",
+      "check": "[(.runArgs // [])[] | select(test(\"--pids-limit\"))] | length == 0",
+      "fixable": true,
+      "fix": ".runArgs = ((.runArgs // []) + [\"--pids-limit=2048\"])"
+    },
+    {
+      "id": "pids-limit-unattended",
+      "profile": "unattended",
+      "severity": "warn",
+      "message": "Unattended profile must set `--pids-limit` (recommend 1024).",
+      "check": "[(.runArgs // [])[] | select(test(\"--pids-limit\"))] | length == 0",
+      "fixable": true,
+      "fix": ".runArgs = ((.runArgs // []) + [\"--pids-limit=1024\"])"
+    },
+    {
+      "id": "memory-cap-unattended",
+      "profile": "unattended",
+      "severity": "warn",
+      "message": "Unattended profile should set `--memory` in `runArgs` (recommend 8g).",
+      "check": "[(.runArgs // [])[] | select(test(\"--memory\"))] | length == 0",
+      "fixable": true,
+      "fix": ".runArgs = ((.runArgs // []) + [\"--memory=8g\"])"
+    },
+    {
+      "id": "cpu-cap-unattended",
+      "profile": "unattended",
+      "severity": "info",
+      "message": "Unattended profile should set `--cpus` in `runArgs` (recommend 4).",
+      "check": "[(.runArgs // [])[] | select(test(\"--cpus\"))] | length == 0",
+      "fixable": true,
+      "fix": ".runArgs = ((.runArgs // []) + [\"--cpus=4\"])"
+    },
+    {
+      "id": "cap-drop-unattended",
+      "profile": "unattended",
+      "severity": "warn",
+      "message": "Unattended profile should `--cap-drop=ALL` and re-add only what is needed.",
+      "check": "[(.runArgs // [])[] | select(test(\"--cap-drop=ALL\"))] | length == 0",
+      "fixable": false
+    },
+    {
+      "id": "no-host-creds-unattended",
+      "profile": "unattended",
+      "severity": "error",
+      "message": "Unattended profile must not bind-mount host credential directories (~/.ssh, ~/.aws, ~/.config/gh, ~/.gnupg, ~/.kube, ~/.docker).",
+      "check": "[(.mounts // [])[] | select(type == \"string\" and test(\"(^|,|=)(source=)?[^,]*(\\\\.ssh|\\\\.aws|\\\\.config/gh|\\\\.gnupg|\\\\.kube|\\\\.docker)(/|,|$)\"))] | length > 0",
+      "fixable": false
+    },
+    {
+      "id": "fixed-env-in-containerenv",
+      "profile": "unattended",
+      "severity": "info",
+      "message": "Put fixed unattended flags (CLAUDE_UNATTENDED, RALPH_*) in `containerEnv`, not `remoteEnv` (remoteEnv can be unset by an in-container shell).",
+      "check": "(.remoteEnv // {}) | to_entries | map(select(.key | test(\"^(CLAUDE_UNATTENDED|RALPH_)\"))) | length > 0",
+      "fixable": false
+    },
+    {
+      "id": "wait-for-declared",
+      "profile": "all",
+      "severity": "info",
+      "message": "When `postCreateCommand` is set, declare `waitFor` explicitly (VS Code defaults vary).",
+      "check": "(.postCreateCommand // null) != null and (.waitFor // null) == null",
+      "fixable": true,
+      "fix": ". + {waitFor: \"postCreateCommand\"}"
+    }
+  ]
+}

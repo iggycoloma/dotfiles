@@ -1,0 +1,26 @@
+{
+  "name": "Clean unattended fixture",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "runArgs": [
+    "--cap-drop=ALL",
+    "--cap-add=CHOWN",
+    "--cap-add=DAC_OVERRIDE",
+    "--pids-limit=1024",
+    "--memory=8g",
+    "--cpus=4",
+    "--security-opt=no-new-privileges"
+  ],
+  "containerEnv": {
+    "CLAUDE_UNATTENDED": "1",
+    "RALPH_DEFAULT_BUDGET": "5"
+  },
+  "postCreateCommand": "bash ${containerWorkspaceFolder}/install.sh",
+  "waitFor": "postCreateCommand",
+  "shutdownAction": "stopContainer",
+  "updateRemoteUserUID": true,
+  "remoteUser": "vscode"
+}

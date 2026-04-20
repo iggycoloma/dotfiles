@@ -1,0 +1,8 @@
+{
+  // Leading comment
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  /* block comment */
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  }
+}

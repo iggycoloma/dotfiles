@@ -264,6 +264,30 @@ If no volume mount is detected, the installer logs this line so you can copy-pas
 
 **What refreshes** (copied from dotfiles every boot): settings.json, CLAUDE.md, AGENTS.md, hooks, agents, commands, skills.
 
+### Auditing devcontainer.json Files
+
+`bin/dc-audit.sh` checks any `devcontainer.json` against a rubric of best practices (image/feature pinning, `--security-opt=no-new-privileges`, resource caps, forbidden credential mounts, `shutdownAction`, etc.) and can apply safe, additive fixes. Works standalone in any repo.
+
+```bash
+# Audit everything under .devcontainer/ in the current repo
+bin/dc-audit.sh
+
+# Target a specific profile + path
+bin/dc-audit.sh --profile unattended .devcontainer/ci/devcontainer.json
+
+# Apply safe, additive auto-fixes in place
+bin/dc-audit.sh --fix .devcontainer/unattended/devcontainer.json
+
+# CI-friendly: exit non-zero on warnings, emit JSONL
+bin/dc-audit.sh --strict --json
+```
+
+Profiles:
+- `attended` (default) -- ergonomic dev profiles: light safety, credential mounts allowed
+- `unattended` -- hardened profiles: `--cap-drop=ALL`, resource caps, no host credential mounts, egress control expected
+
+Auto-fixes are strictly additive: `--fix` appends missing `runArgs` entries and sets missing top-level keys, but never overwrites an existing value or removes anything. Rules and fix expressions live in `claude-code/devcontainer-rubric.json`; add or tweak rules there.
+
 ### Git in Devcontainers
 
 Git identity (name/email) must be present in the container for commits to work. How it gets there depends on the environment:
