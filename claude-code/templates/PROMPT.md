@@ -24,11 +24,20 @@ Do not skip this step. The plan is your contract with the next iteration.
 ## Phase 4: Verify
 
 1. Run the project's test suite and linters (e.g., `make test`, `make lint`)
-2. If tests fail:
+2. If you installed or updated dependencies this iteration, run the matching
+   audit tool and record the result:
+   - `npm install` / `yarn add` / `pnpm install` -> `npm audit --audit-level=high`
+   - `pip install` / `uv add` / `poetry add` -> `pip-audit`
+   - `cargo add` / `cargo install` -> `cargo audit`
+   - `go get` / `go install` -> `govulncheck ./...`
+   Any high/critical finding blocks `## COMPLETE`; document it in
+   `{{PROGRESS_FILE}}` under "Audit Warning" and either downgrade the
+   dependency or find a mitigation before moving on.
+3. If tests fail:
    - Attempt to fix the failure (one try)
    - If the fix works, continue to Phase 5
    - If still failing, revert your changes with `git checkout -- .` and document the failure as a blocker in `{{PROGRESS_FILE}}`
-3. If tests pass, continue to Phase 5
+4. If tests pass, continue to Phase 5
 
 ## Phase 5: Commit
 

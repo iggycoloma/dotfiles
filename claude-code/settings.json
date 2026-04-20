@@ -306,6 +306,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/post-dep-audit.sh",
+            "timeout": 60
+          }
+        ]
       }
     ],
     "Notification": [
