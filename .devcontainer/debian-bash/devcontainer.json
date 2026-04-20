@@ -7,6 +7,11 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
+  "runArgs": [
+    "--pids-limit=2048",
+    "--security-opt=no-new-privileges"
+  ],
+
   "mounts": [
     "source=dotfiles-debian-bash-state,target=/home/vscode/.dotfiles-state,type=volume"
   ],

@@ -1,3 +1,23 @@
+---
+# Optional structured task block. When present, ralph.sh --spec-file reads
+# these tasks in order, runs each task's `verify` shell command after the
+# iteration, and flips `done: true` on success. Free-form prose below is
+# still read by the agent for context; it is not parsed.
+#
+# Remove this frontmatter entirely if you want purely prose-driven runs.
+spec_version: 1
+project: example-project
+tasks:
+  - id: task-1
+    description: One-sentence outcome for the first task.
+    verify: "make test"
+    done: false
+  - id: task-2
+    description: One-sentence outcome for the second task.
+    verify: "make test && test -f dist/bundle.js"
+    done: false
+---
+
 # Feature: [Name]
 
 <!--

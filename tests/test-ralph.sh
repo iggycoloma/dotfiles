@@ -45,6 +45,9 @@ assert_contains "$help_output" "--verify-cmd" "--help mentions --verify-cmd"
 assert_contains "$help_output" "--no-checkpoint" "--help mentions --no-checkpoint"
 assert_contains "$help_output" "--circuit-breaker" "--help mentions --circuit-breaker"
 assert_contains "$help_output" "--yolo" "--help mentions --yolo"
+assert_contains "$help_output" "--spec-file" "--help mentions --spec-file"
+assert_contains "$help_output" "--session-budget" "--help mentions --session-budget"
+assert_contains "$help_output" "--run-log-dir" "--help mentions --run-log-dir"
 
 # --- Argument validation ---
 
@@ -240,6 +243,197 @@ output=$(<"$unattended_out")
 assert_not_equals 0 "$rc" "CLAUDE_UNATTENDED=1 + acceptEdits without --yolo exits non-zero"
 assert_contains "$output" "requires --yolo" "Error message mentions --yolo requirement"
 rm -f "$unattended_temp" "$unattended_out"
+
+# --- Spec helper ---
+
+test_suite "ralph-spec.sh: YAML frontmatter parsing"
+
+# Use a subshell so the sourced functions don't leak further.
+(
+    source "$DOTFILES_DIR/claude-code/scripts/ralph-spec.sh"
+    set +e
+
+    spec=$(mktemp)
+    # shellcheck disable=SC2119  # cat here does not need $@
+    cat >"$spec" <<'SPECEOF'
+---
+spec_version: 1
+tasks:
+  - id: alpha
+    description: first
+    verify: "echo A"
+    done: false
+  - id: bravo
+    description: second
+    verify: "echo B"
+    done: false
+  - id: charlie
+    description: third
+    verify: "echo C"
+    done: false
+---
+body text
+SPECEOF
+
+    # has_tasks
+    if spec_has_tasks "$spec"; then
+        test_pass "spec_has_tasks detects tasks block"
+    else
+        test_fail "spec_has_tasks detects tasks block"
+    fi
+
+    # next task
+    next=$(spec_next_task_id "$spec")
+    assert_equals "alpha" "$next" "spec_next_task_id returns first undone task"
+
+    # verify lookup
+    v=$(spec_task_verify "$spec" alpha)
+    assert_equals "echo A" "$v" "spec_task_verify returns the task's verify string"
+
+    # mark done
+    spec_mark_done "$spec" alpha
+    next2=$(spec_next_task_id "$spec")
+    assert_equals "bravo" "$next2" "spec_mark_done flips done and advances next"
+
+    # idempotent
+    spec_mark_done "$spec" alpha
+    next3=$(spec_next_task_id "$spec")
+    assert_equals "bravo" "$next3" "spec_mark_done is idempotent"
+
+    # all-done false until every task flipped
+    assert_equals "false" "$(spec_all_done "$spec")" "spec_all_done false while tasks remain"
+    spec_mark_done "$spec" bravo
+    spec_mark_done "$spec" charlie
+    assert_equals "true" "$(spec_all_done "$spec")" "spec_all_done true when every task done"
+    empty_next=$(spec_next_task_id "$spec")
+    assert_equals "" "$empty_next" "spec_next_task_id empty when all done"
+
+    # sha
+    sha=$(spec_sha "$spec")
+    assert_not_equals "" "$sha" "spec_sha returns a non-empty digest"
+    if [[ "$sha" =~ ^[a-f0-9]{64}$ ]]; then
+        test_pass "spec_sha matches sha256 shape"
+    else
+        test_fail "spec_sha matches sha256 shape (got: $sha)"
+    fi
+
+    # file without frontmatter returns empty / false
+    plain=$(mktemp)
+    printf '# Not a spec\n' > "$plain"
+    if spec_has_tasks "$plain"; then
+        test_fail "spec_has_tasks rejects file without frontmatter"
+    else
+        test_pass "spec_has_tasks rejects file without frontmatter"
+    fi
+    assert_equals "" "$(spec_next_task_id "$plain")" "spec_next_task_id empty without frontmatter"
+
+    rm -f "$spec" "$plain"
+)
+
+# --- Spec-driven verify override via ralph.sh help + arg validation ---
+
+test_suite "ralph.sh: --spec-file validation"
+
+# Missing file -> error.
+output=$("$RALPH_SCRIPT" --prompt-file "$RALPH_SCRIPT" --spec-file /nonexistent/spec.md 2>&1)
+rc=$?
+assert_not_equals 0 "$rc" "--spec-file with missing path exits non-zero"
+assert_contains "$output" "Spec file not found" "Error message for missing spec"
+
+# Present but no tasks -> error.
+no_tasks=$(mktemp)
+# shellcheck disable=SC2119  # cat here does not need $@
+cat >"$no_tasks" <<'NOTASKS'
+---
+spec_version: 1
+notes: no task list here
+---
+body
+NOTASKS
+output=$("$RALPH_SCRIPT" --prompt-file "$RALPH_SCRIPT" --spec-file "$no_tasks" 2>&1)
+rc=$?
+assert_not_equals 0 "$rc" "--spec-file without tasks list exits non-zero"
+assert_contains "$output" "no 'tasks:'" "Error message for missing tasks list"
+rm -f "$no_tasks"
+
+# --- JSONL writer + cumulative cost + session-budget arg validation ---
+
+test_suite "ralph.sh: session-budget validation"
+
+output=$("$RALPH_SCRIPT" --prompt-file "$RALPH_SCRIPT" --session-budget abc 2>&1)
+rc=$?
+assert_not_equals 0 "$rc" "--session-budget with non-numeric value exits non-zero"
+assert_contains "$output" "non-negative number" "Error message for bad session-budget"
+
+# Test the JSONL writer + cumulative_cost in isolation (no claude binary required).
+test_suite "ralph.sh: JSONL run log"
+
+(
+    set +e
+    # Source ralph.sh to get the writer helpers. We disable the main() call
+    # by running from a subshell that won't meet the `BASH_SOURCE == $0` check.
+    # shellcheck disable=SC1091
+    source "$RALPH_SCRIPT" 2>/dev/null
+    # Point the log dir at a scratch area.
+    RUN_LOG_DIR=$(mktemp -d)
+    SESSION_BUDGET="0.50"
+    sid="test-$$"
+
+    write_run_log "$sid" 1 0 true "abc123" 10 "deadbeef" "0.10" "1000" "50" "task-x"
+    write_run_log "$sid" 2 0 true "def456" 20 "cafebabe" "0.15" "1500" "75" "task-y"
+
+    log_path="$RUN_LOG_DIR/$sid.jsonl"
+    if [[ -f "$log_path" ]]; then
+        test_pass "JSONL log file created"
+    else
+        test_fail "JSONL log file created"
+    fi
+
+    line_count=$(wc -l < "$log_path" | tr -d ' ')
+    assert_equals "2" "$line_count" "JSONL log has one line per iteration"
+
+    # Every line is valid JSON with the required fields.
+    required_fields_ok=true
+    while IFS= read -r line; do
+        for field in session iteration timestamp exit_code verify_passed progress_hash elapsed_s cost_usd task_id; do
+            if ! jq -e "has(\"$field\")" <<<"$line" &>/dev/null; then
+                required_fields_ok=false
+                break 2
+            fi
+        done
+    done < "$log_path"
+    if [[ "$required_fields_ok" == true ]]; then
+        test_pass "Every JSONL record has the required fields"
+    else
+        test_fail "Every JSONL record has the required fields"
+    fi
+
+    # Cumulative cost sums correctly.
+    total=$(cumulative_cost "$sid")
+    # jq may print 0.25 or 0.25000... use awk for a tolerant compare.
+    if awk -v t="$total" 'BEGIN{ exit (t+0 >= 0.24 && t+0 <= 0.26) ? 0 : 1 }'; then
+        test_pass "cumulative_cost sums cost_usd across iterations"
+    else
+        test_fail "cumulative_cost sums cost_usd across iterations (got: $total)"
+    fi
+
+    # Under-budget check.
+    if under_session_budget "$sid"; then
+        test_pass "under_session_budget true when total < budget"
+    else
+        test_fail "under_session_budget true when total < budget (total=$total budget=$SESSION_BUDGET)"
+    fi
+
+    # Flip past the budget and re-check.
+    write_run_log "$sid" 3 0 true "ghi789" 30 "feedface" "0.40" "2000" "100" "task-z"
+    if ! under_session_budget "$sid"; then
+        test_pass "under_session_budget false when total > budget"
+    else
+        test_fail "under_session_budget false when total > budget"
+    fi
+
+    rm -rf "$RUN_LOG_DIR"
+)
 
 # =================================================================
 # ralph-parallel.sh

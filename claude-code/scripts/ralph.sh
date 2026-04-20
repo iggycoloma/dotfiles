@@ -19,6 +19,9 @@ fi
 # shellcheck source=../../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
+# shellcheck source=./ralph-spec.sh
+source "$SCRIPT_DIR/ralph-spec.sh"
+
 # --- Defaults ---
 
 PROMPT_FILE=""
@@ -37,6 +40,15 @@ VERIFY_CMD="${RALPH_VERIFY_CMD:-}"
 CHECKPOINT=true
 CHECKPOINT_PATHS=""
 CIRCUIT_BREAKER_THRESHOLD="${RALPH_CIRCUIT_BREAKER:-3}"
+SPEC_FILE=""
+SPEC_SHA=""
+SESSION_BUDGET="${RALPH_SESSION_BUDGET:-}"
+RUN_LOG_DIR="${RALPH_RUN_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ralph/runs}"
+CLAUDE_JSON_OUTPUT=false
+CUMULATIVE_COST="0"
+VERIFY_PASS_COUNT=0
+VERIFY_FAIL_COUNT=0
+CHECKPOINT_COUNT=0
 
 # Max-subscription mode: skip budget cap (rate-limit gated), default to sonnet
 # Enable by setting RALPH_MAX_MODE=1
@@ -73,6 +85,16 @@ Options:
                                Equivalent to RALPH_UNSAFE_MODE=1.
   --verify-cmd <command>        Verify command run after each iteration (e.g., "make test").
                                Blocks COMPLETE unless it passes. Default: none.
+  --spec-file <path>           Structured spec (markdown with YAML frontmatter).
+                               Each iteration uses the next done:false task's verify
+                               command; done is flipped on success; COMPLETE only
+                               when all tasks are done. Overrides --verify-cmd.
+  --session-budget <dollars>    Halt if the cumulative cost across all iterations in
+                               this session exceeds the threshold (exit 6). Independent
+                               of --max-budget-usd which is per-invocation. Requires
+                               Claude CLI that supports --output-format json.
+  --run-log-dir <path>         Directory for per-session JSONL run logs
+                               (default: ~/.local/state/ralph/runs).
   --no-checkpoint              Disable automatic git commit after each iteration
   --checkpoint-paths <spec>    Colon-separated paths passed to `git add` for checkpoint
                                commits (default: -A, which stages everything).
@@ -105,6 +127,7 @@ Guardrails:
   - Per-iteration wall-clock timeout exceeded (--iteration-timeout)
   - Total wall-clock budget exceeded (--max-wall-clock)
   - Circuit breaker: N consecutive iterations with no progress change
+  - Session budget exceeded (--session-budget)
 
 Examples:
   ralph.sh --prompt-file PROMPT.md
@@ -191,6 +214,22 @@ parse_args() {
                 VERIFY_CMD="${2:?--verify-cmd requires a value}"
                 shift 2
                 ;;
+            --spec-file)
+                SPEC_FILE="${2:?--spec-file requires a value}"
+                shift 2
+                ;;
+            --session-budget)
+                SESSION_BUDGET="${2:?--session-budget requires a value}"
+                if ! [[ "$SESSION_BUDGET" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                    log_error "--session-budget must be a non-negative number (USD)"
+                    return 1
+                fi
+                shift 2
+                ;;
+            --run-log-dir)
+                RUN_LOG_DIR="${2:?--run-log-dir requires a value}"
+                shift 2
+                ;;
             --no-checkpoint)
                 CHECKPOINT=false
                 shift
@@ -242,6 +281,17 @@ parse_args() {
     if [[ -n "$PRD_FILE" ]] && [[ ! -f "$PRD_FILE" ]]; then
         log_error "PRD file not found: $PRD_FILE"
         return 1
+    fi
+
+    if [[ -n "$SPEC_FILE" ]]; then
+        if [[ ! -f "$SPEC_FILE" ]]; then
+            log_error "Spec file not found: $SPEC_FILE"
+            return 1
+        fi
+        if ! spec_has_tasks "$SPEC_FILE"; then
+            log_error "Spec file has no 'tasks:' list in YAML frontmatter: $SPEC_FILE"
+            return 1
+        fi
     fi
 }
 
@@ -379,12 +429,13 @@ generate_session_id() {
 # --- Verification ---
 
 run_verify() {
-    [[ -z "$VERIFY_CMD" ]] && return 0
-    log_info "Verifying: $VERIFY_CMD"
+    local cmd="${1:-$VERIFY_CMD}"
+    [[ -z "$cmd" ]] && return 0
+    log_info "Verifying: $cmd"
     local rc=0
-    eval "$VERIFY_CMD" >/dev/null 2>&1 || rc=$?
+    eval "$cmd" >/dev/null 2>&1 || rc=$?
     if [[ $rc -ne 0 ]]; then
-        log_warn "Verify failed (exit $rc): $VERIFY_CMD"
+        log_warn "Verify failed (exit $rc): $cmd"
     else
         log_info "Verify passed."
     fi
@@ -412,6 +463,7 @@ git_checkpoint() {
         git add -A
     fi
     git commit -q -m "chore(ralph): checkpoint iteration $iteration" || true
+    CHECKPOINT_COUNT=$((CHECKPOINT_COUNT + 1))
     log_info "Checkpoint: committed iteration $iteration."
 }
 
@@ -450,6 +502,120 @@ progress_hash() {
     fi
 }
 
+# --- Run log + cost tracking ---
+
+# Probe whether the installed claude supports --output-format json.
+# Called once before the loop runs.
+detect_claude_json() {
+    if claude --help 2>&1 | grep -qE -- '--output-format'; then
+        CLAUDE_JSON_OUTPUT=true
+        log_info "Claude supports --output-format json: cost tracking enabled."
+    else
+        CLAUDE_JSON_OUTPUT=false
+        log_info "Claude does not support --output-format json: cost will be logged as null."
+    fi
+}
+
+# Extract cost_usd + token counts from a captured Claude JSON response.
+# Prints three tab-separated fields: cost_usd \t tokens_in \t tokens_out.
+# All may be "null" if not present.
+parse_claude_usage() {
+    local output="$1"
+    command -v jq &>/dev/null || { echo -e "null\tnull\tnull"; return; }
+
+    # Claude's --output-format json typically emits a JSON object per
+    # invocation. Field names vary across CLI versions; we try the most
+    # common keys and fall back to null.
+    local cost tokens_in tokens_out
+    cost=$(jq -r '.total_cost_usd // .cost_usd // .usage.cost_usd // empty' <<<"$output" 2>/dev/null)
+    tokens_in=$(jq -r '.usage.input_tokens // .input_tokens // empty' <<<"$output" 2>/dev/null)
+    tokens_out=$(jq -r '.usage.output_tokens // .output_tokens // empty' <<<"$output" 2>/dev/null)
+    printf '%s\t%s\t%s\n' "${cost:-null}" "${tokens_in:-null}" "${tokens_out:-null}"
+}
+
+# Append one JSONL record for the current iteration.
+write_run_log() {
+    command -v jq &>/dev/null || return 0
+    local session_id="$1" iteration="$2" exit_code="$3" verify_passed="$4"
+    local progress_hash_v="$5" elapsed_s="$6" checkpoint_sha="$7"
+    local cost_usd="$8" tokens_in="$9" tokens_out="${10}" task_id="${11}"
+
+    mkdir -p "$RUN_LOG_DIR" 2>/dev/null || return 0
+    local log_file="$RUN_LOG_DIR/$session_id.jsonl"
+
+    local ts
+    ts=$(date -Iseconds 2>/dev/null || date)
+
+    jq -cn \
+        --arg session "$session_id" \
+        --argjson iter "$iteration" \
+        --arg ts "$ts" \
+        --argjson rc "$exit_code" \
+        --argjson verify "$verify_passed" \
+        --arg phash "$progress_hash_v" \
+        --argjson elapsed "$elapsed_s" \
+        --arg sha "$checkpoint_sha" \
+        --arg cost "$cost_usd" \
+        --arg tin "$tokens_in" \
+        --arg tout "$tokens_out" \
+        --arg tid "$task_id" \
+        '{
+            session: $session, iteration: $iter, timestamp: $ts,
+            exit_code: $rc, verify_passed: $verify,
+            progress_hash: $phash, elapsed_s: $elapsed,
+            checkpoint_sha: (if $sha == "" then null else $sha end),
+            cost_usd: (if $cost == "null" or $cost == "" then null else ($cost | tonumber? // null) end),
+            tokens_in: (if $tin == "null" or $tin == "" then null else ($tin | tonumber? // null) end),
+            tokens_out: (if $tout == "null" or $tout == "" then null else ($tout | tonumber? // null) end),
+            task_id: (if $tid == "" then null else $tid end)
+        }' >> "$log_file" 2>/dev/null || true
+}
+
+# Sum JSONL cost_usd values for a session. Empty string if unavailable.
+cumulative_cost() {
+    local session_id="$1"
+    local log_file="$RUN_LOG_DIR/$session_id.jsonl"
+    [[ -f "$log_file" ]] || { echo "0"; return; }
+    command -v jq &>/dev/null || { echo "0"; return; }
+    jq -s '[.[] | .cost_usd // 0] | add // 0' "$log_file" 2>/dev/null || echo "0"
+}
+
+# Returns 0 if cumulative cost <= budget (or no budget set). Otherwise 1.
+under_session_budget() {
+    local session_id="$1"
+    [[ -z "$SESSION_BUDGET" ]] && return 0
+    command -v awk &>/dev/null || return 0
+    local total
+    total=$(cumulative_cost "$session_id")
+    CUMULATIVE_COST="$total"
+    awk -v t="$total" -v b="$SESSION_BUDGET" 'BEGIN{ exit (t+0 <= b+0) ? 0 : 1 }'
+}
+
+# Short SHA of the latest commit (for JSONL checkpoint_sha field).
+last_checkpoint_sha() {
+    command -v git &>/dev/null || { echo ""; return; }
+    git rev-parse --is-inside-work-tree &>/dev/null 2>&1 || { echo ""; return; }
+    git rev-parse --short HEAD 2>/dev/null || echo ""
+}
+
+# Print the end-of-run summary. Called on every exit path.
+print_summary() {
+    local session_id="$1" iteration="$2" max_iter="$3" elapsed="$4" exit_code="$5"
+    local exit_label="$6"
+
+    log_section "Ralph run summary (session ${session_id:0:8})"
+    printf '  Iterations: %s/%s\n' "$iteration" "$max_iter"
+    printf '  Wall-clock: %ss\n' "$elapsed"
+    printf '  Verify:     %s passed, %s failed\n' "$VERIFY_PASS_COUNT" "$VERIFY_FAIL_COUNT"
+    printf '  Checkpoint: %s commits\n' "$CHECKPOINT_COUNT"
+    if [[ -n "$SESSION_BUDGET" ]]; then
+        printf '  Cost:       $%s (budget $%s)\n' "$CUMULATIVE_COST" "$SESSION_BUDGET"
+    elif [[ "$CLAUDE_JSON_OUTPUT" == true ]]; then
+        printf '  Cost:       $%s\n' "$CUMULATIVE_COST"
+    fi
+    printf '  Exit:       %s (%s)\n' "$exit_code" "$exit_label"
+}
+
 # --- Main loop ---
 
 run_loop() {
@@ -470,6 +636,12 @@ run_loop() {
     fi
     log_info "Permission: $PERMISSION_MODE"
     [[ -n "$VERIFY_CMD" ]] && log_info "Verify:     $VERIFY_CMD"
+    if [[ -n "$SPEC_FILE" ]]; then
+        SPEC_SHA=$(spec_sha "$SPEC_FILE")
+        log_info "Spec:       $SPEC_FILE (sha256: ${SPEC_SHA:0:12}...)"
+    fi
+    [[ -n "$SESSION_BUDGET" ]] && log_info "Sess budget: \$$SESSION_BUDGET"
+    log_info "Run log:    $RUN_LOG_DIR/$session_id.jsonl"
     log_info "Checkpoint: $CHECKPOINT"
     [[ "$CIRCUIT_BREAKER_THRESHOLD" -gt 0 ]] && log_info "Circuit-brk: $CIRCUIT_BREAKER_THRESHOLD consecutive stalls"
     log_info "Iter-to:    ${ITERATION_TIMEOUT}s"
@@ -490,6 +662,23 @@ run_loop() {
         fi
     fi
 
+    # Pin the spec sha in the progress header so we can detect drift on resume.
+    if [[ -n "$SPEC_FILE" ]] && [[ -n "$SPEC_SHA" ]]; then
+        local existing_sha
+        existing_sha=$(grep -m1 '^# Spec:' "$PROGRESS_FILE" 2>/dev/null | awk '{print $3}' || true)
+        if [[ -z "$existing_sha" ]]; then
+            # Prepend the spec line to the progress file.
+            local tmp
+            tmp=$(mktemp)
+            printf '# Spec: %s\n' "$SPEC_SHA" > "$tmp"
+            cat "$PROGRESS_FILE" >> "$tmp"
+            mv "$tmp" "$PROGRESS_FILE"
+        elif [[ "$existing_sha" != "$SPEC_SHA" ]]; then
+            log_warn "Spec hash changed mid-run (was ${existing_sha:0:12}, now ${SPEC_SHA:0:12})."
+            log_warn "Resumed runs assume a stable spec; edit progress.txt if this was intentional."
+        fi
+    fi
+
     # Copy PRD to workdir if provided
     if [[ -n "$PRD_FILE" ]] && [[ ! -f "./PRD.md" ]]; then
         cp "$PRD_FILE" "./PRD.md"
@@ -502,6 +691,9 @@ run_loop() {
     else
         log_warn "coreutils 'timeout' not found; per-iteration timeout disabled."
     fi
+
+    detect_claude_json
+    mkdir -p "$RUN_LOG_DIR" 2>/dev/null || true
 
     # Circuit breaker state
     local prev_hash=""
@@ -516,12 +708,36 @@ run_loop() {
         if [[ $elapsed -ge $MAX_WALL_CLOCK ]]; then
             log_warn "Max wall-clock ($MAX_WALL_CLOCK s) reached at iteration $iteration (${elapsed}s)"
             ralph_notify "wall-clock-exceeded" "$iteration" "$elapsed"
+            print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 3 "wall-clock"
             return 3
         fi
 
         log_info "--- Iteration $iteration/$MAX_ITERATIONS (${elapsed}s elapsed) ---"
 
         ensure_progress_file
+
+        # --- Spec-driven verify override ---
+        local task_id=""
+        local iter_verify="$VERIFY_CMD"
+        if [[ -n "$SPEC_FILE" ]]; then
+            task_id=$(spec_next_task_id "$SPEC_FILE")
+            if [[ -z "$task_id" ]]; then
+                # All tasks already done -- nothing to do; try COMPLETE.
+                if [[ "$(spec_all_done "$SPEC_FILE")" == "true" ]]; then
+                    log_success "Spec reports all tasks done at iteration $iteration."
+                    echo "## COMPLETE" >> "$PROGRESS_FILE"
+                    elapsed=$(( $(date +%s) - start_time ))
+                    ralph_notify "completed" "$iteration" "$elapsed"
+                    print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 0 "complete"
+                    return 0
+                fi
+            else
+                local task_verify
+                task_verify=$(spec_task_verify "$SPEC_FILE" "$task_id")
+                [[ -n "$task_verify" ]] && iter_verify="$task_verify"
+                log_info "Task:       $task_id (verify: ${iter_verify:-none})"
+            fi
+        fi
 
         # Build claude command
         local -a cmd=()
@@ -531,6 +747,7 @@ run_loop() {
         cmd+=(claude --print
             --session-id "$session_id"
             --permission-mode "$PERMISSION_MODE")
+        [[ "$CLAUDE_JSON_OUTPUT" == true ]] && cmd+=(--output-format json)
         [[ -n "$MAX_BUDGET" ]] && cmd+=(--max-budget-usd "$MAX_BUDGET")
         [[ -n "$MODEL" ]] && cmd+=(--model "$MODEL")
         [[ -n "$WORKTREE" ]] && cmd+=(--worktree "$WORKTREE")
@@ -540,39 +757,98 @@ run_loop() {
         local prompt
         prompt=$(render_prompt "$iteration" "$MAX_ITERATIONS" "$PROGRESS_FILE")
 
-        # Run Claude
+        # Run Claude. Capture stdout so we can parse cost/tokens when JSON
+        # output is enabled. Stderr still streams to the terminal so the
+        # operator can watch progress.
+        local claude_output=""
         local exit_code=0
-        "${cmd[@]}" "$prompt" || exit_code=$?
+        if [[ "$CLAUDE_JSON_OUTPUT" == true ]]; then
+            claude_output=$("${cmd[@]}" "$prompt" 2>&1) || exit_code=$?
+        else
+            "${cmd[@]}" "$prompt" || exit_code=$?
+        fi
 
         # timeout(1) returns 124 on SIGTERM, 137 on SIGKILL.
         if [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 137 ]]; then
             elapsed=$(( $(date +%s) - start_time ))
             log_error "Iteration $iteration timed out after ${ITERATION_TIMEOUT}s (exit $exit_code)"
             ralph_notify "iteration-timeout" "$iteration" "$elapsed"
+            print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 4 "iteration-timeout"
             return 4
         fi
 
-        # Check for errors (before verify/checkpoint — nothing to gate on a crash).
+        # Check for errors (before verify/checkpoint -- nothing to gate on a crash).
         if [[ $exit_code -ne 0 ]]; then
             elapsed=$(( $(date +%s) - start_time ))
             log_error "Claude exited with code $exit_code at iteration $iteration"
             ralph_notify "error (exit $exit_code)" "$iteration" "$elapsed"
+            print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 1 "claude-error"
             return 1
         fi
 
         # --- Post-iteration verification ---
         local verify_passed=true
-        if ! run_verify; then
+        if ! run_verify "$iter_verify"; then
             verify_passed=false
+            VERIFY_FAIL_COUNT=$((VERIFY_FAIL_COUNT + 1))
+        else
+            VERIFY_PASS_COUNT=$((VERIFY_PASS_COUNT + 1))
         fi
 
-        # Completion gate: agent wrote ## COMPLETE, but only accept if verify passes.
-        if grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
+        # Parse cost/tokens from Claude's JSON output (if enabled).
+        local iter_cost="null" iter_tin="null" iter_tout="null"
+        if [[ "$CLAUDE_JSON_OUTPUT" == true ]] && [[ -n "$claude_output" ]]; then
+            IFS=$'\t' read -r iter_cost iter_tin iter_tout < <(parse_claude_usage "$claude_output")
+        fi
+
+        # Append the JSONL run-log record for this iteration. Do this before
+        # the completion/checkpoint branches so every iteration is logged.
+        local verify_passed_json="false"
+        [[ "$verify_passed" == true ]] && verify_passed_json="true"
+        local ckpt_sha
+        ckpt_sha=$(last_checkpoint_sha)
+        local cur_iter_elapsed=$(( $(date +%s) - start_time ))
+        write_run_log "$session_id" "$iteration" "$exit_code" "$verify_passed_json" \
+            "$(progress_hash)" "$cur_iter_elapsed" "$ckpt_sha" \
+            "$iter_cost" "$iter_tin" "$iter_tout" "$task_id"
+
+        # Session budget check (requires JSON cost tracking). Halts the loop
+        # when cumulative cost across all iterations exceeds the threshold.
+        if [[ -n "$SESSION_BUDGET" ]] && ! under_session_budget "$session_id"; then
+            elapsed=$(( $(date +%s) - start_time ))
+            log_error "Session budget exceeded: \$${CUMULATIVE_COST} > \$${SESSION_BUDGET}"
+            ralph_notify "session-budget-exceeded" "$iteration" "$elapsed"
+            print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 6 "session-budget"
+            return 6
+        fi
+
+        # --- Spec-driven completion ---
+        # If using a spec file, flip the current task's done flag on verify pass
+        # and halt only when every task is done. The ## COMPLETE sentinel is
+        # written automatically; the agent does not control it.
+        if [[ -n "$SPEC_FILE" ]] && [[ -n "$task_id" ]] && [[ "$verify_passed" == true ]]; then
+            log_info "Marking task $task_id done."
+            spec_mark_done "$SPEC_FILE" "$task_id"
+            if [[ "$(spec_all_done "$SPEC_FILE")" == "true" ]]; then
+                echo "## COMPLETE" >> "$PROGRESS_FILE"
+                git_checkpoint "$iteration"
+                elapsed=$(( $(date +%s) - start_time ))
+                log_success "All spec tasks done at iteration $iteration (${elapsed}s)"
+                ralph_notify "completed" "$iteration" "$elapsed"
+                print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 0 "complete"
+                return 0
+            fi
+        fi
+
+        # --- Prose-driven completion gate (no spec file) ---
+        # The agent wrote ## COMPLETE; accept only if verify passes.
+        if [[ -z "$SPEC_FILE" ]] && grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
             if [[ "$verify_passed" == true ]]; then
                 git_checkpoint "$iteration"
                 elapsed=$(( $(date +%s) - start_time ))
                 log_success "All tasks complete at iteration $iteration (${elapsed}s)"
                 ralph_notify "completed" "$iteration" "$elapsed"
+                print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 0 "complete"
                 return 0
             else
                 log_warn "## COMPLETE found but verify failed. Removing sentinel; loop continues."
@@ -602,6 +878,7 @@ run_loop() {
             elapsed=$(( $(date +%s) - start_time ))
             log_error "Circuit breaker: $stall_count consecutive iterations with no progress change."
             ralph_notify "stuck (circuit-breaker)" "$iteration" "$elapsed"
+            print_summary "$session_id" "$iteration" "$MAX_ITERATIONS" "$elapsed" 5 "circuit-breaker"
             return 5
         fi
     done
@@ -609,6 +886,7 @@ run_loop() {
     local elapsed=$(( $(date +%s) - start_time ))
     log_warn "Max iterations ($MAX_ITERATIONS) reached (${elapsed}s)"
     ralph_notify "max-iterations" "$MAX_ITERATIONS" "$elapsed"
+    print_summary "$session_id" "$MAX_ITERATIONS" "$MAX_ITERATIONS" "$elapsed" 2 "max-iterations"
     return 2
 }
 
