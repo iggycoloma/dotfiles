@@ -3,9 +3,12 @@ description: |
   Comprehensive security vulnerability scan (secrets, injection, auth, crypto,
   dependency CVEs, OWASP Top 10). TRIGGER when the user asks for a security
   review/audit, mentions checking for vulnerabilities, pastes a dependency
-  advisory, or a PR touches authentication/authorization/crypto code. SKIP for
-  routine reviews where the user has not flagged security concerns - use
-  review-pr instead.
+  advisory, or a PR clearly touches authentication, authorization, crypto, or
+  secrets handling. SKIP for routine reviews where the user has not flagged
+  security concerns - use review-pr instead. PRECEDENCE: when both this and
+  review-pr match (e.g., a PR that happens to touch an auth file), prefer
+  review-pr; only take over on explicit user request ("audit this for
+  security") or when the entire change is security-focused.
 argument-hint: [directory to audit]
 allowed-tools: Read, Grep, Glob, Bash
 ---

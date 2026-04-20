@@ -35,6 +35,7 @@ MAX_WALL_CLOCK="${RALPH_MAX_WALL_CLOCK:-14400}"
 UNSAFE_MODE_MAX_ITER_CAP=50
 VERIFY_CMD="${RALPH_VERIFY_CMD:-}"
 CHECKPOINT=true
+CHECKPOINT_PATHS=""
 CIRCUIT_BREAKER_THRESHOLD="${RALPH_CIRCUIT_BREAKER:-3}"
 
 # Max-subscription mode: skip budget cap (rate-limit gated), default to sonnet
@@ -73,6 +74,9 @@ Options:
   --verify-cmd <command>        Verify command run after each iteration (e.g., "make test").
                                Blocks COMPLETE unless it passes. Default: none.
   --no-checkpoint              Disable automatic git commit after each iteration
+  --checkpoint-paths <spec>    Colon-separated paths passed to `git add` for checkpoint
+                               commits (default: -A, which stages everything).
+                               Example: --checkpoint-paths "src/:tests/"
   --circuit-breaker <N>        Halt after N consecutive iterations with no progress
                                change (default: 3). Set 0 to disable.
   --no-notify                  Disable Pushover notifications
@@ -191,6 +195,10 @@ parse_args() {
                 CHECKPOINT=false
                 shift
                 ;;
+            --checkpoint-paths)
+                CHECKPOINT_PATHS="${2:?--checkpoint-paths requires a value}"
+                shift 2
+                ;;
             --circuit-breaker)
                 CIRCUIT_BREAKER_THRESHOLD="${2:?--circuit-breaker requires a value}"
                 if ! [[ "$CIRCUIT_BREAKER_THRESHOLD" =~ ^[0-9]+$ ]]; then
@@ -280,16 +288,38 @@ resolve_safety() {
     fi
 
     if [[ "$PERMISSION_MODE" == "acceptEdits" ]] && [[ "$unsafe" != true ]]; then
-        # Defensive: someone passed --permission-mode acceptEdits explicitly
-        # without --yolo. Allow but log. (We don't force --yolo because
-        # --permission-mode is a generic pass-through; tightening would be
-        # surprising.)
+        # Under CLAUDE_UNATTENDED=1 the whole point of --yolo gating is an
+        # explicit opt-in. Reject the implicit path.
+        if [[ "${CLAUDE_UNATTENDED:-0}" == "1" ]]; then
+            log_error "--permission-mode acceptEdits requires --yolo under CLAUDE_UNATTENDED=1."
+            log_error "Pass --yolo or set RALPH_UNSAFE_MODE=1 to opt into auto-approved edits."
+            return 1
+        fi
         log_warn "--permission-mode acceptEdits was set without --yolo / RALPH_UNSAFE_MODE."
         log_warn "This auto-approves file edits. Prefer --yolo so the intent is explicit."
     fi
 }
 
 # --- Notification ---
+
+# Returns 0 if the file is owner-readable only (mode 0600 or 0400).
+# Cross-platform: GNU stat and BSD stat have different flags.
+creds_file_secure() {
+    local f="$1" mode=""
+    if mode=$(stat -c '%a' "$f" 2>/dev/null); then
+        : # GNU stat
+    elif mode=$(stat -f '%Lp' "$f" 2>/dev/null); then
+        : # BSD stat
+    else
+        # Cannot stat; be conservative.
+        return 1
+    fi
+    # Reject anything with group or other permission bits.
+    case "$mode" in
+        600|400|200|000) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 ralph_notify() {
     local event="$1" iteration="$2" elapsed="$3"
@@ -300,8 +330,12 @@ ralph_notify() {
     local user="${PUSHOVER_USER:-}"
 
     if [[ -z "$app_token" || -z "$user" ]] && [[ -f "$creds_file" ]]; then
-        [[ -z "$app_token" ]] && app_token=$(sed -n '1p' "$creds_file")
-        [[ -z "$user" ]] && user=$(sed -n '2p' "$creds_file")
+        if ! creds_file_secure "$creds_file"; then
+            log_warn "Skipping $creds_file: file is group- or world-readable."
+        else
+            [[ -z "$app_token" ]] && app_token=$(sed -n '1p' "$creds_file")
+            [[ -z "$user" ]] && user=$(sed -n '2p' "$creds_file")
+        fi
     fi
 
     [[ -z "$app_token" || -z "$user" ]] && return 0
@@ -369,18 +403,50 @@ git_checkpoint() {
         log_info "Checkpoint: nothing to commit."
         return 0
     fi
-    git add -A
+    if [[ -n "$CHECKPOINT_PATHS" ]]; then
+        # Split on ':' into an array of paths for scoped staging.
+        local -a paths=()
+        IFS=':' read -r -a paths <<<"$CHECKPOINT_PATHS"
+        git add -- "${paths[@]}"
+    else
+        git add -A
+    fi
     git commit -q -m "chore(ralph): checkpoint iteration $iteration" || true
     log_info "Checkpoint: committed iteration $iteration."
+}
+
+# Re-initialize the progress file if the agent deleted it mid-run.
+# Called at the top of every iteration.
+ensure_progress_file() {
+    [[ -f "$PROGRESS_FILE" ]] && return 0
+    log_warn "progress file vanished at $PROGRESS_FILE; re-initializing from template."
+    local template_dir
+    template_dir="$(cd "$(dirname "$PROMPT_FILE")" && pwd)"
+    if [[ -f "$template_dir/progress.txt" ]]; then
+        cp "$template_dir/progress.txt" "$PROGRESS_FILE"
+    else
+        echo "# Progress Log" > "$PROGRESS_FILE"
+    fi
 }
 
 # --- Circuit breaker ---
 
 progress_hash() {
-    if [[ -f "$PROGRESS_FILE" ]]; then
-        md5sum "$PROGRESS_FILE" 2>/dev/null | cut -d' ' -f1
-    else
+    if [[ ! -f "$PROGRESS_FILE" ]]; then
         echo "empty"
+        return
+    fi
+    # Portable cascade: GNU md5sum (Linux/Alpine), BSD md5 (macOS),
+    # stat fingerprint as last resort. Without this, macOS returns empty
+    # and the circuit breaker trips on every iteration.
+    if command -v md5sum &>/dev/null; then
+        md5sum "$PROGRESS_FILE" 2>/dev/null | cut -d' ' -f1
+    elif command -v md5 &>/dev/null; then
+        md5 -q "$PROGRESS_FILE" 2>/dev/null
+    elif stat -c '%Y-%s' "$PROGRESS_FILE" &>/dev/null; then
+        stat -c '%Y-%s' "$PROGRESS_FILE"
+    else
+        stat -f '%m-%z' "$PROGRESS_FILE" 2>/dev/null || echo "unknown"
     fi
 }
 
@@ -455,6 +521,8 @@ run_loop() {
 
         log_info "--- Iteration $iteration/$MAX_ITERATIONS (${elapsed}s elapsed) ---"
 
+        ensure_progress_file
+
         # Build claude command
         local -a cmd=()
         if [[ "$have_timeout" == true ]]; then
@@ -508,7 +576,11 @@ run_loop() {
                 return 0
             else
                 log_warn "## COMPLETE found but verify failed. Removing sentinel; loop continues."
-                sed -i '/^## COMPLETE/d' "$PROGRESS_FILE"
+                # Portable rewrite (BSD/macOS sed -i needs an argument).
+                local tmp
+                tmp=$(mktemp)
+                grep -v '^## COMPLETE' "$PROGRESS_FILE" > "$tmp" || true
+                mv "$tmp" "$PROGRESS_FILE"
             fi
         fi
 
@@ -543,9 +615,12 @@ run_loop() {
 # --- Entry point ---
 
 main() {
-    parse_args "$@"
-    check_dependencies
-    resolve_safety
+    parse_args "$@" || return $?
+    check_dependencies || return $?
+    # Explicit propagation: `set -e` does not reliably kill the script when a
+    # nested function returns non-zero from inside a conditional (known bash
+    # quirk around inherit_errexit). The || chain makes the intent explicit.
+    resolve_safety || return $?
     run_loop
 }
 

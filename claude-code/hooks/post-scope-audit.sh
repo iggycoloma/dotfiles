@@ -30,6 +30,13 @@ SCOPE_ROOT="${CLAUDE_SCOPE_ROOT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
 # Resolve both to absolute paths. realpath may not exist in every container,
 # so fall back to a pure-bash canonicalization.
+#
+# Limitation: the fallback does not resolve `..` segments or symlinks, so a
+# relative path like `./foo/../../etc/passwd` is logged with the literal
+# traversal, and a symlink inside scope that points outside is not detected.
+# The hook is audit-only (non-blocking) -- the goal is a post-hoc log for the
+# operator, not a security boundary. Credential paths are blocked separately
+# by pre-security.sh + the settings.json Read/Write/Edit deny globs.
 canonicalize() {
     local p="$1"
     if command -v realpath &>/dev/null; then

@@ -442,9 +442,14 @@ function ccwclean {
     local worktrees
     worktrees=$(git worktree list --porcelain)
     git branch --merged "$main_branch" 2>/dev/null | grep -v '\*\|main\|master\|develop' | while read -r branch; do
-        branch=$(echo "$branch" | xargs)
-        local wt_path
-        wt_path=$(echo "$worktrees" | grep -B1 "branch refs/heads/$branch$" | grep "^worktree " | sed 's/^worktree //')
+        # Trim surrounding whitespace without xargs (breaks on quotes/metachars).
+        branch="${branch#"${branch%%[![:space:]]*}"}"
+        branch="${branch%"${branch##*[![:space:]]}"}"
+        [[ -z "$branch" ]] && continue
+        local branch_escaped wt_path
+        # Escape regex metachars in the branch name before feeding to grep.
+        branch_escaped=$(printf '%s\n' "$branch" | sed 's/[][\\.^$*+?(){}|/]/\\&/g')
+        wt_path=$(echo "$worktrees" | grep -B1 "branch refs/heads/${branch_escaped}$" | grep "^worktree " | sed 's/^worktree //')
         if [[ -n "$wt_path" ]]; then
             echo "Removing worktree for merged branch: $branch ($wt_path)"
             git worktree remove "$wt_path" --force 2>/dev/null || true

@@ -139,6 +139,22 @@ parse_args() {
 
 # --- Notification ---
 
+# Returns 0 if the file is owner-readable only (mode 0600/0400/0200/0000).
+creds_file_secure() {
+    local f="$1" mode=""
+    if mode=$(stat -c '%a' "$f" 2>/dev/null); then
+        :
+    elif mode=$(stat -f '%Lp' "$f" 2>/dev/null); then
+        :
+    else
+        return 1
+    fi
+    case "$mode" in
+        600|400|200|000) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 parallel_notify() {
     local message="$1"
     [[ "$NOTIFY" != true ]] && return 0
@@ -148,8 +164,12 @@ parallel_notify() {
     local user="${PUSHOVER_USER:-}"
 
     if [[ -z "$app_token" || -z "$user" ]] && [[ -f "$creds_file" ]]; then
-        [[ -z "$app_token" ]] && app_token=$(sed -n '1p' "$creds_file")
-        [[ -z "$user" ]] && user=$(sed -n '2p' "$creds_file")
+        if ! creds_file_secure "$creds_file"; then
+            log_warn "Skipping $creds_file: file is group- or world-readable."
+        else
+            [[ -z "$app_token" ]] && app_token=$(sed -n '1p' "$creds_file")
+            [[ -z "$user" ]] && user=$(sed -n '2p' "$creds_file")
+        fi
     fi
 
     [[ -z "$app_token" || -z "$user" ]] && return 0
@@ -214,11 +234,11 @@ main() {
         local branch="${branches[$i]}"
         if wait "$pid"; then
             log_success "$branch: completed"
-            ((successes++))
+            successes=$((successes + 1))
         else
             local rc=$?
             log_error "$branch: failed (exit $rc)"
-            ((failures++))
+            failures=$((failures + 1))
         fi
     done
 

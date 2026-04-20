@@ -4,8 +4,10 @@ description: |
   maintainability. TRIGGER when the user mentions a PR by number (#NNN), PR URL
   (github.com/owner/repo/pull/N), or asks to "review PR" / "look at this PR".
   SKIP when the user is asking for a review of their local uncommitted changes
-  (use simplify or a general code review instead) or for a security-specific
-  deep dive (use security-audit).
+  (do a plain code review instead) or for a security-specific deep dive (use
+  security-audit). PRECEDENCE: when both this and security-audit match, prefer
+  review-pr; escalate to security-audit only on explicit user request or when
+  the diff clearly touches authentication, authorization, crypto, or secrets.
 argument-hint: <PR number or URL>
 allowed-tools: Read, Bash(gh pr view:*, gh pr diff:*, gh pr checks:*, git log:*, git diff:*), Grep, Glob
 ---
