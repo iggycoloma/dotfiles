@@ -425,12 +425,22 @@ get_github_repo() {
     esac
 }
 
+# Check whether an apt package is installed (the dpkg database is the source
+# of truth). Used by install_apt / install_system_basics to skip update +
+# install when nothing is missing -- avoids loud sudo failures on hardened
+# containers and respects the idempotency requirement on re-run.
+_apt_installed() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
+}
+
+# Check whether an apk package is installed (apk's own DB is the source of truth).
+_apk_installed() {
+    apk info -e "$1" >/dev/null 2>&1
+}
+
 # Install via apt (Debian/Ubuntu)
 install_apt() {
     local minimal=$1
-
-    log_info "Updating apt repositories..."
-    run_sudo apt-get update -qq
 
     log_info "Installing core tools..."
     local packages=("curl" "wget" "git" "build-essential")
@@ -453,13 +463,28 @@ install_apt() {
         packages+=("tmux" "htop" "ncdu" "direnv")
     fi
 
-    # Install packages
-    log_info "Installing: ${packages[*]}"
-    if run_sudo apt-get install -y "${packages[@]}"; then
-        log_success "APT packages installed successfully"
+    # Filter to packages dpkg reports as not installed. Skips apt-get update +
+    # install entirely when nothing is missing -- avoids noisy sudo failures
+    # on hardened containers (no-new-privileges) and respects the idempotency
+    # requirement for re-runs.
+    local missing=()
+    local pkg
+    for pkg in "${packages[@]}"; do
+        _apt_installed "$pkg" || missing+=("$pkg")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        log_info "All core apt packages already installed, skipping update + install"
     else
-        log_error "Some APT packages failed to install"
-        return 1
+        log_info "Updating apt repositories..."
+        run_sudo apt-get update -qq
+        log_info "Installing: ${missing[*]}"
+        if run_sudo apt-get install -y "${missing[@]}"; then
+            log_success "APT packages installed successfully"
+        else
+            log_error "Some APT packages failed to install"
+            return 1
+        fi
     fi
 
     # Create bat symlink if needed (Ubuntu calls it batcat)
@@ -538,9 +563,6 @@ install_apt() {
 install_apk() {
     local minimal=$1
 
-    log_info "Updating apk repositories..."
-    run_sudo apk update
-
     log_info "Installing core tools..."
     local packages=("curl" "wget" "git" "bash" "build-base")
 
@@ -558,11 +580,27 @@ install_apk() {
         packages+=("tmux" "htop" "ncdu" "lazygit")
     fi
 
-    # Install packages (some may not exist, so don't fail)
-    log_info "Installing: ${packages[*]}"
+    # Filter to packages not yet installed per apk's database. Skips apk
+    # update + per-pkg install when nothing is missing.
+    local missing=()
+    local pkg
     for pkg in "${packages[@]}"; do
+        _apk_installed "$pkg" || missing+=("$pkg")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        log_info "All core apk packages already installed, skipping update + install"
+        return 0
+    fi
+
+    log_info "Updating apk repositories..."
+    run_sudo apk update
+
+    # Install missing packages (some may not exist, so don't fail).
+    log_info "Installing: ${missing[*]}"
+    for pkg in "${missing[@]}"; do
         if run_sudo apk add "$pkg" 2>/dev/null; then
-            log_info "✓ Installed $pkg"
+            log_info "Installed $pkg"
         else
             log_warn "Package $pkg not available via apk, will try GitHub"
         fi
@@ -648,21 +686,45 @@ install_from_github() {
     fi
 }
 
-# Install system-level prerequisites needed for basic operation
+# Install system-level prerequisites needed for basic operation.
+# Idempotent: queries the package database (dpkg / apk) for each prereq and
+# only invokes sudo when something is actually missing. Avoids loud sudo
+# failures on hardened containers (e.g. --security-opt=no-new-privileges) and
+# cuts re-run time.
 install_system_basics() {
     local pkg_mgr
     pkg_mgr=$(detect_package_manager)
 
     case "$pkg_mgr" in
         apt)
-            log_info "Installing system prerequisites via apt..."
+            local prereqs=(curl wget git ca-certificates build-essential unzip xz-utils file)
+            local missing=()
+            local pkg
+            for pkg in "${prereqs[@]}"; do
+                _apt_installed "$pkg" || missing+=("$pkg")
+            done
+            if [[ ${#missing[@]} -eq 0 ]]; then
+                log_info "System prerequisites already installed, skipping apt"
+                return 0
+            fi
+            log_info "Installing system prerequisites via apt (missing: ${missing[*]})..."
             run_sudo apt-get update -qq
-            run_sudo apt-get install -y curl wget git ca-certificates build-essential unzip xz-utils file
+            run_sudo apt-get install -y "${missing[@]}"
             ;;
         apk)
-            log_info "Installing system prerequisites via apk..."
+            local prereqs=(curl wget git bash ca-certificates build-base unzip xz file)
+            local missing=()
+            local pkg
+            for pkg in "${prereqs[@]}"; do
+                _apk_installed "$pkg" || missing+=("$pkg")
+            done
+            if [[ ${#missing[@]} -eq 0 ]]; then
+                log_info "System prerequisites already installed, skipping apk"
+                return 0
+            fi
+            log_info "Installing system prerequisites via apk (missing: ${missing[*]})..."
             run_sudo apk update
-            run_sudo apk add curl wget git bash ca-certificates build-base unzip xz file
+            run_sudo apk add "${missing[@]}"
             ;;
         brew)
             # Homebrew handles its own dependencies
