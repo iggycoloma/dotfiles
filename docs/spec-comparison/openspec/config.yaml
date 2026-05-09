@@ -1,0 +1,81 @@
+# OpenSpec configuration for the dotfiles repo
+# Loaded by every /opsx command; injects context into proposal/spec/design/tasks generation.
+
+schema: spec-driven
+
+context: |
+  ## What this repo is
+  Portable dotfiles. Single install.sh deploys CLI tools, shell config, git
+  config, and agentic coding tool configs to local hosts, devcontainers, and
+  Codespaces. Developer-specific, not project-specific.
+
+  ## Tech stack
+  POSIX-compatible bash (macOS bash 3.2 + Linux bash 4/5), zsh 5.x for shell
+  config. shellcheck for lint. Hand-rolled bash test scripts (not bats). GitHub
+  releases with SHA-256 verification for Linux binaries; Homebrew on macOS.
+  TOML/JSON/YAML for tool config, plain shell for everything else.
+
+  ## Key patterns
+  - Three-tier responsibility: install universal CLI tools + agentic tools;
+    configure-only for project-dependent tools (gh, docker, kubectl).
+  - Three-file git config: ~/.gitconfig (identity), ~/.config/git/config (XDG
+    include), git/.gitconfig (shared).
+  - Tiered state persistence: volume mount > Codespaces .persistedshare >
+    ephemeral fallback.
+  - Defense-in-depth security: deny globs + pre-security.sh hook +
+    commit-msg hook + gitleaks pre-commit.
+  - Lazy zsh init: zoxide/direnv on first prompt, compinit cached daily.
+  - 4-stage Claude Code pipeline: PM -> Architect -> Implementer -> QA.
+  - Opt-in for high-risk surface: agentic harness requires --with-agentic;
+    opinionated grep/find aliases require DOTFILES_OPINIONATED_ALIASES=1.
+
+  ## Naming and style
+  - Conventional commits: type(scope): description, min 10 chars.
+  - No AI attribution, no Co-Authored-By, no decorative emoji (enforced by hooks).
+  - Shell scripts: #!/usr/bin/env bash, set -euo pipefail, snake_case
+    functions, quoted variable expansions.
+  - Spec files: MUST / SHOULD / MUST NOT modal verbs. GIVEN / WHEN / THEN
+    scenarios. Always include a Non-Behavior section.
+
+  ## Constraints
+  - macOS bash 3.2 compatibility (no associative arrays, careful with regex).
+  - No MCP servers without explicit user request (they bypass deny rules).
+  - No backwards-compat shims (clean removal; git history is the trail).
+  - No direct pushes to main; feature branches + PRs only.
+
+rules:
+  proposal:
+    instructions: |
+      Lead with the user-visible problem or trigger. State the scope explicitly
+      -- what is in, what is out. Acceptance criteria should be observable
+      (passes a test, command produces output X, hook blocks Y) rather than
+      implementation-shaped ("refactor to use Z").
+
+  spec:
+    instructions: |
+      Group requirements by sub-area (### Environment Detection, ### Symlink
+      Creation). Use modal verbs only: MUST, SHOULD, MUST NOT, SHOULD NOT,
+      MAY. Every requirement should be testable from outside the system. Always
+      end with ## Non-Behavior listing what the system explicitly does NOT do.
+      Reference real files (bootstrap/detect.sh, claude-code/hooks/pre-security.sh)
+      not abstract layers.
+
+  design:
+    instructions: |
+      For each Key Decision: chosen approach + reason + trade-off accepted +
+      rejected alternatives with reasons. Reference real files. Include
+      Implementation Strategy (phased, with dependencies) and Testing Strategy
+      (which tests/test-*.sh file gets the new cases).
+
+  tasks:
+    instructions: |
+      Number tasks N.M (phase.subtask). Mark each - [ ]. Include verification
+      subtasks: "Run make lint and confirm clean"; "Re-run dotfiles-doctor;
+      expect 0 failures". Each task should be 30 min to 2 hours.
+
+  delta_spec:
+    instructions: |
+      Use ## ADDED Requirements / ## MODIFIED Requirements / ## REMOVED
+      Requirements. Within MODIFIED, write the new requirement in full --
+      reviewers should not have to cross-reference the canonical spec to
+      understand the change.
