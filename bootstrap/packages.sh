@@ -425,6 +425,34 @@ get_github_repo() {
     esac
 }
 
+# ----------------------------------------------------------------------------
+# "Is this installed?" check patterns
+# ----------------------------------------------------------------------------
+# Three patterns, each answering a different question. Use the right one for
+# the situation; do NOT collapse them into a single helper.
+#
+#   _apt_installed / _apk_installed / _brew_installed
+#       "Is this package recorded in the package manager's database?"
+#       Use when filtering a list of packages we're about to pass to
+#       `apt-get install` / `apk add` / `brew install`. Avoids invoking sudo
+#       (or, for brew, the install command itself + its implicit update) when
+#       nothing is missing.
+#
+#   has_tool <name>     (defined in bootstrap/detect.sh)
+#       "Is this tool functionally available on PATH right now?"
+#       Use when deciding whether to ATTEMPT an install at all. A user who
+#       already has lazygit from cargo or carapace from a tarball does not
+#       need us to try installing it via apt -- the functional check
+#       short-circuits. Also correct for `install_from_github`'s entry check.
+#
+#   _managed_install_exists <name> [install_dir]
+#       "Did our managed install succeed?"
+#       Use for POST-install verification of installers that drop a binary at
+#       a known path. Unlike `has_tool`, this is unaffected by PATH state in
+#       the current shell session, so it gives an honest answer immediately
+#       after a download + extract.
+# ----------------------------------------------------------------------------
+
 # Check whether an apt package is installed (the dpkg database is the source
 # of truth). Used by install_apt / install_system_basics to skip update +
 # install when nothing is missing -- avoids loud sudo failures on hardened
@@ -450,6 +478,16 @@ _brew_installed() {
         _BREW_LIST_CACHE=$'\n'"$(brew list --formula 2>/dev/null)"$'\n'
     fi
     [[ "$_BREW_LIST_CACHE" == *$'\n'"$1"$'\n'* ]]
+}
+
+# Check whether a binary we manage exists at its install path. Use this
+# instead of `has_tool` for *post-install verification* of GitHub-release /
+# curl-piped installers -- `has_tool` consults bash's command cache + PATH,
+# which may not have been re-evaluated since the binary was dropped on disk
+# in the same shell session. File-path check is unaffected by PATH state.
+_managed_install_exists() {
+    local tool="$1" install_dir="${2:-$HOME/.local/bin}"
+    [[ -x "$install_dir/$tool" ]]
 }
 
 # Install via apt (Debian/Ubuntu)
@@ -661,6 +699,10 @@ install_brew() {
         brew install "${missing[@]}"
         log_success "Homebrew packages installed"
     fi
+
+    # Clear cache so a subsequent install_packages call in the same shell
+    # session sees any formulas we just installed.
+    _BREW_LIST_CACHE=""
 }
 
 # Install tool from GitHub releases
@@ -708,7 +750,7 @@ install_from_github() {
     fi
     _install_tool "$tool" "$api_json" "$repo" "$install_dir" "$arch" "$os"
 
-    if has_tool "$tool"; then
+    if _managed_install_exists "$tool" "$install_dir"; then
         log_success "$tool installed"
     else
         log_warn "$tool installation may have failed"
@@ -811,10 +853,11 @@ install_claude_code() {
         if bash "$tmp_script" 2>&1; then
             # Installer may place binary outside current PATH
             export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$PATH"
-            if has_tool claude; then
+            if _managed_install_exists claude "$HOME/.claude/local/bin" \
+                || _managed_install_exists claude "$HOME/.local/bin"; then
                 log_success "Claude Code installed"
             else
-                log_warn "Claude Code installer ran but 'claude' not found in PATH"
+                log_warn "Claude Code installer ran but 'claude' not found in expected paths"
             fi
         else
             log_warn "Failed to run Claude Code installer (non-fatal)"
