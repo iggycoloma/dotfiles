@@ -8,8 +8,7 @@
   },
 
   "runArgs": [
-    "--pids-limit=2048",
-    "--security-opt=no-new-privileges"
+    "--pids-limit=2048"
   ],
 
   "mounts": [
