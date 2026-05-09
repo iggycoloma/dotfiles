@@ -438,6 +438,20 @@ _apk_installed() {
     apk info -e "$1" >/dev/null 2>&1
 }
 
+# Check whether a Homebrew formula is installed. Caches the full formula
+# list on first call to avoid spawning brew once per package -- a single
+# `brew list --formula` is far cheaper than N invocations of `brew --prefix
+# --installed`. Membership test is a bash string-match against the cached
+# list (delimited with leading/trailing newlines so we match whole names,
+# not substrings).
+_BREW_LIST_CACHE=""
+_brew_installed() {
+    if [[ -z "$_BREW_LIST_CACHE" ]]; then
+        _BREW_LIST_CACHE=$'\n'"$(brew list --formula 2>/dev/null)"$'\n'
+    fi
+    [[ "$_BREW_LIST_CACHE" == *$'\n'"$1"$'\n'* ]]
+}
+
 # Install via apt (Debian/Ubuntu)
 install_apt() {
     local minimal=$1
@@ -630,8 +644,23 @@ install_brew() {
         packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
     fi
 
-    brew install "${packages[@]}"
-    log_success "Homebrew packages installed"
+    # Filter to formulas brew reports as not installed. Skips `brew install`
+    # entirely when nothing is missing -- removes the per-package "already
+    # installed" noise and avoids the implicit `brew update` brew triggers on
+    # install. Mirrors install_apt / install_apk semantics.
+    local missing=()
+    local pkg
+    for pkg in "${packages[@]}"; do
+        _brew_installed "$pkg" || missing+=("$pkg")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        log_info "All core brew formulas already installed, skipping install"
+    else
+        log_info "Installing: ${missing[*]}"
+        brew install "${missing[@]}"
+        log_success "Homebrew packages installed"
+    fi
 }
 
 # Install tool from GitHub releases
