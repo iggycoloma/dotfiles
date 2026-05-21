@@ -589,6 +589,70 @@ test_no_state_persistence_toggle() {
 }
 
 #
+# Test Suite: Dotfiles State Self-Heal
+#
+
+# Source state-heal.sh against the test HOME; it runs _heal_dotfiles_state.
+_run_state_heal() {
+    source "$REAL_DOTFILES_DIR/shell/state-heal.sh"
+}
+
+test_heal_recreates_missing_target() {
+    setup_test_env
+    mkdir -p "$HOME/.dotfiles-state" "$HOME/.config"
+    # Dangling symlink: the target inside the state volume does not exist
+    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
+
+    _run_state_heal
+
+    assert_dir_exists "$HOME/.dotfiles-state/gh" \
+        "Heal recreates a missing state target for a dangling symlink"
+
+    teardown_test_env
+}
+
+test_heal_preserves_valid_target() {
+    setup_test_env
+    mkdir -p "$HOME/.dotfiles-state/claude"
+    mock_file "$HOME/.dotfiles-state/claude/keep.txt" "persistent state"
+    ln -snf "$HOME/.dotfiles-state/claude" "$HOME/.claude"
+
+    _run_state_heal
+
+    assert_file_exists "$HOME/.claude/keep.txt" \
+        "Heal leaves a valid symlink and its contents untouched"
+
+    teardown_test_env
+}
+
+test_heal_skips_target_outside_state() {
+    setup_test_env
+    mkdir -p "$HOME/.dotfiles-state"
+    # Dangling symlink pointing outside the state volume
+    ln -snf "$HOME/elsewhere" "$HOME/.claude"
+
+    _run_state_heal
+
+    assert_file_not_exists "$HOME/elsewhere" \
+        "Heal never creates targets outside the state volume"
+
+    teardown_test_env
+}
+
+test_heal_noop_without_state_dir() {
+    setup_test_env
+    mkdir -p "$HOME/.config"
+    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
+
+    _run_state_heal
+
+    assert_file_not_exists "$HOME/.dotfiles-state" \
+        "Heal does nothing when the state volume is absent"
+
+    teardown_test_env
+}
+
+#
 # Run all tests
 #
 
@@ -642,6 +706,13 @@ main() {
     test_detect_state_tier_ephemeral
     test_setup_state_ephemeral_creates_dir
     test_no_state_persistence_toggle
+
+    # State self-heal tests
+    test_suite "Dotfiles State Self-Heal"
+    test_heal_recreates_missing_target
+    test_heal_preserves_valid_target
+    test_heal_skips_target_outside_state
+    test_heal_noop_without_state_dir
 
     # Installation toggle tests
     test_suite "Installation Toggles"
