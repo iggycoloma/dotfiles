@@ -652,6 +652,32 @@ test_heal_noop_without_state_dir() {
     teardown_test_env
 }
 
+test_heal_warns_on_unwritable_state() {
+    setup_test_env
+    # Root bypasses directory permission bits, so an unwritable-dir check is
+    # meaningless when the suite runs as root.
+    if [[ "$(id -u)" -eq 0 ]]; then
+        echo "  - skipped test_heal_warns_on_unwritable_state (running as root)"
+        teardown_test_env
+        return 0
+    fi
+    mkdir -p "$HOME/.dotfiles-state" "$HOME/.config"
+    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
+    chmod 555 "$HOME/.dotfiles-state"
+
+    local output
+    output=$(_run_state_heal 2>&1)
+
+    chmod 700 "$HOME/.dotfiles-state"  # restore so teardown can clean up
+
+    assert_contains "$output" "not writable" \
+        "Heal warns when the state volume is not writable"
+    assert_file_not_exists "$HOME/.dotfiles-state/gh" \
+        "Heal skips dir creation in an unwritable volume"
+
+    teardown_test_env
+}
+
 #
 # Run all tests
 #
@@ -713,6 +739,7 @@ main() {
     test_heal_preserves_valid_target
     test_heal_skips_target_outside_state
     test_heal_noop_without_state_dir
+    test_heal_warns_on_unwritable_state
 
     # Installation toggle tests
     test_suite "Installation Toggles"
