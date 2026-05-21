@@ -25,10 +25,12 @@ BUG=$(printf '\xF0\x9F\x90\x9B')          # U+1F41B
 WARNING=$(printf '\xE2\x9A\xA0\xEF\xB8\x8F') # U+26A0 + U+FE0F
 
 # Helper: simulate a Write tool call, return "denied" or "allowed"
+# Optional second arg sets the file path (defaults to a shell script).
 run_write_hook() {
     local content="$1"
+    local file_path="${2:-/tmp/test.sh}"
     local json
-    json=$(jq -n -c --arg content "$content" '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.sh","content":$content}}')
+    json=$(jq -n -c --arg content "$content" --arg path "$file_path" '{"tool_name":"Write","tool_input":{"file_path":$path,"content":$content}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -41,11 +43,13 @@ run_write_hook() {
 }
 
 # Helper: simulate an Edit tool call, return "denied" or "allowed"
+# Optional third arg sets the file path (defaults to a shell script).
 run_edit_hook() {
     local old_string="$1"
     local new_string="$2"
+    local file_path="${3:-/tmp/test.sh}"
     local json
-    json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.sh","old_string":$old,"new_string":$new}}')
+    json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" --arg path "$file_path" '{"tool_name":"Edit","tool_input":{"file_path":$path,"old_string":$old,"new_string":$new}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -178,6 +182,78 @@ if [[ -z "$result" ]]; then
 else
     test_fail "Glob tool should not be checked"
 fi
+
+#
+# Test Suite: Markdown -- Obsidian Tasks plugin functional emoji
+#
+
+test_suite "Markdown -- Obsidian Tasks Emoji"
+
+# Tasks plugin functional emoji, built via printf so this file stays emoji-free
+DUE=$(printf '\xF0\x9F\x93\x85')         # U+1F4C5 due (calendar)
+DONE=$(printf '\xE2\x9C\x85')            # U+2705  done (check)
+RECUR=$(printf '\xF0\x9F\x94\x81')       # U+1F501 recurrence
+HIGHEST=$(printf '\xF0\x9F\x94\xBA')     # U+1F53A priority highest
+DIAMOND=$(printf '\xF0\x9F\x94\xB6')     # U+1F536 large orange diamond (NOT a Tasks emoji)
+VS16=$(printf '\xEF\xB8\x8F')            # U+FE0F  variation selector
+
+# Functional emoji on a task line in a markdown file: allowed
+assert_allowed "$(run_write_hook "- [ ] Buy milk ${DUE} 2026-05-21" /tmp/notes.md)" \
+    "Allows due-date emoji on task line in .md"
+
+assert_allowed "$(run_write_hook "- [x] Ship release ${DONE}" /tmp/notes.md)" \
+    "Allows done emoji on completed task line in .md"
+
+assert_allowed "$(run_write_hook "- [ ] Standup ${RECUR} every weekday" /tmp/notes.md)" \
+    "Allows recurrence emoji on task line in .md"
+
+# Regression: highest-priority signifier (U+1F53A) must be in the strip set
+assert_allowed "$(run_write_hook "- [ ] Pay taxes ${HIGHEST}" /tmp/notes.md)" \
+    "Allows highest-priority emoji on task line in .md"
+
+# Numbered and indented task lines are also recognized
+assert_allowed "$(run_write_hook "1. [ ] First step ${DUE} 2026-05-21" /tmp/notes.md)" \
+    "Allows task emoji on numbered task line in .md"
+
+assert_allowed "$(run_write_hook "  - [ ] Nested task ${DUE} 2026-05-21" /tmp/notes.md)" \
+    "Allows task emoji on indented task line in .md"
+
+# Trailing variation selector is stripped alongside the emoji
+assert_allowed "$(run_write_hook "- [x] Done ${DONE}${VS16}" /tmp/notes.md)" \
+    "Allows task emoji with trailing variation selector in .md"
+
+# .markdown extension behaves like .md
+assert_allowed "$(run_write_hook "- [ ] Buy milk ${DUE} 2026-05-21" /tmp/notes.markdown)" \
+    "Allows task emoji on task line in .markdown"
+
+# Edit tool: adding a task emoji to an existing task line
+assert_allowed "$(run_edit_hook "- [ ] Buy milk" "- [ ] Buy milk ${DUE} 2026-05-21" /tmp/notes.md)" \
+    "Allows task emoji added via Edit on task line in .md"
+
+#
+# Test Suite: Markdown task emoji exemption stays narrow
+#
+
+test_suite "Markdown -- Task Emoji Exemption Is Narrow"
+
+# Same emoji outside a task line (heading/prose) is still decoration
+assert_denied "$(run_write_hook "## ${DONE} Features" /tmp/notes.md)" \
+    "Blocks task emoji in a markdown heading (not a task line)"
+
+assert_denied "$(run_write_hook "Status: ${DUE} overdue" /tmp/notes.md)" \
+    "Blocks task emoji in markdown prose (not a task line)"
+
+# Exemption is markdown-only: a task-like line in source code still fails
+assert_denied "$(run_write_hook "# - [ ] task ${DUE}" /tmp/test.py)" \
+    "Blocks task emoji in a non-markdown file"
+
+# Decorative emoji on a task line is still blocked (not in the Tasks set)
+assert_denied "$(run_write_hook "- [ ] Launch ${ROCKET}" /tmp/notes.md)" \
+    "Blocks decorative emoji on a task line in .md"
+
+# U+1F536 was removed from the set: it is not a Tasks signifier
+assert_denied "$(run_write_hook "- [ ] Triage ${DIAMOND}" /tmp/notes.md)" \
+    "Blocks large orange diamond on a task line in .md"
 
 #
 # Results

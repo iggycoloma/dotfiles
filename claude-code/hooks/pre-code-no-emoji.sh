@@ -16,6 +16,7 @@ read -r input
 
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 CONTENT_TO_CHECK=""
+FILE_PATH=""
 
 # Only validate Write and Edit tools
 if [[ "$TOOL_NAME" == "Write" ]]; then
@@ -25,9 +26,11 @@ if [[ "$TOOL_NAME" == "Write" ]]; then
     # didn't add the emoji. The Edit path (which only checks new_string) is
     # not affected.
     CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.content // empty')
+    FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 elif [[ "$TOOL_NAME" == "Edit" ]]; then
     # For Edit: only check new_string (what Claude is adding), not old_string (existing code)
     CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.new_string // empty')
+    FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 else
     # Not a tool we care about
     exit 0
@@ -38,8 +41,10 @@ if [[ -z "$CONTENT_TO_CHECK" ]]; then
     exit 0
 fi
 
-# Strip allowed task symbols, then check for decorative emojis (uses shared patterns)
-FILTERED_CONTENT=$(strip_allowed_symbols "$CONTENT_TO_CHECK")
+# Strip allowed task symbols, then check for decorative emojis (uses shared patterns).
+# Path-aware: in markdown files, Obsidian Tasks plugin functional emoji are also
+# stripped, but only from task lines -- decorative emoji elsewhere still fail.
+FILTERED_CONTENT=$(strip_allowed_symbols_for_path "$CONTENT_TO_CHECK" "$FILE_PATH")
 
 if has_emoji "$FILTERED_CONTENT"; then
     # shellcheck disable=SC2028  # JSON literal, not escape sequences

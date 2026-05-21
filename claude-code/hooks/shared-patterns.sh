@@ -38,3 +38,34 @@ strip_allowed_symbols() {
     # shellcheck disable=SC2001  # can't use ${//} with character class from variable
     echo "$text" | sed "s/[$ALLOWED_TASK_SYMBOLS]//g"
 }
+
+# Path-aware variant of strip_allowed_symbols. For markdown files it also strips
+# Obsidian Tasks plugin functional emoji -- but only from task lines (list items
+# with a checkbox). These emoji are task syntax (recurrence, dates, priorities,
+# dependencies, completion) recognized by the Tasks plugin, not decoration, so
+# decorative emoji in headings or prose are still flagged. An optional trailing
+# U+FE0F variation selector is stripped along with each emoji. Codepoints are
+# listed inline so this file itself stays ASCII; the set is the Tasks plugin
+# reference signifiers (https://publish.obsidian.md/tasks/Reference).
+#
+#   1F501 recurrence (repeat)    2795  created (plus)        1F6EB start (plane)
+#   23F3  scheduled (hourglass)  1F4C5 due (calendar)        2705  done (check)
+#   274C  cancelled (cross)      1F53A priority highest      23EB  priority high
+#   1F53C priority medium        1F53D priority low          23EC  priority lowest
+#   1F194 id                     26D4  depends-on (blocked)
+#
+# Usage: filtered=$(strip_allowed_symbols_for_path "$text" "$file_path")
+strip_allowed_symbols_for_path() {
+    local text="$1"
+    local path="$2"
+    # shellcheck disable=SC2001
+    text=$(echo "$text" | sed "s/[$ALLOWED_TASK_SYMBOLS]//g")
+    case "$path" in
+        *.md|*.markdown)
+            # Strip Tasks emoji only from list items with a checkbox ([ ], [x],
+            # or any single-char status). -p applies the line test per line.
+            text=$(echo "$text" | perl -CSD -pe 'if (m{^\s*(?:[-*+]|\d+[.)])\s+\[.\]}) { s/[\x{1F501}\x{2795}\x{1F6EB}\x{23F3}\x{1F4C5}\x{2705}\x{274C}\x{1F53A}\x{23EB}\x{1F53C}\x{1F53D}\x{23EC}\x{1F194}\x{26D4}]\x{FE0F}?//g }')
+            ;;
+    esac
+    echo "$text"
+}
