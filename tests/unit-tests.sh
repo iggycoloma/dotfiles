@@ -358,7 +358,11 @@ test_logging_output_format() {
 test_path_no_duplicates() {
     local output
     output=$(
-        # Preserve existing PATH so grep/tr remain available
+        # Preserve existing PATH so grep/tr remain available.
+        # This HOME export is deliberately subshell-local. SC2030 only flags
+        # it once state-heal.sh (which reads HOME) is co-linted via the
+        # self-heal tests below, so the suppression lives here.
+        # shellcheck disable=SC2030
         export HOME="/tmp/test_home_$$"
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
@@ -593,19 +597,23 @@ test_no_state_persistence_toggle() {
 #
 
 # Source state-heal.sh against the test HOME; it runs _heal_dotfiles_state.
+# setup_test_env exports HOME="$TEST_TEMP_DIR/home"; tests address that path
+# via $TEST_TEMP_DIR rather than $HOME so shellcheck does not mistake the
+# test HOME for a subshell-local modification (SC2030/SC2031).
 _run_state_heal() {
     source "$REAL_DOTFILES_DIR/shell/state-heal.sh"
 }
 
 test_heal_recreates_missing_target() {
     setup_test_env
-    mkdir -p "$HOME/.dotfiles-state" "$HOME/.config"
+    local home="$TEST_TEMP_DIR/home"
+    mkdir -p "$home/.dotfiles-state" "$home/.config"
     # Dangling symlink: the target inside the state volume does not exist
-    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
+    ln -snf "$home/.dotfiles-state/gh" "$home/.config/gh"
 
     _run_state_heal
 
-    assert_dir_exists "$HOME/.dotfiles-state/gh" \
+    assert_dir_exists "$home/.dotfiles-state/gh" \
         "Heal recreates a missing state target for a dangling symlink"
 
     teardown_test_env
@@ -613,13 +621,14 @@ test_heal_recreates_missing_target() {
 
 test_heal_preserves_valid_target() {
     setup_test_env
-    mkdir -p "$HOME/.dotfiles-state/claude"
-    mock_file "$HOME/.dotfiles-state/claude/keep.txt" "persistent state"
-    ln -snf "$HOME/.dotfiles-state/claude" "$HOME/.claude"
+    local home="$TEST_TEMP_DIR/home"
+    mkdir -p "$home/.dotfiles-state/claude"
+    mock_file "$home/.dotfiles-state/claude/keep.txt" "persistent state"
+    ln -snf "$home/.dotfiles-state/claude" "$home/.claude"
 
     _run_state_heal
 
-    assert_file_exists "$HOME/.claude/keep.txt" \
+    assert_file_exists "$home/.claude/keep.txt" \
         "Heal leaves a valid symlink and its contents untouched"
 
     teardown_test_env
@@ -627,13 +636,14 @@ test_heal_preserves_valid_target() {
 
 test_heal_skips_target_outside_state() {
     setup_test_env
-    mkdir -p "$HOME/.dotfiles-state"
+    local home="$TEST_TEMP_DIR/home"
+    mkdir -p "$home/.dotfiles-state"
     # Dangling symlink pointing outside the state volume
-    ln -snf "$HOME/elsewhere" "$HOME/.claude"
+    ln -snf "$home/elsewhere" "$home/.claude"
 
     _run_state_heal
 
-    assert_file_not_exists "$HOME/elsewhere" \
+    assert_file_not_exists "$home/elsewhere" \
         "Heal never creates targets outside the state volume"
 
     teardown_test_env
@@ -641,12 +651,13 @@ test_heal_skips_target_outside_state() {
 
 test_heal_noop_without_state_dir() {
     setup_test_env
-    mkdir -p "$HOME/.config"
-    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
+    local home="$TEST_TEMP_DIR/home"
+    mkdir -p "$home/.config"
+    ln -snf "$home/.dotfiles-state/gh" "$home/.config/gh"
 
     _run_state_heal
 
-    assert_file_not_exists "$HOME/.dotfiles-state" \
+    assert_file_not_exists "$home/.dotfiles-state" \
         "Heal does nothing when the state volume is absent"
 
     teardown_test_env
@@ -654,6 +665,7 @@ test_heal_noop_without_state_dir() {
 
 test_heal_warns_on_unwritable_state() {
     setup_test_env
+    local home="$TEST_TEMP_DIR/home"
     # Root bypasses directory permission bits, so an unwritable-dir check is
     # meaningless when the suite runs as root.
     if [[ "$(id -u)" -eq 0 ]]; then
@@ -661,18 +673,23 @@ test_heal_warns_on_unwritable_state() {
         teardown_test_env
         return 0
     fi
-    mkdir -p "$HOME/.dotfiles-state" "$HOME/.config"
-    ln -snf "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
-    chmod 555 "$HOME/.dotfiles-state"
+    mkdir -p "$home/.dotfiles-state" "$home/.config"
+    ln -snf "$home/.dotfiles-state/gh" "$home/.config/gh"
+    chmod 555 "$home/.dotfiles-state"
 
-    local output
-    output=$(_run_state_heal 2>&1)
+    # Capture stderr via a file rather than $(...) so the chmod restore below
+    # always runs even if _run_state_heal aborts.
+    local output="" _line
+    _run_state_heal >/dev/null 2>"$home/.heal-stderr"
+    while IFS= read -r _line; do
+        output+="$_line"
+    done < "$home/.heal-stderr"
 
-    chmod 700 "$HOME/.dotfiles-state"  # restore so teardown can clean up
+    chmod 700 "$home/.dotfiles-state"  # restore so teardown can clean up
 
     assert_contains "$output" "not writable" \
         "Heal warns when the state volume is not writable"
-    assert_file_not_exists "$HOME/.dotfiles-state/gh" \
+    assert_file_not_exists "$home/.dotfiles-state/gh" \
         "Heal skips dir creation in an unwritable volume"
 
     teardown_test_env
