@@ -32,12 +32,20 @@ _heal_dotfiles_state() {
     # Only relevant when the state volume is present (devcontainers).
     [ -d "$state_dir" ] || return 0
 
-    # An unwritable volume cannot be healed without sudo, which must never run
-    # from a shell startup (it could block on a password prompt). Warn instead.
+    # An unwritable volume cannot be healed from a shell (ownership repair
+    # needs root, and sudo must never run at shell startup). Warn instead --
+    # and tailor the advice: under no_new_privs, sudo cannot escalate at all,
+    # so the repair has to come from the host or a container rebuild.
     if [ ! -w "$state_dir" ]; then
-        printf '%s\n' \
-            "dotfiles: $state_dir is not writable -- gh/claude/codex state cannot persist." \
-            "dotfiles: fix with: sudo chown -R \"\$(id -u):\$(id -g)\" $state_dir" >&2
+        printf 'dotfiles: %s is not writable -- gh/claude/codex auth cannot persist.\n' \
+            "$state_dir" >&2
+        if grep -qs '^NoNewPrivs:[[:space:]]*1' /proc/self/status; then
+            printf 'dotfiles: sudo is blocked here (no_new_privs); rebuild the container, or from the host run:\n        docker exec -u 0 <container> chown -R %s:%s %s\n' \
+                "$(id -u)" "$(id -g)" "$state_dir" >&2
+        else
+            printf 'dotfiles: fix with: sudo chown -R %s:%s %s\n' \
+                "$(id -u)" "$(id -g)" "$state_dir" >&2
+        fi
         return 0
     fi
 

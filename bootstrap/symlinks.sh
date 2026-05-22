@@ -366,7 +366,7 @@ create_symlinks() {
         if [[ ! -w "$HOME/.dotfiles-state" ]]; then
             if command -v sudo >/dev/null 2>&1; then
                 sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state" ||
-                    log_warn "Could not chown ~/.dotfiles-state; state persistence may fail"
+                    log_warn "Could not chown ~/.dotfiles-state (sudo blocked, e.g. no_new_privs); rebuild the container or chown the volume from the host. State persistence may fail."
             else
                 log_warn "~/.dotfiles-state is not writable and sudo is unavailable; state persistence may fail"
             fi
