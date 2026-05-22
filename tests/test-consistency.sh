@@ -42,6 +42,28 @@ extract_emoji_range() {
     sed -n 's/.*if(\/\[\(\\x{[^]]*\)\]\/.*/\1/p' "$file" | head -1
 }
 
+# Extract the tool config dirs bootstrap/symlinks.sh wires into the state
+# volume: every _wire_tool_dir call's target plus the explicit gh block.
+# Patterns use [$] (a literal $ via a bracket expression) rather than \$ so
+# they match the literal "$HOME" text without tripping SC2016.
+extract_state_links_bootstrap() {
+    local file="$1"
+    {
+        grep -oE '_wire_tool_dir "[^"]+" "[$]HOME/[^"]+"' "$file" \
+            | grep -oE '[$]HOME/[A-Za-z0-9._/-]+'
+        grep -oE 'setup_volume_dir "[$]HOME/\.dotfiles-state/[^"]+" "[$]HOME/[^"]+"' "$file" \
+            | sed -E 's/.* "([$]HOME[^"]+)"$/\1/'
+    } | sort -u
+}
+
+# Extract the symlinks healed by shell/state-heal.sh (its `for link in` block).
+extract_state_links_heal() {
+    local file="$1"
+    sed -n '/for link in/,/^    do$/p' "$file" \
+        | grep -oE '[$]HOME/[A-Za-z0-9._/-]+' \
+        | sort -u
+}
+
 # ============================================================================
 # Instruction files under test
 # ============================================================================
@@ -233,6 +255,29 @@ test_mcp_guidance_present() {
 }
 
 # ============================================================================
+# Test Suite: Dotfiles State Self-Heal Link List
+# ============================================================================
+
+# shell/state-heal.sh hardcodes the symlinks it heals and relies on a comment
+# to stay in sync with bootstrap/symlinks.sh. This enforces that invariant: a
+# tool dir wired by bootstrap must also be covered by the self-heal guard.
+test_state_heal_links_match() {
+    local symlinks_sh="$DOTFILES_DIR/bootstrap/symlinks.sh"
+    local state_heal_sh="$DOTFILES_DIR/shell/state-heal.sh"
+    local bootstrap_links heal_links
+    bootstrap_links=$(extract_state_links_bootstrap "$symlinks_sh")
+    heal_links=$(extract_state_links_heal "$state_heal_sh")
+
+    if [[ "$bootstrap_links" == "$heal_links" ]]; then
+        test_pass "state-heal.sh link list matches bootstrap/symlinks.sh"
+    else
+        test_fail "state-heal.sh link list has drifted from bootstrap/symlinks.sh"
+        test_info "bootstrap/symlinks.sh: $(echo "$bootstrap_links" | tr '\n' ' ')"
+        test_info "shell/state-heal.sh:   $(echo "$heal_links" | tr '\n' ' ')"
+    fi
+}
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -255,6 +300,9 @@ main() {
 
     test_suite "MCP Guidance"
     test_mcp_guidance_present
+
+    test_suite "Dotfiles State Self-Heal Link List"
+    test_state_heal_links_match
 
     print_test_summary
 }
