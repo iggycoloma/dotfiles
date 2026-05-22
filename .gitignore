@@ -23,6 +23,9 @@ Thumbs.db
 *.log
 *.tmp
 
+# Devcontainer CLI build artifacts (generated, not source)
+.devcontainer/*/devcontainer-lock.json
+
 # Zsh compiled files
 *.zwc
 
