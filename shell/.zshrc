@@ -28,6 +28,11 @@ if [[ -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
     source "$DOTFILES_DIR/shell/exports.sh"
 fi
 
+# Self-heal dotfiles-state volume desync before any tool config dir is used
+if [[ -f "$DOTFILES_DIR/shell/state-heal.sh" ]]; then
+    source "$DOTFILES_DIR/shell/state-heal.sh"
+fi
+
 # History configuration
 HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
 mkdir -p "$(dirname "$HISTFILE")"

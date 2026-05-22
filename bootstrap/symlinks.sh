@@ -359,12 +359,21 @@ create_symlinks() {
         log_info "DOTFILES_NO_STATE_PERSISTENCE=1, skipping state persistence setup"
     fi
 
-    # Fix ownership and permissions (may be root-owned on first mount)
+    # Fix ownership and permissions. Named volumes are created root-owned on
+    # first mount; without write access here, every state-backed tool config
+    # (gh, claude, codex) silently fails to persist.
     if [[ -d "$HOME/.dotfiles-state" ]]; then
-        if [[ ! -w "$HOME/.dotfiles-state" ]] && command -v sudo >/dev/null 2>&1; then
-            sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state"
+        if [[ ! -w "$HOME/.dotfiles-state" ]]; then
+            if command -v sudo >/dev/null 2>&1; then
+                sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state" ||
+                    log_warn "Could not chown ~/.dotfiles-state (sudo blocked, e.g. no_new_privs); rebuild the container or chown the volume from the host. State persistence may fail."
+            else
+                log_warn "$HOME/.dotfiles-state is not writable and sudo is unavailable; state persistence may fail"
+            fi
         fi
-        chmod 700 "$HOME/.dotfiles-state"
+        # chmod only when we own the directory: a non-owner chmod fails with
+        # EPERM, which would abort the script under 'set -e'.
+        [[ -O "$HOME/.dotfiles-state" ]] && chmod 700 "$HOME/.dotfiles-state"
     fi
 
     # Shell configurations
