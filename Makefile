@@ -1,10 +1,17 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit lint-devcontainers
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit lint-devcontainers lint-devcontainer-security
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
 
-lint:
+lint: lint-devcontainer-security
 	shellcheck $(SHELL_SCRIPTS)
+
+# Security-focused devcontainer.json linter (risky mounts, credential env
+# pass-through, public port forwards). Distinct from lint-devcontainers
+# (full rubric audit via dc-audit.sh). Both are advisory; this one does not
+# fail the build on warnings, only on --strict.
+lint-devcontainer-security:
+	bash bootstrap/lint-devcontainer.sh
 
 test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit
 

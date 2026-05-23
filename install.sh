@@ -187,6 +187,17 @@ else
     log_success "SSH commit signing already configured"
 fi
 
+# Devcontainer egress allowlist (opt-in via DOTFILES_DEVCONTAINER_EGRESS=1).
+# The script self-gates on env, NET_ADMIN capability, and container detection;
+# safe to invoke unconditionally on hosts and non-NET_ADMIN containers (it
+# exits 0 without modifying iptables). Placed at the end of install.sh so
+# package fetches and git ops above run before egress is restricted.
+if [[ -x "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" ]]; then
+    log_section "Devcontainer Egress Allowlist"
+    bash "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" || \
+        log_warn "Egress allowlist script returned non-zero; continuing"
+fi
+
 # Final message
 log_section "Installation Complete"
 log_success "Dotfiles installed successfully!"

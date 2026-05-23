@@ -226,11 +226,26 @@ _setup_claude_code() {
         log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
     fi
 
+    # settings.json: host vs container variant. The container variant disables
+    # the bwrap sandbox (sandbox.enabled: false) because the container itself
+    # is the isolation boundary; see docs/sandbox.md for the three-tier model.
+    local settings_src="$DOTFILES_DIR/claude-code/settings.json"
+    if is_devcontainer && [[ -f "$DOTFILES_DIR/claude-code/settings.container.json" ]]; then
+        settings_src="$DOTFILES_DIR/claude-code/settings.container.json"
+    fi
+    if is_devcontainer; then
+        backup_if_exists "$HOME/.claude/settings.json"
+        cp -f "$settings_src" "$HOME/.claude/settings.json"
+        log_success "Copied $(basename "$settings_src") -> ~/.claude/settings.json"
+    else
+        create_symlink "$settings_src" "$HOME/.claude/settings.json"
+    fi
+
     # Personal Claude Code config. scripts/ and templates/ used to live here
     # but moved to the agentic/ subtree. See _setup_agentic for deployment of
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-        settings.json CLAUDE.md statusline.sh -- hooks agents commands
+        CLAUDE.md statusline.sh -- hooks agents commands
 
     log_success "Claude Code configuration complete"
 }
@@ -294,15 +309,21 @@ _setup_codex() {
         fi
     fi
 
-    # config.toml: preserve existing (local trust + preferences)
-    if [[ -f "$DOTFILES_DIR/codex/config.toml" ]]; then
+    # config.toml: host vs container variant. The container variant sets
+    # sandbox_mode = "danger-full-access" because the container itself is the
+    # isolation boundary; see docs/sandbox.md for the three-tier model.
+    local codex_src="$DOTFILES_DIR/codex/config.toml"
+    if is_devcontainer && [[ -f "$DOTFILES_DIR/codex/config.container.toml" ]]; then
+        codex_src="$DOTFILES_DIR/codex/config.container.toml"
+    fi
+    if [[ -f "$codex_src" ]]; then
         if is_devcontainer; then
-            [[ ! -e "$HOME/.codex/config.toml" ]] && cp -f "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+            [[ ! -e "$HOME/.codex/config.toml" ]] && cp -f "$codex_src" "$HOME/.codex/config.toml"
         else
             if [[ -e "$HOME/.codex/config.toml" ]] && [[ ! -L "$HOME/.codex/config.toml" ]]; then
                 log_warn "Skipping ~/.codex/config.toml (preserving local Codex settings)"
             else
-                create_symlink "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+                create_symlink "$codex_src" "$HOME/.codex/config.toml"
             fi
         fi
     fi
@@ -326,6 +347,11 @@ _setup_copilot() {
 
 _setup_codex_notify() {
     [[ -f "$HOME/.codex/hooks/notify.sh" ]] || return 0
+
+    # On hosts ~/.codex/config.toml is symlinked into the dotfiles repo, so
+    # writing the notify line would modify the tracked file. Skip; host users
+    # can add the notify line to a per-machine config override if they want it.
+    [[ -L "$HOME/.codex/config.toml" ]] && return 0
 
     if [[ -f "$HOME/.codex/config.toml" ]]; then
         # Fix legacy string format -> array format

@@ -12,11 +12,21 @@ hosts (macOS/Linux), VS Code devcontainers, and GitHub Codespaces. A single
 
 This repo provides a **developer-specific** environment, not a project-specific one.
 It installs universally useful shell tools (rg, fd, bat, fzf, etc.) and deeply
-integrates agentic coding tools (Claude Code, Codex CLI). For project-dependent
-tools (gh, docker, kubectl, mise, uv), the repo supplies configuration -- aliases,
-completions, state persistence -- but does not install them. Projects bring their
-own tooling via `devcontainer.json`; this repo ensures the developer's workflow is
-ready when they arrive.
+integrates agentic coding tools (Claude Code, Codex CLI, Copilot CLI). For
+project-dependent tools (gh, docker, kubectl, mise, uv), the repo supplies
+configuration -- aliases, completions, state persistence -- but does not install
+them. Projects bring their own tooling via `devcontainer.json`; this repo ensures
+the developer's workflow is ready when they arrive.
+
+**Persistence model**: a single Docker volume mounted at `~/.dotfiles-state` is
+the storage substrate; dotfiles symlinks `~/.claude`, `~/.codex`, `~/.copilot`
+into it. One generic mount line in a project devcontainer.json covers
+persistence for all agentic tools; dotfiles owns which tools get persisted
+inside that volume. On hosts, the same symlink layout points to real
+directories under `~/.dotfiles-state/` (no Docker volume needed). Codespaces
+relies on platform-level `/home/vscode` persistence across stop/start. See
+`docs/sandbox.md` for the architectural rationale and the three-tier sandbox
+posture.
 
 Tested platforms: Ubuntu (20.04/22.04/24.04), Debian (11/12), Alpine, macOS (15/26),
 GitHub Codespaces.
@@ -78,6 +88,8 @@ These environment variables control what `install.sh` installs:
 | `DOTFILES_NO_GIT_HOOKS=1` | Skip global git hooks |
 | `DOTFILES_NO_STATE_PERSISTENCE=1` | Skip state persistence tier detection |
 | `DOTFILES_NO_SSH_SIGNING=1` | Skip SSH commit signing auto-detection |
+| `DOTFILES_DEVCONTAINER_EGRESS=1` | Enable iptables egress allowlist in devcontainers (requires `--cap-add=NET_ADMIN` in runArgs) |
+| `DOTFILES_EGRESS_EXTRA_HOSTS=...` | Space-separated hostnames to add to the egress allowlist |
 
 ## Working Style
 

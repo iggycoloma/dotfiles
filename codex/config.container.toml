@@ -1,0 +1,12 @@
+# Codex CLI configuration -- container variant.
+# Deployed by dotfiles install.sh when running inside a devcontainer or
+# Codespace. The codex/config.toml file is the host variant. See
+# docs/sandbox.md for the three-tier sandbox architecture.
+
+# Inside containers the container itself is the sandbox boundary; running
+# Codex's own bwrap/Landlock layer on top adds maintenance cost (WSL2 host
+# path detection, namespace mount issues) without meaningful gains.
+# danger-full-access disables Codex's sandbox; on-request keeps the
+# human-in-the-loop gate for sensitive operations.
+sandbox_mode = "danger-full-access"
+approval_policy = "on-request"

@@ -1,612 +1,322 @@
-Claude Code Bash Sandbox Setup
+Sandbox Posture for Agentic CLIs
 
-Execution plan for enabling Claude Code's built-in Bash sandbox in this
-dotfiles repo. Run from a Claude Code session rooted in ~/.dotfiles -- that
-is where claude-code/settings.json (symlinked to ~/.claude/settings.json) and
-the dev-container configs live.
+This doc describes the OS-level sandbox posture for the three agentic CLIs this
+repo deploys (Claude Code, Codex CLI, Copilot CLI) across the three environments
+this repo supports (hosts, local devcontainers, GitHub Codespaces).
 
-Context
-Claude Code's permission analyzer prompts on every Bash command it cannot
-statically decompose -- here-docs (python3 - <<'EOF'), pipes, command
-substitution, IFS=. These cannot be allow-listed because there is no stable
-command prefix to match. The current settings.json allow list
-(~80 Bash(prefix:*) rules) cannot cover them.
+The architecture is **three tiers, not one**: the right sandbox boundary in each
+tier is different. Trying to use the same mechanism everywhere produced one
+incompatibility after another. The tiered model is the simpler answer.
 
-Separately, credential protection today is Read()/Write()/Edit() deny globs.
-Those gate Claude's file tools and recognized Bash file-commands
-(cat/head/sed) but NOT arbitrary subprocesses -- a
-python3 -c "open('~/.ssh/id_rsa').read()" is not caught.
+Three-tier posture
+==================
 
-Fix: enable Claude Code's built-in Bash sandbox in auto-allow mode. The OS
-boundary (Seatbelt on macOS, bubblewrap on Linux) replaces the per-command
-prompt, so complex Bash just runs -- contained. This eliminates the prompts
-AND closes the subprocess credential gap. Investigation confirmed the
-existing pre-security.sh hook is passive on benign commands (exit 0, silent)
--- it is not the prompt source.
+| Tier                | Filesystem isolation | Network egress                                  | Sandbox config file        |
+|---------------------|----------------------|--------------------------------------------------|----------------------------|
+| Host (macOS)        | Seatbelt             | `allowedDomains` (Claude Code) + macOS Seatbelt | `claude-code/settings.json` |
+| Host (Linux/WSL2)   | bwrap                | `allowedDomains` (kernel-enforced via netns)    | `claude-code/settings.json` |
+| Local devcontainer  | container boundary   | iptables (opt-in, `NET_ADMIN` required)         | `claude-code/settings.container.json` |
+| Codespaces          | container boundary   | `allowedDomains` advisory + iptables if NET_ADMIN allowed (TBD) | `claude-code/settings.container.json` |
 
-Decisions
-Three decisions made during planning, recorded here so future-me does not
-relitigate them.
+`install.sh` chooses which settings file to deploy to `~/.claude/settings.json`
+based on `is_devcontainer()`: container variants in devcontainers and Codespaces,
+host variants on macOS, Linux, and WSL2 hosts. Same pattern for Codex CLI
+(`codex/config.toml` vs `codex/config.container.toml`).
 
-1. Skip the @anthropic-ai/sandbox-runtime npm package (the seccomp filter
-   that blocks Unix domain sockets). The active workflow here uses ssh-agent
-   for git push, which would require allowlisting SSH_AUTH_SOCK back through
-   anyway -- collapsing the main benefit (ssh-agent abuse prevention).
-   Remaining surface (Docker socket, D-Bus, local IPC sockets) is narrow:
-   these devcontainers do not mount /var/run/docker.sock, do not expose
-   D-Bus, and do not run local services on Unix sockets. Adding Node.js +
-   npm to the install footprint for marginal gain is not worth it. The
-   /sandbox Dependencies tab will report the seccomp filter as missing --
-   expected. Revisit if /var/run/docker.sock ever gets mounted, or if local
-   Unix-socket services start running inside the sandbox boundary.
+Why three tiers
+---------------
 
-2. Skip the /etc/claude-code/managed-settings.json file. Settings precedence
-   is managed > CLI > local > project > user, and objects deep-merge across
-   scopes -- adding the managed layer later is non-destructive. For this
-   single-developer repo, putting failIfUnavailable: true directly in user
-   settings is strict everywhere (Seatbelt is always available on macOS, so
-   true never spuriously fires on host; Linux containers will have
-   bubblewrap from this same change). The managed-settings layer's only
-   added value is tamper-resistance against user (or agent) edits to the
-   user settings file, which is overkill for a single-dev setup.
+The original design tried to run bwrap *inside* devcontainers, then patched
+around the friction:
 
-3. No custom Dockerfile. The repo bootstraps via install.sh ->
-   bootstrap/packages.sh, which already installs bubblewrap in the apt and
-   apk arrays (gated on DOTFILES_NO_AI_TOOLS != 1). Add socat next to it on
-   the same lines instead of introducing Dockerfiles. Keeps the bootstrap-
-   from-install.sh architecture intact.
+- Claude Code's WSL2 detection (`/proc/sys/kernel/osrelease` contains "microsoft")
+  fires inside Linux containers running on WSL2 hosts. bwrap then tries to bind
+  Windows host paths (`/mnt/c`, Program Files, managed-settings) that do not
+  exist inside the container. Workaround: pre-seed the paths from `install.sh`.
+- Docker's default seccomp profile blocks the namespace-creation syscalls bwrap
+  needs. Workaround: `--security-opt=seccomp=unconfined` in runArgs.
+- The kernel additionally gates `CLONE_NEWNS` on `CAP_SYS_ADMIN`. Workaround:
+  `--cap-add=SYS_ADMIN`.
+- bwrap on Linux installs a seccomp filter that unconditionally blocks
+  `socket(AF_UNIX, ...)`, breaking ssh-agent reachability for signed git commits.
+  No setting bypasses this on Linux (issue [#44180](https://github.com/anthropics/claude-code/issues/44180)
+  is the open feature request; `excludedCommands "git *"` does *not* work per
+  [#10767](https://github.com/anthropics/claude-code/issues/10767),
+  [#29274](https://github.com/anthropics/claude-code/issues/29274)).
 
-Dev containers use the same ~/.dotfiles repo and run privileged. So one
-shared settings.json works everywhere; the only container-specific work is
-installing socat alongside the existing bubblewrap install. No
-enableWeakerNestedSandbox is needed (that is only for unprivileged
-containers).
+Each workaround was correct in isolation, but the pattern was that container
+config kept encoding *host-OS* knowledge. That dependency direction is wrong:
+the container should not need to know what host it is running on.
 
-Execution steps
-Run these from the dotfiles-repo session.
+The pivot: **the container is itself a kernel-enforced isolation primitive,
+and bwrap inside a container is defense-in-depth with high maintenance cost.**
+Drop bwrap inside containers, keep it on hosts where it has no leaky abstractions.
+Use iptables for in-container egress (opt-in), because iptables is host-OS-blind
+and operates in the container's own network namespace.
 
-Step 1a -- add the sandbox block to settings.json
-Edit claude-code/settings.json (symlinked to ~/.claude/settings.json). Add
-this top-level key alongside permissions, hooks, etc.:
+Hosts
+=====
 
-"sandbox": {
-  "enabled": true,
-  "autoAllowBashIfSandboxed": true,
-  "failIfUnavailable": true,
-  "allowUnsandboxedCommands": true,
-  "excludedCommands": [
-    "obsidian *"
-  ],
-  "filesystem": {
-    "denyRead": [
-      "~/.ssh",
-      "~/.aws",
-      "~/.gnupg",
-      "~/.azure",
-      "~/.config/gcloud",
-      "~/.config/gh",
-      "~/.config/hub",
-      "~/.config/heroku",
-      "~/.config/doctl",
-      "~/.stripe",
-      "~/.minikube",
-      "~/.dotfiles-state",
-      "~/.docker/config.json",
-      "~/.kube/config",
-      "~/.npmrc",
-      "~/.netrc",
-      "~/.git-credentials",
-      "~/.pgpass",
-      "~/.my.cnf",
-      "~/.pypirc",
-      "~/.gem/credentials",
-      "~/.composer/auth.json",
-      "~/.m2/settings.xml",
-      "~/.m2/settings-security.xml",
-      "~/.gradle/gradle.properties",
-      "~/.mongorc.js"
-    ],
-    "denyWrite": [
-      "~/.ssh",
-      "~/.aws",
-      "~/.gnupg",
-      "~/.bashrc",
-      "~/.zshrc",
-      "~/.zshenv",
-      "~/.zprofile",
-      "~/.profile"
-    ]
-  },
-  "network": {
-    "allowedDomains": [
-      "github.com",
-      "*.githubusercontent.com",
-      "api.github.com",
-      "registry.npmjs.org",
-      "*.npmjs.org",
-      "pypi.org",
-      "files.pythonhosted.org"
-    ]
-  }
+Hosts run the full Claude Code Bash sandbox: `sandbox.enabled: true` in
+`claude-code/settings.json`. Filesystem isolation is enforced by Seatbelt on
+macOS and bubblewrap on Linux/WSL2; both are installed by `bootstrap/packages.sh`
+on Linux (`bubblewrap` + `socat` packages) and built-in on macOS.
+
+Network egress is enforced by `sandbox.network.allowedDomains` via a host-side
+HTTP proxy. On Linux, bwrap unshares the network namespace and bridges via socat
+into the proxy, so the policy is kernel-enforced for every bash subprocess. On
+macOS, Seatbelt enforces a similar boundary.
+
+SSH agent and signed commits
+----------------------------
+
+bwrap's default Linux profile installs a seccomp filter that blocks
+`socket(AF_UNIX, ...)`. This breaks ssh-agent reachability from any sandboxed
+bash command -- including `git commit` when commits are SSH-signed via the agent.
+
+Status by host platform:
+
+- **macOS**: `sandbox.network.allowUnixSockets` accepts a path glob. The dotfiles
+  config narrowly allows the launchd-bridged ssh-agent path
+  (`/private/tmp/com.apple.launchd.*/Listeners`). Signed commits in-session work.
+- **Linux + WSL2**: no equivalent setting exists. Issue
+  [#44180](https://github.com/anthropics/claude-code/issues/44180) tracks the
+  upstream fix. Until that lands, signed commits inside a Linux/WSL2 host's
+  Claude Code session do not work; use a separate terminal for `git commit`.
+
+Settings precedence (managed > CLI > local > project > user) means an
+organization can enforce sandboxing for every developer via managed settings;
+this repo only ships user-level config.
+
+Local devcontainers
+===================
+
+Container = sandbox. `claude-code/settings.container.json` sets
+`sandbox.enabled: false`, and Codex's `codex/config.container.toml` sets
+`sandbox_mode = "danger-full-access"`. No bwrap inside, no host-OS workarounds
+in devcontainer.json.
+
+What that means in practice:
+
+- `~/.ssh`, `~/.aws`, etc. on the host are unreachable from inside the
+  container (Docker's filesystem boundary). The deny-glob entries in
+  `permissions.deny[]` still gate Claude Code's own file tools against in-project
+  secret patterns (`**/*.pem`, `**/credentials*`, `.env*`).
+- ssh-agent is reachable normally (no seccomp filter installed), so signed
+  commits work in-session.
+- Network egress is unrestricted by default. The container itself has the
+  Docker bridge's view of the network. To restrict, opt into the iptables
+  egress allowlist (below).
+
+Egress allowlist (opt-in)
+-------------------------
+
+`bootstrap/devcontainer-egress.sh` installs iptables OUTPUT rules that allow
+only a small set of agentic-tool + code-management endpoints (Anthropic API,
+GitHub, npm/pypi/crates registries) plus loopback + DNS + established
+connections. Default policy after the rules: DROP. Project-specific extras via
+`DOTFILES_EGRESS_EXTRA_HOSTS`.
+
+Gating (all required):
+
+1. `DOTFILES_DEVCONTAINER_EGRESS=1` in the environment.
+2. `--cap-add=NET_ADMIN` in devcontainer.json runArgs.
+3. Running inside a devcontainer.
+4. `DOTFILES_NO_AI_TOOLS != 1`.
+
+The script is invoked at the end of `install.sh`. When the gates fail, it logs
+the reason and exits 0 -- safe to leave wired in the installer regardless of
+whether a particular container has the cap.
+
+This is *opt-in* by default because most users don't want a network policy
+imposed unconditionally, and because NET_ADMIN is a privileged capability that
+not all hosts allow. The `.devcontainer/example/devcontainer.json` template
+includes a comment explaining the opt-in pattern.
+
+Persistence model
+=================
+
+Single shared Docker volume + symlinks. A project devcontainer.json declares
+one mount line:
+
+```jsonc
+"mounts": [
+  "source=${devcontainerId}-state,target=/home/vscode/.dotfiles-state,type=volume"
+]
+```
+
+`install.sh` creates `~/.dotfiles-state/` and symlinks `~/.claude`, `~/.codex`,
+`~/.copilot` into subdirectories of it. Symlinks everywhere -- on hosts and in
+containers -- because the bwrap-mount-over-symlink-into-volume-submount conflict
+that previously forced "copy in containers" no longer exists (no bwrap inside).
+
+Membership rule: dotfiles persists state for what dotfiles installs. Currently
+that's Claude Code, Codex CLI, and Copilot CLI. Other tools (gh, kubectl, docker)
+are out of scope -- projects own their own persistence.
+
+Codespaces relies on platform-level `/home/vscode` persistence across stop/start
+(rebuilds re-auth, accepted). The dotfiles symlink layout still works; just no
+explicit volume mount.
+
+Ownership normalization
+-----------------------
+
+Docker creates a fresh named volume root-owned. The mount happens during
+container start, *before* `postCreateCommand` runs `install.sh`. `install.sh`
+detects a root-owned `~/.dotfiles-state` and `sudo chown` recursively before the
+symlinks are created. Idempotent: once user-owned, the volume stays that way
+across rebuilds.
+
+Option H: devcontainer Feature (future)
+----------------------------------------
+
+The single mount line in each project devcontainer.json is the minimum coupling
+mathematically achievable without a separate distribution artifact. To eliminate
+even that, publish the dotfiles install as a devcontainer Feature on GHCR. The
+spec supports `mounts` with `${devcontainerId}` substitution (the
+docker-in-docker feature uses this exact pattern), so a Feature could declare
+both the mount and the install command. Project devcontainer.json shrinks to:
+
+```jsonc
+"features": {
+  "ghcr.io/iggycoloma/dotfiles-agent-tools:1": {}
 }
-
-Key rationale:
-
-enabled / autoAllowBashIfSandboxed: true -- auto-allow mode; this is what
-stops the analyzer prompts. Both stated explicitly even though
-autoAllowBashIfSandboxed already defaults to true (survives a future default
-change).
-
-failIfUnavailable: true -- strict everywhere. On macOS the host's Seatbelt
-is always available, so true never spuriously trips on host. On Linux,
-containers built from this repo will have bubblewrap + socat from Step 2.
-If a future image accidentally drops those packages, Claude Code refuses to
-start rather than silently running unsandboxed -- the failure surface we
-want.
-
-allowUnsandboxedCommands: true -- keeps the escape hatch; commands that
-genuinely cannot be sandboxed (docker, watchman, some go CLIs on Seatbelt)
-retry through the normal permission flow rather than failing outright.
-
-excludedCommands: ["obsidian *"] -- the obsidian CLI talks to the Obsidian
-app over local IPC (socket/localhost), which the sandbox blocks. Excluded
-commands run outside the sandbox. Host-only concern; no Obsidian app runs in
-containers.
-
-filesystem.denyRead -- credential dirs/files enforced at the OS level for
-ALL sandboxed Bash subprocesses. Mirrors the existing Read() deny list,
-keeping only the path-prefix entries the OS can enforce (see Credential
-protection below). Build-cache dirs (~/.cargo, full ~/.m2, full ~/.gradle)
-are deliberately NOT denied -- only their credential files are -- so
-toolchains still read cached deps inside the sandbox.
-
-denyWrite -- shell rc files + credential dirs; the docs flag shell-rc writes
-as a privilege-escalation path. Mostly belt-and-suspenders (default write
-boundary is already cwd-only).
-
-network.allowedDomains -- starter list so routine git/npm/pip traffic does
-not prompt. Any new domain prompts once and can be added. Kept narrow on
-purpose (the proxy does not inspect TLS, so broad domains are exfiltration
-paths).
-
-Note on credential FILES the sandbox cannot wholesale-deny
-(~/.kube/config, ~/.docker/config.json): denying read of these means
-kubectl/docker cannot authenticate inside the sandbox. docker is
-sandbox-incompatible anyway; meaningful kubectl work would use the
-unsandboxed escape hatch. This is the correct posture.
-
-Step 1b -- add two permissions.allow entries
-"Bash(obsidian:*)",
-"Bash(python3:*)"
-
-Bash(obsidian:*) -- because obsidian is in excludedCommands it runs outside
-the sandbox and goes through the normal permission flow; without an allow
-rule it prompts every time. The vault CLAUDE.md confirms it is invoked as
-obsidian <subcommand>.
-
-Bash(python3:*) -- covers bare python3 and here-docs on the unsandboxed
-fallback path (currently only Bash(python3 -c:*) exists).
-
-Step 2 -- add socat to bootstrap/packages.sh
-The repo does not use custom Dockerfiles -- packages are installed by
-install.sh -> bootstrap/packages.sh. bubblewrap is already added in the apt
-(line 510) and apk (line 627) arrays, gated on DOTFILES_NO_AI_TOOLS != 1.
-Add socat to those same calls:
-
-  apt block (around line 510):
-    packages+=("bubblewrap" "socat")
-
-  apk block (around line 627):
-    packages+=("bubblewrap" "socat")
-
-No Homebrew change -- macOS uses Seatbelt; bubblewrap and socat are
-irrelevant. The existing _apt_installed / _apk_installed idempotency loops
-already handle the new package -- re-runs are no-ops once installed.
-
-Skipped: npm install -g @anthropic-ai/sandbox-runtime (the seccomp filter
-that adds Unix-domain-socket blocking). See Decision 1 above for rationale.
-
-Conditional: if a container ever reports
-sysctl kernel.apparmor_restrict_unprivileged_userns as 1, add the AppArmor
-bwrap profile from the sandboxing docs. Privileged containers normally do
-not need this.
-
-Step 3 -- commit
-Single conventional commit for both file changes:
-  feat(claude-code): enable Bash sandbox with OS-level credential isolation
-
-Step 4 -- restart Claude Code and run verification
-Settings reload on startup. Verification steps are below.
-
-Credential protection -- what is and is not preserved
-Verified against the docs: sandbox.filesystem.denyRead merges with Read()
-deny rules into the OS sandbox boundary. But the two pattern syntaxes
-differ:
-
-Directory/file-path deny rules (~/.ssh/**, ~/.kube/config, ...) translate to
-OS-enforced subtree denies -- covered by the denyRead list in Step 1a.
-
-Recursive/substring glob deny rules (**/*.pem, **/*secret*, **/credentials*,
-.env, **/*.tfvars, ...) cannot become OS path-prefix boundaries. They still
-fully protect the Read/Edit/Write TOOLS, but not sandboxed Bash subprocesses
-reading such files INSIDE the working directory.
-
-Residual gap and mitigation: in-project .env / *.pem / *secret* files
-cannot be OS-blocked without blocking the project itself. The
-pre-security.sh PreToolUse hook remains the defense -- it inspects the Bash
-command string before execution and emits ask/deny for sensitive paths.
-Keep it. Keep all existing Read()/Write()/Edit() deny globs unchanged --
-they still fully gate the file tools. Practice: keep real secrets out of
-project trees.
-
-Unix-socket residual gap: without @anthropic-ai/sandbox-runtime, sandboxed
-Bash can connect to Unix domain sockets on the host. In this setup that
-means ssh-agent (allowlisted anyway for git push), D-Bus (not exposed),
-docker.sock (not mounted), and any local Unix-socket services (none
-currently). Re-evaluate if any of those change.
-
-Optional hardening (verify first): the sandboxing docs mention
-CLAUDE_CODE_SUBPROCESS_ENV_SCRUB to strip Anthropic/cloud credentials from
-sandboxed-subprocess environment variables (denyRead only covers files on
-disk, not env vars). Its exact accepted value is not on the settings page;
-confirm against code.claude.com/docs/en/env-vars before adding it to an env
-block.
-
-What is NOT changing
-permissions.deny -- untouched. Deny rules are always respected, in or out
-of the sandbox (rm -rf, sudo, git push --force, credential globs all still
-enforced).
-
-The hooks -- untouched. pre-security.sh is now the primary defense for
-in-project secret files; pre-commit-validate.sh and pre-code-no-emoji.sh
-still fire. The sandbox does not bypass hooks (hooks run in the permission
-layer, before the sandbox).
-
-The existing Bash(...) allow list -- kept. With the sandbox it is no longer
-the primary boundary, but it is still the fallback-ergonomics list for
-excluded commands and for the case where the sandbox is unavailable. Not
-worth deleting.
-
-.devcontainer/*/devcontainer.json -- no edits. Base images stay; install.sh
--> packages.sh already runs in postCreateCommand and will pick up socat
-automatically.
-
-claude-code/CLAUDE.md -- no edits. Deny-list semantics documented there are
-unchanged.
-
-Verification
-After editing settings.json, restart Claude Code (settings reload on
-startup), then:
-
-1. /sandbox -> Dependencies tab: macOS shows Seatbelt + ripgrep ready;
-   seccomp filter shows missing (expected -- Decision 1). Linux container
-   shows bubblewrap + socat available; seccomp filter missing (expected).
-2. /sandbox -> Config tab: confirm the merged sandbox block shows
-   enabled: true, autoAllowBashIfSandboxed: true, failIfUnavailable: true,
-   the denyRead list, and excludedCommands: ["obsidian *"].
-3. Prompt-elimination: have Claude run a python3 here-doc and a piped
-   command -- expect NO permission prompt.
-4. Credential blocking: have Claude run cat ~/.ssh/id_rsa and
-   cat ~/.aws/credentials inside the sandbox -- expect an OS
-   permission/filesystem error, not a successful read.
-5. Known-gap check: put a dummy fake-secret.pem in a test project dir,
-   cat it -- expect it to succeed under the sandbox but be intercepted by
-   pre-security.sh.
-6. obsidian CLI (host only): temporarily empty excludedCommands, restart,
-   run an obsidian command -- observe whether it breaks (socket error).
-   Restore excludedCommands, restart, confirm it works and that
-   Bash(obsidian:*) keeps it prompt-free.
-7. Network gate: curl https://github.com succeeds; curl https://example.com
-   prompts for domain approval.
-8. Regression: a denied command (rm -rf something trivial) is still
-   blocked; the commit and emoji hooks still fire.
-
-Rollout order
-1. Validate on macOS host first (zero install -- Seatbelt is built in).
-2. make lint + make test-packages locally before committing.
-3. Commit the settings.json, packages.sh, and this doc as one feat() commit.
-4. Rebuild the ubuntu-zsh (or debian-bash) devcontainer and re-run
-   verification steps 1-8 inside it. Focus on dependency installation,
-   prompt-elimination, and the network proxy behavior.
-5. unattended devcontainer rebuild can come later; it has its own
-   agentic-harness postCreate steps that need separate verification.
-
-References
-Configure permissions: https://code.claude.com/docs/en/permissions
-Configure the sandboxed Bash tool: https://code.claude.com/docs/en/sandboxing
-Settings reference (sandbox keys): https://code.claude.com/docs/en/settings
-
-
-# Note: This all started with this conversation in a different claude session:
-
-❯ I keep getting prompted for permission with messages like " Contains shell syntax (string) that cannot be statically analyzed" or "IFS blah". How do I prevent this? Do I need to
-  add some CLAUDE.md guidance to limit your shell syntax to stuff that my allow lists will support properly?
-
-⏺ Yes, CLAUDE.md guidance is the right lever — and it works better than tweaking allow lists, which can't help here. Those prompts fire when a command can't be decomposed into a clean
-   program + args form, so there's no stable prefix for an allow rule to match. You can't whitelist "all here-docs."
-
-  Effective CLAUDE.md guidance would be a "Bash hygiene" section telling me to:
-
-  - Prefer built-in tools over Bash. Read, Grep, Glob, Edit never prompt. Most of what triggered this in our session (vault scans, finding malformed lines) could have been Grep/Glob —
-   but note this vault disables them, so that exception works against you here.
-  - Avoid here-documents. Instead of python3 - <<'EOF' ... EOF, write the script to a file with the Write tool, then run python3 /tmp/script.py — a plain, analyzable invocation.
-  - Avoid for/while loops, pipes, &&/|| chains, command substitution $(...), and redirections like 2>/dev/null in commands meant to run unattended. Each makes a command un-analyzable.
-  - One command, one purpose. Run separate simple commands instead of chaining; simple commands match allow rules.
-
-  A concrete block you could paste:
-
-  ## Bash command hygiene
-  - Prefer built-in tools (Read/Grep/Glob/Edit) over Bash where possible.
-  - Do not use here-documents. Write scripts to a file, then run them as a plain command.
-  - Avoid loops, pipes, &&/||, command substitution, and redirections in Bash commands.
-  - Keep each Bash call a single simple `program args` invocation so it stays statically analyzable.
-
-  Caveat: this reduces prompts but won't eliminate them — some tasks genuinely need a pipe or substitution, and those will still ask. For the vault-scanning work specifically, the
-  cleanest fix is the file-based script pattern (Write a .py, then python3 file.py), since that one analyzable invocation can also be allow-listed.
-
-  The other option, if you'd rather not constrain command style, is changing the session permission mode to one that doesn't gate Bash — but that relaxes the safety check broadly, so
-  the CLAUDE.md approach is the more targeted choice.
-
-❯ /btw I keep getting prompted for permission with messages like " Contains shell syntax (string) that cannot be statically analyzed" or "IFS blah". How do I prevent this? Do I need
-to add some CLAUDE.md guidance to limit your shell syntax to stuff that my allow lists will support properly?
-  ⎿  Branched conversation "btw: I keep getting prompted for permission with messages like " Contains shell…". You are now in the new branch (session
-     38402b70-4c56-4786-8d50-0566f9bfc5a9). Use /resume 01ca696d-91d8-4a7b-ae4b-781379b64c2f to return to the original, or run claude -r 01ca696d-91d8-4a7b-ae4b-781379b64c2f in a new
-     terminal.
-
-❯ Let's add this to the CLAUDE.md in this vault.
-
-  Read 1 file (ctrl+o to expand)
-  ⎿  Interrupted · What should Claude do instead?
-
-❯ Actually talk to me about the pros/cons here. In particular I like to keep things consistent between my dev container, cloud cone instances, and my host-level Claude Code
-  instances. I'm obviously aware that the host stuff is much more dangerous from a security perspective, since that session typically has many more permissions that could be
-  problematic from a security perspective. I would like to keep things consistent between the two. Why does Claude Code like to use this crazy syntax where we customize the bash
-  calls so much that they can't be security-grep'd?
-
-⏺ Good instinct to pause on this. There are a couple of things tangled together, and pulling them apart changes the answer.
-
-  Why the "crazy syntax" happens
-
-  It isn't Claude Code choosing it — it's me. When you give me a task like "find every malformed task line in the vault," the most direct expression is a Python here-doc or a for loop
-   with a pipe. I reach for the most expressive single command that finishes the job, because that's usually the fewest tool calls. I don't get a signal that it triggered a permission
-   prompt on your end unless you tell me — so without guidance, I'll keep doing it. That's exactly the gap CLAUDE.md guidance is meant to close: it's the feedback channel.
-
-  The harness can't fix this after the fact. Here's the mechanism, because it explains everything else:
-
-  The permission analyzer tries to decompose your command into program + arguments so it can match it against an allowlist prefix like Bash(python3:*). It can do that for python3
-  scripts/scan.py. It cannot do it for python3 - <<'EOF' ... EOF, a pipeline, $(...), or anything touching IFS. Those constructs change shell parsing semantics — the effective
-  argument vector isn't known until runtime. The "IFS" warning specifically is the analyzer noticing word-splitting can be redefined, which means it can't trust its own decomposition.
-   So it does the safe thing: gives up on static proof and asks you.
-
-  That last part is the key reframe: the prompt is the system working correctly. When it can't prove a command is on your allowlist, it fails safe to a human. Your allowlist was never
-   the security boundary by itself — the allowlist plus the prompt fallback is.
-
-  Where this collides with your consistency goal
-
-  You want one mental model across dev container, cloud, and host. But those environments have genuinely different blast radii, and that's not a bug to paper over:
-
-  - Container / cloud cone: sandboxed. Complex bash is fine — if it goes wrong, the damage is contained.
-  - Host: broad permissions, real damage possible. The prompt-on-unanalyzable behavior is doing the job the sandbox does elsewhere.
-
-  So suppressing host prompts by constraining my command style removes friction without adding safety. The thing that's dangerous on the host is the permission grant, not the syntax.
-  A greppable command and an ungreppable one are equally capable of rm -rf — one just lets you audit it more easily after the fact.
-
-  This is the crux: CLAUDE.md is the wrong layer for a security control. It's advisory text I read and mostly follow. It is not enforcement. If you treat "keep commands analyzable" as
-   your security boundary, you have a boundary the model can drift past under a complex task — and it will, occasionally. Your real boundary is settings.json permissions, the
-  pre-security.sh hook, and sandboxing. Those are what you should keep identical across environments, and from your global config you already do.
-
-  Pros and cons of adding the guidance anyway
-
-  It's still worth adding — just for the right reasons.
-
-  Pros:
-  - Fewer host prompts; less interrupt-driven workflow.
-  - Genuinely better auditability. python3 scripts/scan.py can be read, diffed, version-controlled, and allowlisted. A here-doc can't. That's a real practice win, independent of
-  prompts.
-  - It composes with your allowlist: once commands decompose cleanly, Bash(python3:*) actually matches them. Today it often can't, because the analyzer chokes on the here-doc before
-  it ever sees python3.
-  - Travels with the repo; consistent everywhere.
-
-  Cons:
-  - It's soft. You'll still get occasional prompts on the host, and you cannot lean on it as a guarantee.
-  - It taxes efficiency in the safe environments — you'd have me write scratch scripts to files in the sandbox where it doesn't matter, costing extra tool calls and leaving files to
-  clean up.
-  - It can lull you into thinking the host got safer. It didn't; it got quieter.
-
-  How I'd actually frame it
-
-  If you value the single mental model — and it sounds like you do — the honest move is to standardize on the host's stricter style everywhere and accept the mild inefficiency in the
-  sandbox. That's a legitimate trade. But word the CLAUDE.md section as what it is: a style and auditability convention, not a safety mechanism. Something like "prefer statically
-  analyzable commands: write scripts to files rather than here-docs, avoid pipelines/substitution/loops in a single Bash call." That reduces prompts, improves auditability, and reads
-  honestly.
-
-  And keep your actual security consistency where it belongs: in settings.json + hooks, identical across all three environments, with the host simply running in a less permissive mode
-   than the sandbox. The prompts you still get on the host after all this? Those are a feature. An environment with that much blast radius should make you click "yes" sometimes.
-
-  Want me to add the section to this vault's CLAUDE.md with that framing — explicitly labeled as a style/auditability convention rather than a security control?
-
-✻ Cogitated for 1m 13s
-
-❯ Not yet. First, you brought something up that I thought was interesting. CLAUDE code clearly isn't getting the feedback that the security hook is, and the settings.json permissions
-   are causing prompts. How do we get that feedback back into CLAUDE code directly, on every prompt, so that it knows that it should be disambiguating or splitting calls up so that
-  they can be analyzed properly by the security hooks?
-
-⏺ Right — you've identified the actual gap. Let me lay out what's happening and the mechanism that closes it.
-
-  The feedback asymmetry today
-
-  When a Bash call hits the analyzer, three things can happen, and only one of them teaches me anything:
-
-  - Approved at the prompt — the command runs, I get its output, and I learn nothing. The "cannot be statically analyzed / IFS" reasoning was shown to you, in the permission UI. It
-  never enters my context. So I cheerfully write the next here-doc.
-  - Denied at the prompt — I get a tool error ("user declined"). That's feedback, but blunt: it tells me you said no, not why, and not what to do instead.
-  - Hook blocks it — this is the one channel where structured text reliably flows back to me.
-
-  So your instinct is exactly right. The analyzer's reasoning is human-facing by design. To get it into my context on every call, you have to manufacture the channel — and hooks are
-  that channel.
-
-  The mechanism: a PreToolUse hook that blocks and explains
-
-  A PreToolUse hook runs before the Bash call executes. The key behavior: if the hook exits with code 2, the call is blocked and the hook's stderr is delivered to me as the model.
-  That stderr becomes, effectively, my next instruction. I then retry — and because the message can be specific, I retry correctly.
-
-  So the design is a hook on Bash that:
-
-  1. Inspects the command string for the un-analyzable constructs — here-docs (<<), pipes (|), command substitution ($(...) / backticks), &&/|| chains, IFS=, leading for/while.
-  2. On a match, exits 2 with a stderr message that is actionable, not just a complaint:
-
-  ▎ "This command uses a here-doc, which the permission analyzer can't decompose. Write the script to a file (e.g. scripts/scan.py) and run it as python3 scripts/scan.py — a plain
-  invocation that matches Bash(python3:*)."
-
-  That message lands in my context, I correct, and within a few cycles in a session I'm primed. This is everything CLAUDE.md guidance is, except: deterministic, fires on every call
-  instead of being read once, and enforced rather than advisory.
-
-  Why this beats CLAUDE.md for your goal — and why you still want both
-
-  CLAUDE.md is read once at session start and competes with everything else in context; under a complex task I can drift past it. A hook fires every single call and doesn't drift. For
-   "feedback on every prompt," the hook is the literal answer to your question.
-
-  But they're complementary, not either/or:
-
-  - CLAUDE.md makes me write analyzable commands on the first try, so the hook rarely needs to fire.
-  - The hook catches the misses and teaches in the moment.
-
-  Best case: CLAUDE.md keeps the hook quiet; the hook makes CLAUDE.md enforceable.
-
-  The consistency angle — this is where it gets nice for you
-
-  You wanted one artifact across dev container, cloud, and host. A hook gives you that cleanly: deploy the same hook script everywhere, and have it key its behavior off an environment
-   variable (CLAUDE_ENV=host vs sandbox, or detect the container).
-
-  - Host: exit 2, block, teach. You get analyzable commands and far fewer raw permission prompts.
-  - Sandbox / cloud: exit 0, allow. Complex bash runs freely because the blast radius is contained — no efficiency tax where you don't need it.
-
-  Same file, same policy, behavior derived from environment — which is exactly the model you already use for your real security settings. The hook becomes the consistent artifact; the
-   environment variable is the one thing that legitimately differs.
-
-  Caveats worth knowing before you build it
-
-  - Approximation, not parity. Your hook can't perfectly mirror the harness's internal analyzer — shell is genuinely hard to parse. Keep the detection conservative: match the obvious
-  triggers and accept some false negatives. The goal is "nudge toward simple commands," not "exactly reproduce the analyzer."
-  - It costs a round-trip. Block-then-retry means a wasted call each time it fires. That round-trip is the learning, but on the host you'll feel it until I'm primed. CLAUDE.md
-  guidance shrinks how often it happens.
-  - The message quality is everything. The stderr is my next instruction. "Don't use here-docs" produces a vague retry; "write to scripts/X.py and run python3 scripts/X.py" produces
-  the right one. Spell out the alternative.
-  - It must block to teach. A hook that returns "ask" just produces another human prompt — it doesn't reach me. The teaching only happens on the exit-2 block path.
-
-  If you want, I can draft the hook (pre-bash-analyzability.sh), wire it into settings.json as a PreToolUse hook on Bash with the environment-variable gate, and add a short matching
-  CLAUDE.md section framed as a style convention. Say the word and I'll lay it out as a plan first.
-
-✻ Sautéed for 1m 27s
-
-❯ Okay, I'm curious, but let's do some online research. This can't be! I can't be the only one running into this. In particular, obviously I think the analyzeability and auditability
-   of the bash log is key for my agentic coding situation or for other people running into this. Is this a common scenario, and what's the best practice that you see online for
-  people who have dealt with this?
-
-⏺ Web Search("Claude Code bash "cannot be statically analyzed" permission prompt")
-  ⎿  Did 1 search in 6s
-
-⏺ Web Search("Claude Code bash command permission prompts complex shell syntax best practice")
-  ⎿  Did 1 search in 8s
-
-⏺ Fetch(https://github.com/anthropics/claude-code/issues/21503)
-  ⎿  Received 307.9KB (200 OK)
-
-⏺ Fetch(https://code.claude.com/docs/en/permissions)
-  ⎿  Received 32.8KB (200 OK)
-
-⏺ Fetch(https://blog.stackademic.com/stop-fighting-claude-codes-permission-prompts-here-s-how-the-system-actually-works-ae594e59fb13)
-  ⎿  Received 1KB (307 Temporary Redirect)
-
-⏺ Fetch(https://dev.to/yurukusa/6-claude-code-permission-traps-i-found-answering-github-issues-this-week-3ja2)
-  ⎿  Received 131.8KB (200 OK)
-
-⏺ Rich results. Let me pull the sandboxing doc too, since it turns out to be central to the answer:
-
-⏺ Fetch(https://code.claude.com/docs/en/sandboxing)
-  ⎿  Received 30.7KB (200 OK)
-
-⏺ Did the research. Short version: you're very much not alone, the specific thing you identified is a known issue that was closed without a fix, and the best practice has shifted to a
-   different layer than the one you've been fighting.
-
-  Yes, this is common — and your feedback-loop instinct is a filed issue
-
-  The permission-prompt friction shows up across a cluster of GitHub issues: allowed commands still prompting (#26796), Bash(command:*) rules not preventing prompts (#20449), prompts
-  triggering on cd instead of the real command in compound statements (#28240), and the &&-chaining backdoor (#28784). There's a whole "6 permission traps" article. So the friction is
-   well-trodden ground.
-
-  But the sharper find: the exact thing you asked about last turn — getting prompt feedback back to the model — is issue #21503: "Permission prompts are erased from Claude's context
-  after user approval." It documents precisely your problem: when you approve a prompt, the model sees only the result, never learns a prompt happened, can't debug it, and will
-  cheerfully misreport "permissions work fine." It was filed with a reproduction, labeled area:core / area:security / bug / memory — and closed as "not planned," then went stale. The
-  proposed fix (retain prompts in context the way tool errors are) was declined.
-
-  So: the native feedback loop you want doesn't exist and isn't coming. You independently rediscovered a won't-fix.
-
-  The best practice is to stop fighting the analyzer — use the sandbox
-
-  Here's the reframe the research surfaced. You've been trying to make my commands statically analyzable so the analyzer stops prompting. The current best practice is to not depend on
-   the analyzer at all — enable Claude Code's built-in Bash sandbox, which replaces per-command prompts with an OS-enforced boundary.
-
-  How it changes the picture:
-
-  - In auto-allow mode, sandboxed Bash commands run without any permission prompt. The gate is no longer "can this command string be decomposed" — it's "does the OS sandbox contain
-  it." A here-doc, a pipe, IFS=, command substitution — none of it prompts anymore, because analyzability stopped being the question.
-  - Enforcement is OS-level: Seatbelt on macOS, bubblewrap on Linux/WSL2. The docs are explicit that this "holds regardless of what the model chose to run and even if an allowed
-  command does more than its name suggests" — which a string-matching allowlist cannot promise.
-  - Deny rules still apply; rm -rf / and home-directory removal still circuit-break.
-
-  This directly dissolves your consistency-vs-safety tension — and inverts it. You assumed host = more dangerous, so consistency costs you safety there. With the sandbox it's the
-  opposite: the host gets safer and quieter at the same time, because a real OS boundary replaces model-judgment-plus-a-prompt.
-
-  The consistency mechanics: set sandbox.enabled: true once in ~/.claude/settings.json (user settings) and it applies to every project, every environment. macOS host needs nothing
-  installed (Seatbelt is built in); Linux/container needs bubblewrap + socat. Same settings file everywhere — the only thing that legitimately varies per environment is the boundary
-  (allowWrite paths, allowedDomains), which is exactly the kind of thing that should vary by environment.
-
-  Secondary best practice: invert the allowlist
-
-  The docs and the "permission traps" article converge on the same pattern for anything the sandbox doesn't cover: stop maintaining a fragile allowlist of analyzable command prefixes.
-   Instead — allow Bash broadly (the sandbox contains it), keep a short deny list for genuinely dangerous things, and use a PreToolUse hook for anything needing real logic. dev.to
-  calls PreToolUse hooks "the universal solution"; the docs confirm a hook's exit-code-2 block fires before permission rules even evaluate.
-
-  That hook is also the only way to manufacture the feedback loop from #21503 — exit 2, and your stderr message reaches me. But note: if you adopt the sandbox, you may not want that
-  loop anymore. The prompts that were teaching-by-friction mostly stop, so there's little left to teach.
-
-  The docs and the "permission traps" article converge on the same pattern for anything the sandbox doesn't cover: stop maintaining a fragile allowlist of analyzable command prefixes.
-   Instead — allow Bash broadly (the sandbox contains it), keep a short deny list for genuinely dangerous things, and use a PreToolUse hook for anything needing real logic. dev.to
-  calls PreToolUse hooks "the universal solution"; the docs confirm a hook's exit-code-2 block fires before permission rules even evaluate.
-
-  That hook is also the only way to manufacture the feedback loop from #21503 — exit 2, and your stderr message reaches me. But note: if you adopt the sandbox, you may not want that
-  loop anymore. The prompts that were teaching-by-friction mostly stop, so there's little left to teach.
-
-  On CLAUDE.md — the docs settle it
-
-  Anthropic's own permissions doc, in the section on constraining commands, says verbatim: adding CLAUDE.md guidance "shapes what Claude tries but doesn't enforce a boundary, so pair
-  it with one of the options above." So your instinct two turns ago not to over-invest in CLAUDE.md as the fix was correct. It's a style nudge, never a control.
-
-  Two caveats specific to your setup
-
-  1. The obsidian CLI may not survive the sandbox. It talks to a running Obsidian instance, likely over a local socket or localhost HTTP. The sandbox's seccomp filter blocks Unix
-  domain sockets, and the network proxy gates domains. If obsidian breaks under the sandbox, the fix is one line — add obsidian to sandbox.excludedCommands so it runs outside the
-  sandbox and falls back to the normal permission flow. Worth testing deliberately before committing to sandbox-everywhere.
-  2. The sandbox's default read policy still allows ~/.ssh and ~/.aws/credentials. It only restricts writes by default. Your global settings already deny-list those via Read() globs,
-  and the docs say Read deny rules merge into the sandbox boundary — but confirm that, or add explicit sandbox.filesystem.denyRead entries.
-
-  Bottom line
-
-  - Common: yes. Your feedback-loop problem specifically: known, issue #21503, closed not-planned.
-  - The fix isn't making my commands prettier for the analyzer — it's moving the boundary from the analyzer to the OS sandbox.
-  - That gives you the one-config-everywhere consistency you want, and makes the host safer rather than forcing a trade.
-  - Keep a PreToolUse hook for the residue; treat CLAUDE.md as style only.
-
-  If you want, next step I can lay out as a plan: a sandbox block for your user settings.json, a test of the obsidian CLI under /sandbox, and a slim PreToolUse hook — versus the
-  CLAUDE.md-only route we started with. The sandbox route is more setup but it's the one the research actually endorses.
-
-  Sources:
-  - Configure permissions - Claude Code Docs
-  - Configure the sandboxed Bash tool - Claude Code Docs
-  - Issue #21503 - Permission prompts erased from Claude's context after approval
-  - Issue #26796 - Bash tool prompts despite auto-approve settings
-  - Issue #20449 - Bash(command:*) allow rules don't prevent prompts
-  - Issue #28240 - Permission prompt triggers on cd in compound statements
-  - Issue #28784 - Bash(cd:*) && chaining backdoor
-  - 6 Claude Code Permission Traps - DEV Community
+```
+
+Trade-off: publishing pipeline, versioning discipline, OCI artifact maintenance.
+Defer until the one-line coupling becomes annoying or there's a second consumer.
+
+Devcontainer.json linter
+========================
+
+`bootstrap/lint-devcontainer.sh` is a security-focused linter that scans
+devcontainer.json files for patterns that would punch holes in the container
+boundary. It's wired into `make lint` via the `lint-devcontainer-security`
+target. Checks:
+
+- **Risky mounts**: `docker.sock`, ssh-agent forwarding, `~/.ssh`, `~/.aws`,
+  `~/.gnupg`, `~/.azure`, `~/.config/gh`, `~/.config/gcloud`, `~/.kube`,
+  `~/.docker`. Source-side substring match against `source=...` entries.
+- **Credential env pass-through**: `AWS_*`, `GCP_*`/`GOOGLE_APPLICATION_*`,
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GH_TOKEN`, `GITHUB_TOKEN`, `NPM_TOKEN`
+  in containerEnv or remoteEnv.
+- **Public port forwards**: forwardPorts entries that explicitly bind 0.0.0.0.
+- **Drift check**: `claude-code/settings.json` and `settings.container.json`
+  must match on every key outside `.sandbox` (so permission rules, hooks,
+  status line, etc. stay in sync between host and container variants).
+
+Advisory by default. Pass `--strict` to exit 1 on any warning (suitable for CI).
+The repo's `unattended` profile intentionally passes `GH_TOKEN` for the agentic
+ralph harness; that warning is expected.
+
+Tool-specific notes
+===================
+
+Claude Code
+-----------
+
+Host vs container variant lives at `claude-code/settings.json` and
+`claude-code/settings.container.json`. Both files mirror each other on
+`permissions`, `hooks`, `statusLine`, `env`, etc. Only the `sandbox` block
+differs:
+
+- Host: `sandbox.enabled: true`, full filesystem/network config.
+- Container: `sandbox.enabled: false`, nothing else under sandbox.
+
+The `permissions.deny[Read|Write|Edit]` glob list applies in both variants --
+that gates Claude Code's own file tools, independent of the OS sandbox. The
+in-project secret-pattern globs (`**/*.pem`, `**/credentials*`, `.env*`) still
+catch interpreter bypasses there.
+
+Codex CLI
+---------
+
+Same pattern: `codex/config.toml` (host) and `codex/config.container.toml`
+(container). The host variant uses `sandbox_mode = "workspace-write"`; the
+container variant uses `sandbox_mode = "danger-full-access"` because the
+container is the boundary. Approval policy stays `on-request` in both -- the
+human-in-the-loop gate is independent of sandbox mode.
+
+Copilot CLI
+-----------
+
+Copilot CLI has no OS-level sandbox of its own. The container boundary is the
+only isolation layer in devcontainers. On hosts, Copilot inherits the user's
+process environment with no enforcement beyond the `--deny-tool` CLI flag
+(which has no persistent equivalent). The dotfiles ship `copilot-instructions.md`
+but do not pretend to enforce a sandbox.
+
+Codespaces graceful degradation
+================================
+
+Codespaces' Azure-hosted kernel disallows the unprivileged user namespaces bwrap
+needs, so bwrap cannot start there. `failIfUnavailable: false` in the host
+settings lets Claude Code fall back to unsandboxed mode rather than failing
+startup -- but in Codespaces we use the *container* variant settings anyway
+(`is_devcontainer()` returns true for Codespaces), so the fallback path is not
+the primary concern. The container's process and filesystem isolation remain.
+
+Iptables in Codespaces is **TBD**. Requires empirical verification: does the
+Azure networking layer allow user-set OUTPUT rules with NET_ADMIN, or are
+NET_ADMIN containers refused by Codespaces' infrastructure? If iptables works,
+Codespaces gets the same egress allowlist as local devcontainers. If not, only
+the container boundary applies and `allowedDomains` is advisory at best.
+
+Inside a devcontainer
+======================
+
+`install.sh` detects the container via `is_devcontainer()` (REMOTE_CONTAINERS
+or CODESPACES env vars) and:
+
+1. Deploys `claude-code/settings.container.json` over `~/.claude/settings.json`.
+   On hosts this would be a symlink to the source file; in containers it is a
+   copy (avoiding a symlink dependency that could break if the source repo is
+   not present in the container).
+2. Deploys `codex/config.container.toml` over `~/.codex/config.toml`. Same
+   copy-not-symlink pattern.
+3. Wires `~/.claude`, `~/.codex`, `~/.copilot` as symlinks under
+   `~/.dotfiles-state/` (when the volume mount is present), or as plain real
+   directories (when it is not).
+4. Normalizes ownership of `~/.dotfiles-state/` if root-owned (first-mount fix).
+5. Optionally installs the iptables egress allowlist (gated on env var +
+   NET_ADMIN cap).
+
+The container does not install `bubblewrap` or `socat` -- those are skipped in
+`bootstrap/packages.sh` when `is_devcontainer()` is true.
+
+Limitations and known gaps
+==========================
+
+- **Linux ssh-agent in-session signed commits**: blocked by the unconditional
+  AF_UNIX seccomp filter. Tracked at issue
+  [#44180](https://github.com/anthropics/claude-code/issues/44180). Use a
+  separate terminal for `git commit` on Linux/WSL2 hosts until upstream fix.
+- **Codespaces iptables capability**: unverified. May or may not work depending
+  on whether Azure-hosted Codespaces accepts NET_ADMIN containers.
+- **Host network proxy and TLS**: the built-in proxy enforces by hostname
+  without TLS termination. Broad allowedDomains entries (e.g. `github.com`)
+  can be domain-fronted by attacker code running inside the sandbox. Threat
+  models requiring TLS-aware filtering need a custom proxy.
+- **Iptables and DNS-based exfil**: even with egress restricted to an
+  allowlist, attacker code can dial allowed destinations (e.g. push to a
+  controlled github.com repo). Iptables narrows the channel; it does not
+  close it entirely.
+- **Settings file drift**: `claude-code/settings.json` and
+  `claude-code/settings.container.json` are two physical files maintained in
+  parallel. The linter's drift check enforces sync on non-sandbox keys.
+  Adding a key to one without the other is a `make lint` warning.
+
+CVEs and updates
+================
+
+Keep Claude Code auto-updated. Sandbox-relevant CVEs (e.g. CVE-2026-25725,
+settings.json injection sandbox-escape) have shipped fixes; auto-update is
+the path to consume them.
+
+Reference
+=========
+
+- [Configure the sandboxed Bash tool (Claude Code docs)](https://code.claude.com/docs/en/sandboxing)
+- [Dev Container Features reference](https://containers.dev/implementors/features/)
+- [docker-in-docker feature (example of ${devcontainerId} in feature mounts)](https://github.com/devcontainers/features/blob/main/src/docker-in-docker/devcontainer-feature.json)
+- [@anthropic-ai/sandbox-runtime (npm package, optional)](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime)

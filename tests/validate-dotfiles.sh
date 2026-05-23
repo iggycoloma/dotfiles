@@ -82,6 +82,7 @@ check_symlink() {
 }
 
 # Helper: Check if symlink target exists and is readable
+# shellcheck disable=SC2329  # reserved helper kept for future symlink checks
 check_symlink_target() {
     local link=$1
     local name=$2

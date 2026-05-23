@@ -68,7 +68,8 @@ echo "Hello World" > "$TEST_FILE"
 echo "Line 2" >> "$TEST_FILE"
 echo "Line 3" >> "$TEST_FILE"
 
-# Cleanup function
+# Cleanup function (invoked via trap, shellcheck does not detect this)
+# shellcheck disable=SC2329
 cleanup() {
     rm -f "$TEST_FILE" "$TEST_OUTPUT"
 }

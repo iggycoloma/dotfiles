@@ -56,7 +56,13 @@
   // Use 'forwardPorts' to make ports available locally
   "forwardPorts": [3000, 8080],
 
-  // Run arguments for docker
+  // Run arguments for docker.
+  //
+  // Optional: to enable the dotfiles iptables egress allowlist
+  // (bootstrap/devcontainer-egress.sh), add "--cap-add=NET_ADMIN" below and
+  // set DOTFILES_DEVCONTAINER_EGRESS=1 in remoteEnv. The script restricts
+  // outbound traffic to anthropic.com, github, and package registries; it
+  // skips itself when NET_ADMIN is absent. See docs/sandbox.md.
   "runArgs": [
     "--name=${localWorkspaceFolderBasename}-devcontainer"
   ],

@@ -36,15 +36,18 @@ risk is about file contents, and use `Bash(...)` only as a best-effort tripwire.
 
 Bash commands run inside an OS-enforced sandbox: Seatbelt on macOS, bubblewrap on
 Linux/WSL2. This is a separate layer from `permissions` and applies to every
-sandboxed subprocess, not just Claude's file tools.
+sandboxed subprocess, not just Claude's file tools. See `docs/sandbox.md` in the
+dotfiles repo for the full reference.
 
 - `sandbox.filesystem.denyRead` / `denyWrite` are merged with `Read()`/`Write()`
   permission rules into OS path-prefix denies. A `python3 -c "open(...)"` against
-  a denied path returns an OS permission error, not data.
+  a denied path returns an OS permission error, not data. AI tool OAuth files
+  (`~/.claude/.credentials.json`, `~/.codex/auth.json`, `~/.codex/config.toml`,
+  `~/.copilot/config.json`) are denied here too.
 - In-project recursive globs (`**/*.pem`, `**/*secret*`, `**/credentials*`, `.env`)
   cannot be promoted to OS denies without blocking the project itself. They still
   fully gate `Read`/`Write`/`Edit`, and `pre-security.sh` substring-scans Bash
-  command strings for them. Keep real secrets out of project trees.
+  command strings for in-project secret patterns.
 - `excludedCommands` (e.g. `obsidian *`) and the residual `Bash(...)` allow list
   are the unsandboxed-fallback path. They go through the normal permission flow.
 - Default write boundary is cwd-only. Shell rc files and credential dirs in
@@ -53,10 +56,28 @@ sandboxed subprocess, not just Claude's file tools.
   credentials from sandboxed-subprocess env vars (`denyRead` only covers files).
 - Network access is gated by `network.allowedDomains` via a proxy. The proxy does
   not inspect TLS, so keep the allowlist narrow.
+- `failIfUnavailable: false` lets Claude Code fall back to unsandboxed mode if
+  bwrap cannot initialize (notably in GitHub Codespaces, where the Azure host
+  kernel disallows unprivileged user namespaces). Other layers (permission
+  globs, hooks, env scrub, network proxy) still apply in that fallback.
 
 Do not write Bash-hygiene guidance ("avoid here-docs", "no pipes", "no command
 substitution") here. The sandbox makes that obsolete; the analyzer no longer
 prompts on un-decomposable commands once the OS boundary contains them.
+
+Inside Docker / dev containers, bwrap is **not** used. The dotfiles deploy a
+container variant of this settings file (`claude-code/settings.container.json`)
+that sets `sandbox.enabled: false`; the container itself is the isolation
+boundary. The permission deny globs and pre-security hook still apply in that
+mode. Network egress inside containers is unrestricted by default; opt in to
+the iptables allowlist via `DOTFILES_DEVCONTAINER_EGRESS=1` and
+`--cap-add=NET_ADMIN`. Codespaces uses the same container variant settings.
+See `docs/sandbox.md` for the three-tier architecture and the per-tier
+posture (hosts, local devcontainers, Codespaces).
+
+Keep Claude Code auto-updated. Sandbox-relevant CVEs (e.g. CVE-2026-25725,
+settings.json injection sandbox-escape) have shipped fixes; auto-update is
+the path to consume them.
 
 ## Skill trigger precedence
 

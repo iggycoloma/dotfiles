@@ -505,9 +505,11 @@ install_apt() {
         packages+=("fzf")
     fi
 
-    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    # bubblewrap + socat power the Claude Code Bash sandbox on Linux (Seatbelt on macOS).
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
+    # bubblewrap + socat power the Claude Code Bash sandbox on Linux hosts
+    # (Seatbelt on macOS). Skipped inside containers: per the three-tier
+    # sandbox model in docs/sandbox.md, container = boundary; no bwrap.
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
         packages+=("bubblewrap" "socat")
     fi
 
@@ -623,9 +625,11 @@ install_apk() {
     # Note: Some tools may have different names or not be available
     packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
-    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    # bubblewrap + socat power the Claude Code Bash sandbox on Linux (Seatbelt on macOS).
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
+    # bubblewrap + socat power the Claude Code Bash sandbox on Linux hosts
+    # (Seatbelt on macOS). Skipped inside containers: per the three-tier
+    # sandbox model in docs/sandbox.md, container = boundary; no bwrap.
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
         packages+=("bubblewrap" "socat")
     fi
 

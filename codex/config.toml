@@ -1,0 +1,10 @@
+# Codex CLI configuration. Deployed by dotfiles symlinks.sh.
+# See docs/sandbox.md for the OS-level sandbox posture and rationale.
+
+# Sandbox + approval policy (Decision 6 in docs/sandbox.md).
+# workspace-write gives Codex's bwrap/Landlock sandbox write access to the
+# project workspace (and the system temp dir) while blocking writes elsewhere.
+# on-request keeps the human-in-the-loop gate for sensitive operations.
+# Per-project .codex/config.toml may override either in trusted projects.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
