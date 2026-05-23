@@ -506,8 +506,9 @@ install_apt() {
     fi
 
     # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    # bubblewrap + socat power the Claude Code Bash sandbox on Linux (Seatbelt on macOS).
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
-        packages+=("bubblewrap")
+        packages+=("bubblewrap" "socat")
     fi
 
     # Add host-specific tools
@@ -623,8 +624,9 @@ install_apk() {
     packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
     # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    # bubblewrap + socat power the Claude Code Bash sandbox on Linux (Seatbelt on macOS).
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
-        packages+=("bubblewrap")
+        packages+=("bubblewrap" "socat")
     fi
 
     # Add host-specific tools

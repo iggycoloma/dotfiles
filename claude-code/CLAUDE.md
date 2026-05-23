@@ -32,6 +32,32 @@ rules, so treat them with different confidence.
 If you are adding a new deny entry, prefer `Read`/`Write`/`Edit` with a glob when the
 risk is about file contents, and use `Bash(...)` only as a best-effort tripwire.
 
+## Sandbox boundary
+
+Bash commands run inside an OS-enforced sandbox: Seatbelt on macOS, bubblewrap on
+Linux/WSL2. This is a separate layer from `permissions` and applies to every
+sandboxed subprocess, not just Claude's file tools.
+
+- `sandbox.filesystem.denyRead` / `denyWrite` are merged with `Read()`/`Write()`
+  permission rules into OS path-prefix denies. A `python3 -c "open(...)"` against
+  a denied path returns an OS permission error, not data.
+- In-project recursive globs (`**/*.pem`, `**/*secret*`, `**/credentials*`, `.env`)
+  cannot be promoted to OS denies without blocking the project itself. They still
+  fully gate `Read`/`Write`/`Edit`, and `pre-security.sh` substring-scans Bash
+  command strings for them. Keep real secrets out of project trees.
+- `excludedCommands` (e.g. `obsidian *`) and the residual `Bash(...)` allow list
+  are the unsandboxed-fallback path. They go through the normal permission flow.
+- Default write boundary is cwd-only. Shell rc files and credential dirs in
+  `denyWrite` are blocked at the OS level even if a subprocess tried.
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` strips Anthropic and cloud-provider
+  credentials from sandboxed-subprocess env vars (`denyRead` only covers files).
+- Network access is gated by `network.allowedDomains` via a proxy. The proxy does
+  not inspect TLS, so keep the allowlist narrow.
+
+Do not write Bash-hygiene guidance ("avoid here-docs", "no pipes", "no command
+substitution") here. The sandbox makes that obsolete; the analyzer no longer
+prompts on un-decomposable commands once the OS boundary contains them.
+
 ## Skill trigger precedence
 
 Several skills have overlapping triggers. When multiple match, apply this order:

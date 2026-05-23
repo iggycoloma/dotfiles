@@ -87,7 +87,9 @@
       "Bash(apt list:*)",
       "Bash(brew list:*)",
       "Bash(chmod:*)",
-      "Bash(atuin:*)"
+      "Bash(atuin:*)",
+      "Bash(obsidian:*)",
+      "Bash(python3:*)"
     ],
     "deny": [
       "Read(.env)",
@@ -346,5 +348,68 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "env": {
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": true,
+    "excludedCommands": [
+      "obsidian *"
+    ],
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.azure",
+        "~/.config/gcloud",
+        "~/.config/gh",
+        "~/.config/hub",
+        "~/.config/heroku",
+        "~/.config/doctl",
+        "~/.stripe",
+        "~/.minikube",
+        "~/.dotfiles-state",
+        "~/.docker/config.json",
+        "~/.kube/config",
+        "~/.npmrc",
+        "~/.netrc",
+        "~/.git-credentials",
+        "~/.pgpass",
+        "~/.my.cnf",
+        "~/.pypirc",
+        "~/.gem/credentials",
+        "~/.composer/auth.json",
+        "~/.m2/settings.xml",
+        "~/.m2/settings-security.xml",
+        "~/.gradle/gradle.properties",
+        "~/.mongorc.js"
+      ],
+      "denyWrite": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.bashrc",
+        "~/.zshrc",
+        "~/.zshenv",
+        "~/.zprofile",
+        "~/.profile"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "*.githubusercontent.com",
+        "api.github.com",
+        "registry.npmjs.org",
+        "*.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org"
+      ]
+    }
+  }
 }
