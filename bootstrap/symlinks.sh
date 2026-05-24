@@ -171,6 +171,47 @@ _chmod_hooks() {
     done
 }
 
+# Deploy one of two variant files (host vs container) to a single target.
+# In devcontainers: copy the container variant. On hosts: symlink the host
+# variant. preserve_existing=1 leaves an existing real file in place (used
+# for configs the user may have tweaked locally, e.g. codex/config.toml).
+# Args: source_dir host_name container_name target_path [preserve_existing]
+_deploy_variant_file() {
+    local source_dir="$1"
+    local host_name="$2"
+    local container_name="$3"
+    local target="$4"
+    local preserve_existing="${5:-0}"
+
+    if is_devcontainer; then
+        local src="$source_dir/$container_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Container variant missing: $src"
+            return 0
+        fi
+        if [[ "$preserve_existing" == "1" ]] && [[ -e "$target" ]] && [[ ! -L "$target" ]]; then
+            log_warn "Skipping $target (preserving existing in-container file)"
+            return 0
+        fi
+        # Drop stale symlink (e.g. from a prior host install) before stomping.
+        [[ -L "$target" ]] && rm -f "$target"
+        mkdir -p "$(dirname "$target")"
+        cp -f "$src" "$target"
+        log_success "$(basename "$src") -> $target (container variant)"
+    else
+        local src="$source_dir/$host_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Host variant missing: $src"
+            return 0
+        fi
+        if [[ "$preserve_existing" == "1" ]] && [[ -e "$target" ]] && [[ ! -L "$target" ]]; then
+            log_warn "Skipping $target (preserving local edits to host variant)"
+            return 0
+        fi
+        create_symlink "$src" "$target"
+    fi
+}
+
 # Deploy config files and directories from dotfiles source to target.
 # In devcontainers: force-copies (stomp) so configs refresh every boot.
 # On host: creates symlinks to dotfiles repo for live editing.
@@ -226,11 +267,19 @@ _setup_claude_code() {
         log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
     fi
 
+    # settings.json: host vs container variant. Hosts get the full Bash sandbox
+    # (sandbox.enabled=true, allowedDomains, etc.); containers get
+    # sandbox.enabled=false because the container itself is the boundary.
+    # See docs/sandbox.md for the three-tier model.
+    _deploy_variant_file "$DOTFILES_DIR/claude-code" \
+        settings.json settings.container.json \
+        "$HOME/.claude/settings.json"
+
     # Personal Claude Code config. scripts/ and templates/ used to live here
     # but moved to the agentic/ subtree. See _setup_agentic for deployment of
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-        settings.json CLAUDE.md statusline.sh -- hooks agents commands
+        CLAUDE.md statusline.sh -- hooks agents commands
 
     log_success "Claude Code configuration complete"
 }
@@ -294,18 +343,13 @@ _setup_codex() {
         fi
     fi
 
-    # config.toml: preserve existing (local trust + preferences)
-    if [[ -f "$DOTFILES_DIR/codex/config.toml" ]]; then
-        if is_devcontainer; then
-            [[ ! -e "$HOME/.codex/config.toml" ]] && cp -f "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
-        else
-            if [[ -e "$HOME/.codex/config.toml" ]] && [[ ! -L "$HOME/.codex/config.toml" ]]; then
-                log_warn "Skipping ~/.codex/config.toml (preserving local Codex settings)"
-            else
-                create_symlink "$DOTFILES_DIR/codex/config.toml" "$HOME/.codex/config.toml"
-            fi
-        fi
-    fi
+    # config.toml: host vs container variant. Host uses sandbox_mode=workspace-write;
+    # container uses sandbox_mode=danger-full-access (container is the boundary).
+    # preserve_existing=1 -- local trust/preferences in ~/.codex/config.toml are
+    # left untouched if the user has hand-edited the file. See docs/sandbox.md.
+    _deploy_variant_file "$DOTFILES_DIR/codex" \
+        config.toml config.container.toml \
+        "$HOME/.codex/config.toml" 1
 
     # Ensure notify hook is wired in config.toml
     _setup_codex_notify

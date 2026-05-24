@@ -1,0 +1,13 @@
+# Codex CLI in-container configuration.
+#
+# Deployed to ~/.codex/config.toml inside devcontainers and Codespaces.
+# Host variant is codex/config.toml; see docs/sandbox.md.
+#
+# sandbox_mode = "danger-full-access" because the container itself is the
+# isolation boundary -- the OS-level sandbox is redundant inside a container
+# and produces friction (see docs/sandbox.md "Why three tiers").
+# approval_policy = "on-request" stays the same in both variants: the
+# human-in-the-loop gate is independent of the sandbox mode.
+
+sandbox_mode = "danger-full-access"
+approval_policy = "on-request"
