@@ -179,11 +179,22 @@ What that means in practice:
 Egress allowlist (opt-in)
 -------------------------
 
-`bootstrap/devcontainer-egress.sh` installs iptables OUTPUT rules that allow
-only a small set of agentic-tool + code-management endpoints (Anthropic API,
-GitHub, npm/pypi/crates registries) plus loopback + DNS + established
-connections. Default policy after the rules: DROP. Project-specific extras via
-`DOTFILES_EGRESS_EXTRA_HOSTS`.
+`bootstrap/devcontainer-egress.sh` installs a custom `DOTFILES-EGRESS`
+iptables chain wired into the OUTPUT chain via a single jump. The chain
+allows loopback, established/related return traffic, DNS (UDP/TCP 53), and
+per-IP ACCEPT for a small set of agentic-tool + code-management endpoints
+(Anthropic API, GitHub, npm/pypi/crates/Go registries). The chain ends in
+`REJECT --reject-with icmp-host-prohibited`, so anything else gets a clean
+error (not a hang). Project-specific extras via `DOTFILES_EGRESS_EXTRA_HOSTS`
+(comma-separated hostnames).
+
+Using a custom chain rather than `-P OUTPUT DROP` lets the script coexist
+with other tools that install OUTPUT rules (e.g. the agentic profile's
+mitmproxy iptables rules) instead of flushing the whole chain.
+
+Hostnames are resolved to IPs at install time and pinned in the rules. Re-run
+the script to pick up DNS changes -- the unattended profile's mitmproxy
+approach is the alternative if you need name-based enforcement.
 
 Gating (all required):
 

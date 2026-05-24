@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit lint-devcontainers
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-egress lint-devcontainers
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
@@ -6,7 +6,7 @@ SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path '.
 lint:
 	shellcheck $(SHELL_SCRIPTS)
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-egress
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -28,6 +28,9 @@ test-ralph:
 
 test-dc-audit:
 	bash tests/test-dc-audit.sh
+
+test-egress:
+	bash tests/test-devcontainer-egress.sh
 
 # Audit the repo's own devcontainer.json files (advisory only, not fatal).
 lint-devcontainers:

@@ -7,6 +7,11 @@ detect_environment() {
         echo "codespaces"
     elif [[ -n "${REMOTE_CONTAINERS:-}" ]]; then
         echo "devcontainer"
+    elif [[ -f /.dockerenv ]]; then
+        # Plain `docker run` shells (and devcontainers built without the VS
+        # Code remote helper exporting REMOTE_CONTAINERS) still set this
+        # sentinel at container start.
+        echo "devcontainer"
     elif [[ -n "${SSH_CONNECTION:-}" ]] || [[ -n "${SSH_CLIENT:-}" ]]; then
         echo "remote"
     else

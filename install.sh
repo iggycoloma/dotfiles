@@ -187,6 +187,14 @@ else
     log_success "SSH commit signing already configured"
 fi
 
+# Optional in-container egress allowlist. Gated on env + NET_ADMIN +
+# is_devcontainer; the script logs the reason and exits 0 if any gate fails,
+# so this hook is safe to keep wired in unconditionally.
+if [[ -x "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" ]]; then
+    "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" || \
+        log_warn "devcontainer-egress.sh exited non-zero (continuing)"
+fi
+
 # Final message
 log_section "Installation Complete"
 log_success "Dotfiles installed successfully!"

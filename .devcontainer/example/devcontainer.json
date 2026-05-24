@@ -28,6 +28,18 @@
   //   DOTFILES_NO_STATE_PERSISTENCE=1 -- skip state persistence (no volume or Codespaces tier)
   //   DOTFILES_NO_SSH_SIGNING=1      -- skip SSH commit signing auto-detection
 
+  // Opt-in network egress allowlist (iptables OUTPUT chain).
+  // Requires NET_ADMIN -- uncomment the --cap-add line in runArgs below.
+  // Without DOTFILES_DEVCONTAINER_EGRESS=1 the container has unrestricted
+  // egress (matches the default devcontainer posture).
+  // Extra hosts can be allowed via DOTFILES_EGRESS_EXTRA_HOSTS (comma-separated).
+  // Codespaces note: the MS base image does not ship the iptables userspace
+  // binary; the script auto-installs it via apt when DOTFILES_DEVCONTAINER_EGRESS=1.
+  // "remoteEnv": {
+  //   "DOTFILES_DEVCONTAINER_EGRESS": "1",
+  //   "DOTFILES_EGRESS_EXTRA_HOSTS": "registry-1.docker.io,docker.io"
+  // },
+
   // VS Code extensions to install
   "customizations": {
     "vscode": {
@@ -56,9 +68,14 @@
   // Use 'forwardPorts' to make ports available locally
   "forwardPorts": [3000, 8080],
 
-  // Run arguments for docker
+  // Run arguments for docker.
+  // Uncomment "--cap-add=NET_ADMIN" if you set DOTFILES_DEVCONTAINER_EGRESS=1
+  // above; the iptables allowlist script needs the capability to add OUTPUT
+  // rules. NET_ADMIN is a privileged capability -- not all hosts permit it,
+  // and Codespaces users typically can't add capabilities.
   "runArgs": [
     "--name=${localWorkspaceFolderBasename}-devcontainer"
+    // "--cap-add=NET_ADMIN"
   ],
 
   // User to run as (should match the user in your container)

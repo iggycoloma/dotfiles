@@ -238,10 +238,20 @@ test_devcontainer_neither_set() {
     unset REMOTE_CONTAINERS
     unset CODESPACES
 
-    if is_devcontainer; then
-        test_fail "is_devcontainer should return 1 with neither variable set"
+    # is_devcontainer also checks /.dockerenv as a sentinel, so the expected
+    # result here depends on whether this test is running inside a container.
+    if [[ -f /.dockerenv ]]; then
+        if is_devcontainer; then
+            test_pass "is_devcontainer returns 0 via /.dockerenv sentinel"
+        else
+            test_fail "is_devcontainer should return 0 via /.dockerenv sentinel"
+        fi
     else
-        test_pass "is_devcontainer returns 1 with neither variable set"
+        if is_devcontainer; then
+            test_fail "is_devcontainer should return 1 with no env vars and no /.dockerenv"
+        else
+            test_pass "is_devcontainer returns 1 with no env vars and no /.dockerenv"
+        fi
     fi
 
     # Restore
@@ -302,7 +312,15 @@ test_detect_local() {
 
     local result
     result=$(detect_environment)
-    assert_equals "local" "$result" "Should detect local environment"
+    # The /.dockerenv sentinel makes plain docker shells resolve to
+    # devcontainer even when no env vars are set; only assert "local" when
+    # the sentinel is absent.
+    if [[ -f /.dockerenv ]]; then
+        assert_equals "devcontainer" "$result" \
+            "Should detect devcontainer via /.dockerenv sentinel when env vars unset"
+    else
+        assert_equals "local" "$result" "Should detect local environment"
+    fi
 
     # Restore original values
     if [[ -n "$original_cs" ]]; then
