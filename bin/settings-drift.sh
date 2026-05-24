@@ -174,10 +174,7 @@ check_toml_drift() {
 main() {
     parse_args "$@"
 
-    if ! command -v jq >/dev/null 2>&1; then
-        log_error "jq is required"
-        return 2
-    fi
+    command -v jq >/dev/null 2>&1 || log_and_return error 2 "jq is required"
 
     if [[ "$JSON_OUTPUT" != true ]]; then
         log_section "settings-drift: comparing host vs container variants"

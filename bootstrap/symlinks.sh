@@ -256,6 +256,25 @@ _deploy_configs() {
     fi
 }
 
+# Deploy the shared Pushover notify lib into a hooks dir. The per-tool
+# notify hooks (claude-code/hooks/notify.sh, codex/hooks/notify.sh) source
+# the lib via "$(dirname "$0")/notify-pushover.sh" -- a sibling file in
+# their deployed dir. Copy in containers, symlink on hosts (same strategy
+# as other config deploys).
+_deploy_notify_lib() {
+    local target_dir="$1"
+    local src="$DOTFILES_DIR/bootstrap/lib/notify-pushover.sh"
+    [[ -f "$src" ]] || return 0
+    mkdir -p "$target_dir"
+    local target="$target_dir/notify-pushover.sh"
+    if is_devcontainer; then
+        [[ -L "$target" ]] && rm -f "$target"
+        cp -f "$src" "$target"
+    else
+        create_symlink "$src" "$target"
+    fi
+}
+
 _setup_claude_code() {
     log_info "Setting up Claude Code configuration..."
 
@@ -280,6 +299,9 @@ _setup_claude_code() {
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
         CLAUDE.md statusline.sh -- hooks agents commands
+
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.claude/hooks"
 
     log_success "Claude Code configuration complete"
 }
@@ -322,6 +344,9 @@ _setup_codex() {
 
     _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
         AGENTS.md hooks.json -- hooks
+
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.codex/hooks"
 
     # Skills: copy subdirectories individually (preserves .system in devcontainer)
     if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
@@ -375,7 +400,7 @@ _setup_codex_notify() {
         # Fix legacy string format -> array format
         if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
             log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
-            if command -v sd >/dev/null 2>&1; then
+            if has_tool sd; then
                 # shellcheck disable=SC2016  # $1 is a regex capture group, not a shell variable
                 sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
             else
@@ -408,7 +433,7 @@ create_symlinks() {
     # (gh, claude, codex) silently fails to persist.
     if [[ -d "$HOME/.dotfiles-state" ]]; then
         if [[ ! -w "$HOME/.dotfiles-state" ]]; then
-            if command -v sudo >/dev/null 2>&1; then
+            if has_tool sudo; then
                 sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state" ||
                     log_warn "Could not chown ~/.dotfiles-state (sudo blocked, e.g. no_new_privs); rebuild the container or chown the volume from the host. State persistence may fail."
             else

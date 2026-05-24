@@ -9,9 +9,9 @@ source "$DOTFILES_DIR/bootstrap/logging.sh"
 
 # Helper: choose a SHA256 tool
 _sha256() {
-    if command -v sha256sum >/dev/null 2>&1; then
+    if has_tool sha256sum; then
         sha256sum "$1" | awk '{print $1}'
-    elif command -v shasum >/dev/null 2>&1; then
+    elif has_tool shasum; then
         shasum -a 256 "$1" | awk '{print $1}'
     else
         echo ""
@@ -22,7 +22,7 @@ _sha256() {
 _select_asset_url() {
     local api_json="$1"; shift
     local pattern="$1"; shift
-    if command -v jq >/dev/null 2>&1; then
+    if has_tool jq; then
         echo "$api_json" | jq -r --arg re "$pattern" '.assets[].browser_download_url | select(test($re))' | head -n1
     else
         echo "$api_json" | grep -Eo '"browser_download_url"\s*:\s*"[^"]+"' | cut -d '"' -f4 | grep -E "$pattern" | head -n1
@@ -31,7 +31,7 @@ _select_asset_url() {
 
 _select_checksum_url() {
     local api_json="$1"
-    if command -v jq >/dev/null 2>&1; then
+    if has_tool jq; then
         echo "$api_json" | jq -r '.assets[].browser_download_url' | grep -Ei '(sha256|checksums)' | head -n1
     else
         echo "$api_json" | grep -Eo '"browser_download_url"\s*:\s*"[^"]+"' | cut -d '"' -f4 | grep -Ei '(sha256|checksums)' | head -n1
@@ -573,7 +573,7 @@ install_apt() {
                 local ppa_release_url="https://ppa.launchpadcontent.net/lazygit-team/release/ubuntu/dists/${codename}/Release"
                 if curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
                     timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1 || log_info "software-properties-common already installed or unavailable"
-                    if command -v add-apt-repository >/dev/null 2>&1; then
+                    if has_tool add-apt-repository; then
                         # Use timeout and noninteractive mode to prevent hanging
                         if timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:lazygit-team/release >/dev/null 2>&1; then
                             log_info "Added lazygit PPA"
@@ -844,7 +844,7 @@ install_claude_code() {
     log_info "Installing Claude Code via native installer..."
     # Ensure ~/.cache is writable (Docker volumes may mount it as root-owned)
     mkdir -p "$HOME/.cache"
-    if [[ ! -w "$HOME/.cache" ]] && command -v sudo >/dev/null 2>&1; then
+    if [[ ! -w "$HOME/.cache" ]] && has_tool sudo; then
         sudo chown -R "$(id -u):$(id -g)" "$HOME/.cache"
     fi
     local tmp_script

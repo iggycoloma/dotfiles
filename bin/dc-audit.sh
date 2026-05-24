@@ -64,10 +64,7 @@ HELP
 # --- Dependency checks ---
 
 check_dependencies() {
-    if ! command -v jq &>/dev/null; then
-        log_error "Missing required tool: jq"
-        return 1
-    fi
+    command -v jq &>/dev/null || log_and_return error 1 "Missing required tool: jq"
 }
 
 # --- Argument parsing ---
