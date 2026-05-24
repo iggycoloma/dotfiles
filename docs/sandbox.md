@@ -23,6 +23,61 @@ based on `is_devcontainer()`: container variants in devcontainers and Codespaces
 host variants on macOS, Linux, and WSL2 hosts. Same pattern for Codex CLI
 (`codex/config.toml` vs `codex/config.container.toml`).
 
+What the sandbox does and doesn't gate
+======================================
+
+`sandbox.network.allowedDomains` only gates the **Bash tool**. Claude Code's
+other tools have separate (and looser, by design) policies:
+
+| Tool                       | Sandboxed?                              | Network policy                                                                                  |
+|----------------------------|-----------------------------------------|-------------------------------------------------------------------------------------------------|
+| Bash (`curl`, `npm install`, `git clone`, etc.) | Yes -- bwrap netns + proxy (Linux) / Seatbelt (macOS) | `sandbox.network.allowedDomains` -- proxy enforces hostname allowlist            |
+| WebFetch                   | No -- runs in Claude Code's own process | `permissions` rules (`WebFetch` open / `WebFetch(domain:X)` narrow). Default in this repo: open. |
+| WebSearch                  | No -- API call to `api.anthropic.com`   | `permissions` allow list; no per-domain gate (results return as text)                            |
+| Read / Write / Edit        | Filesystem isolation only               | `permissions.deny[Read|Write|Edit]` glob list (credential blocklist)                             |
+| Glob / Grep                | No network                              | n/a                                                                                              |
+
+Practical consequence: a tight `allowedDomains` does **not** constrain Claude's
+research. Looking up MDN, Stack Overflow, language docs, or arbitrary URLs
+goes through WebFetch and bypasses the bash sandbox entirely. The trade-off
+is intentional -- WebFetch returns text; a compromised bash subprocess can
+exfiltrate, so bash gets the narrow gate.
+
+The allowlist therefore only matters for operations that ask the *shell* to
+reach out: package install, git clone/push, container pulls, toolchain
+installers, `curl` for API testing.
+
+Extending the allowlist
+-----------------------
+
+The default list covers the common agentic-coding bash surface:
+
+- **Anthropic**: api/console/statsig.
+- **SCM + GitHub releases**: github.com, api.github.com, raw + objects +
+  codeload.githubusercontent.com, ghcr.io.
+- **Package registries**: npmjs.org, yarnpkg.com, pypi.org +
+  files.pythonhosted.org, crates.io + index/static.crates.io,
+  proxy/sum.golang.org.
+- **Doc sites**: MDN, Stack Overflow + *.stackexchange.com, language docs
+  (Python, Node, Rust, Go, TypeScript), MS Learn, Apple Developer,
+  Kubernetes, man7.org, linux.die.net.
+
+What's intentionally **not** in the default global allowlist:
+
+- **Project-specific deploy targets**: Vercel, Fly.io, Heroku, Netlify, AWS,
+  GCP, Azure, your kubernetes API. These vary per project; add them in
+  `.claude/settings.local.json` (not tracked by dotfiles) so they don't
+  pollute the global config.
+- **Public Docker Hub** (`docker.io`, `registry-1.docker.io`): rarely needed
+  by Claude itself; add per-project if testing pulls public images.
+- **Toolchain installers** (`sh.rustup.rs`, `dl.google.com`, etc.): rare
+  enough to handle case-by-case in `settings.local.json`.
+
+To extend in a project, copy the relevant block into
+`.claude/settings.local.json` and merge -- Claude Code settings precedence is
+managed > CLI > local > project > user, so a project-local entry strictly
+adds to (doesn't replace) the global allowlist.
+
 Why three tiers
 ---------------
 
