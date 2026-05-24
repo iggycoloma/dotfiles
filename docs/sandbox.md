@@ -268,10 +268,11 @@ Defer until the one-line coupling becomes annoying or there's a second consumer.
 Devcontainer.json linter
 ========================
 
-`bootstrap/lint-devcontainer.sh` is a security-focused linter that scans
+`bin/dc-audit.sh` is a rubric-driven, security-focused linter that scans
 devcontainer.json files for patterns that would punch holes in the container
-boundary. It's wired into `make lint` via the `lint-devcontainer-security`
-target. Checks:
+boundary. The rubric lives in `agentic/devcontainer-rubric.json`; rules are
+profile-tagged (`attended` or `unattended`). Wired into `make lint-devcontainers`.
+Checks include:
 
 - **Risky mounts**: `docker.sock`, ssh-agent forwarding, `~/.ssh`, `~/.aws`,
   `~/.gnupg`, `~/.azure`, `~/.config/gh`, `~/.config/gcloud`, `~/.kube`,
@@ -280,13 +281,28 @@ target. Checks:
   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GH_TOKEN`, `GITHUB_TOKEN`, `NPM_TOKEN`
   in containerEnv or remoteEnv.
 - **Public port forwards**: forwardPorts entries that explicitly bind 0.0.0.0.
-- **Drift check**: `claude-code/settings.json` and `settings.container.json`
-  must match on every key outside `.sandbox` (so permission rules, hooks,
-  status line, etc. stay in sync between host and container variants).
 
 Advisory by default. Pass `--strict` to exit 1 on any warning (suitable for CI).
 The repo's `unattended` profile intentionally passes `GH_TOKEN` for the agentic
 ralph harness; that warning is expected.
+
+Settings variant drift
+----------------------
+
+`bin/settings-drift.sh` is the companion that verifies host and container
+settings variants stay in sync on every non-sandbox key. The drift check
+lives in its own tool (not the rubric) because it's a two-file comparison,
+not a per-devcontainer.json rule. Wired into `make lint` via the
+`lint-settings-drift` target so every CI lint catches drift.
+
+Checks:
+
+- `claude-code/settings.json` vs `settings.container.json`, ignoring `.sandbox`.
+- `codex/config.toml` vs `codex/config.container.toml`, ignoring `.sandbox_mode`.
+
+Comparison is canonical: JSON keys are sorted (`jq -S`), TOML is normalized
+through JSON (`yq -p toml -o json | jq -S`). Order and whitespace are not
+drift; structural difference is. `--json` emits JSONL findings for CI consumption.
 
 Tool-specific notes
 ===================
