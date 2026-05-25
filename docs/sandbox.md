@@ -47,6 +47,36 @@ The allowlist therefore only matters for operations that ask the *shell* to
 reach out: package install, git clone/push, container pulls, toolchain
 installers, `curl` for API testing.
 
+### Host vs container: a critical scope difference
+
+The "WebFetch is not gated" property above is specific to **hosts**. The
+host sandbox enforces `allowedDomains` via a proxy that bwrap (Linux) or
+Seatbelt (macOS) only attaches to bash subprocesses; Claude Code's own
+process sits outside that boundary and reaches the network directly.
+
+The opt-in **devcontainer egress allowlist** ([below](#egress-allowlist-opt-in))
+is a fundamentally different mechanism: iptables OUTPUT rules in the
+container's network namespace filter *packets*, not processes. Every
+process in the container -- including Claude Code itself -- sends through
+that stack. WebFetch's HTTP request originates from Claude Code's process,
+hits the container's OUTPUT chain, and gets REJECTed if the destination
+isn't on the allowlist.
+
+| Layer / tier                                              | Gates bash?   | Gates WebFetch?           | Gates WebSearch?                                          |
+|-----------------------------------------------------------|:-------------:|:-------------------------:|:---------------------------------------------------------:|
+| Host `sandbox.network.allowedDomains` (bwrap/Seatbelt)    | yes           | **no** (out of bwrap)     | no                                                        |
+| Devcontainer iptables egress allowlist (`DOTFILES_DEVCONTAINER_EGRESS=1`) | yes | **yes** (container-wide)  | yes -- but `api.anthropic.com` is on the default allowlist, so it works |
+| `permissions.deny[Read|Write|Edit]` (Claude Code layer)   | n/a           | no                        | no                                                        |
+| `permissions` allow/deny for `WebFetch(domain:X)`         | no            | yes (Claude Code layer)   | n/a                                                       |
+
+So when you opt into the devcontainer egress allowlist, research *is*
+affected: a WebFetch to a domain not on the allowlist fails at iptables
+the same way a `curl` from bash would. Add research domains via
+`DOTFILES_EGRESS_EXTRA_HOSTS=mdn.example.com,stackoverflow.com,...` in
+the devcontainer's `remoteEnv`. (Project-level `settings.local.json`
+won't help here -- iptables operates below Claude Code's permission
+system.)
+
 Extending the allowlist
 -----------------------
 
@@ -241,6 +271,15 @@ mitmproxy iptables rules) instead of flushing the whole chain.
 Hostnames are resolved to IPs at install time and pinned in the rules. Re-run
 the script to pick up DNS changes -- the unattended profile's mitmproxy
 approach is the alternative if you need name-based enforcement.
+
+**Scope note** (also see [Host vs container](#host-vs-container-a-critical-scope-difference)):
+unlike the host sandbox's `allowedDomains`, this allowlist filters
+*packets* at the kernel level, so it applies to **every** process in the
+container -- including Claude Code itself, and therefore WebFetch and
+WebSearch. If you enable this and find research broken, add the missing
+domains via `DOTFILES_EGRESS_EXTRA_HOSTS=...` in the devcontainer's
+`remoteEnv` (project `settings.local.json` won't help -- iptables
+operates below Claude Code's permission layer).
 
 Gating (all required):
 
