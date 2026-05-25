@@ -27,8 +27,9 @@ WARNING=$(printf '\xE2\x9A\xA0\xEF\xB8\x8F') # U+26A0 + U+FE0F
 # Helper: simulate a Write tool call, return "denied" or "allowed"
 run_write_hook() {
     local content="$1"
+    local file_path="${2:-/tmp/test.sh}"
     local json
-    json=$(jq -n -c --arg content "$content" '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.sh","content":$content}}')
+    json=$(jq -n -c --arg content "$content" --arg fp "$file_path" '{"tool_name":"Write","tool_input":{"file_path":$fp,"content":$content}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -44,8 +45,9 @@ run_write_hook() {
 run_edit_hook() {
     local old_string="$1"
     local new_string="$2"
+    local file_path="${3:-/tmp/test.sh}"
     local json
-    json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.sh","old_string":$old,"new_string":$new}}')
+    json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" --arg fp "$file_path" '{"tool_name":"Edit","tool_input":{"file_path":$fp,"old_string":$old,"new_string":$new}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -151,6 +153,38 @@ assert_allowed "$(run_edit_hook "old code ${ROCKET}" 'new code without emoji')" 
 
 assert_allowed "$(run_edit_hook 'old code' 'new code')" \
     "Allows plain text edit"
+
+#
+# Test Suite: Claude-internal paths exempt from emoji check
+#
+# Plan-mode output and auto-memory entries are Claude-generated scratch
+# content; emojis there should not block the write. Code/docs paths that
+# only happen to live under ~/.claude/ (commands, agents, hooks) still get
+# checked.
+#
+
+test_suite "Claude-Internal Paths Exempt"
+
+assert_allowed "$(run_write_hook "Step 1 ${ROCKET} ship it" "/home/vscode/.claude/plans/my-plan.md")" \
+    "Allows emoji in plan file (Write)"
+
+assert_allowed "$(run_edit_hook "old" "new ${PARTY}" "/home/vscode/.claude/plans/my-plan.md")" \
+    "Allows emoji in plan file (Edit)"
+
+assert_allowed "$(run_write_hook "memory note ${SPARKLES}" "/home/vscode/.claude/projects/-some-proj/memory/note.md")" \
+    "Allows emoji in auto-memory file (Write)"
+
+assert_allowed "$(run_edit_hook "old" "new ${BUG}" "/home/vscode/.claude/projects/-some-proj/memory/MEMORY.md")" \
+    "Allows emoji in auto-memory file (Edit)"
+
+assert_denied "$(run_write_hook "command help ${ROCKET}" "/home/vscode/.claude/commands/foo.md")" \
+    "Still blocks emoji under ~/.claude/commands/"
+
+assert_denied "$(run_write_hook "agent description ${PARTY}" "/home/vscode/.claude/agents/foo.md")" \
+    "Still blocks emoji under ~/.claude/agents/"
+
+assert_denied "$(run_write_hook "CLAUDE.md note ${SPARKLES}" "/home/vscode/.claude/CLAUDE.md")" \
+    "Still blocks emoji in ~/.claude/CLAUDE.md"
 
 #
 # Test Suite: Non-Write/Edit tools pass through

@@ -17,6 +17,15 @@ read -r input
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 CONTENT_TO_CHECK=""
 
+# Exempt Claude-internal write surfaces. Plan-mode output and auto-memory
+# entries are Claude-generated scratch content, not code or docs we ship,
+# so the no-emoji guardrail does not apply. Without this, a stray glyph in
+# a generated plan blocks every subsequent plan update with a hard deny.
+FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+case "$FILE_PATH" in
+    */.claude/plans/*|*/.claude/projects/*/memory/*) exit 0 ;;
+esac
+
 # Only validate Write and Edit tools
 if [[ "$TOOL_NAME" == "Write" ]]; then
     # For Write: check the entire content being written
