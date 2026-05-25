@@ -107,3 +107,44 @@ markdown for the AI tools to read.
 **Trade-off.** Adds a build step to the install. Worth doing once a
 maintenance bug actually bites; until then, the consistency tests are the
 guardrail. Out of scope for the current PR.
+
+## Bash-only egress filtering inside containers
+
+**What's there today.** The opt-in iptables egress allowlist
+(`bootstrap/devcontainer-egress.sh`) filters at the container's
+network namespace level. iptables OUTPUT applies to every process in
+the netns, so when enabled it gates WebFetch and WebSearch as a side
+effect of gating bash. See [`docs/sandbox.md`'s "Host vs container"
+section](sandbox.md#host-vs-container-a-critical-scope-difference) for
+the full explanation.
+
+**The spinoff.** A mechanism that filters only bash subprocesses
+inside a container, leaving Claude Code's own process (and therefore
+WebFetch / WebSearch) free to reach arbitrary research domains. This
+would let the "Sensitive code" recommendation in `docs/sandbox.md`
+land without trading away research.
+
+**Why it's hard.** Claude Code spawns bash as the same uid as itself,
+so `iptables -m owner --uid-owner` doesn't distinguish them.
+Architectural options, all with friction:
+
+- **cgroup-based iptables** (`-m cgroup`). Wrap every bash spawn to
+  place the subprocess in a dedicated cgroup; filter on that. Requires
+  a launcher in Claude Code's bash invocation path.
+- **mitmproxy + selective `HTTPS_PROXY`**. The unattended profile is
+  close to this -- it sets `HTTPS_PROXY` globally and uses
+  `iptables -m owner --uid-owner` to allow the proxy user direct
+  egress. Adapting it for the "Claude Code free, bash filtered" case
+  needs a launcher that *unsets* `HTTPS_PROXY` for Claude Code itself.
+- **`@anthropic-ai/sandbox-runtime`** evaluation. Referenced in
+  `docs/sandbox.md`'s Reference section; not yet evaluated for whether
+  it cleanly solves the per-process netns split inside a container.
+- **bwrap inside the container**. Explicitly the thing the three-tier
+  design rejected on hosts; would re-introduce all the friction
+  (seccomp, `CAP_SYS_ADMIN`, AF_UNIX filter, ssh-agent breakage).
+
+**Trade-off.** None of the options are clean enough to ship as a
+default. Defer until either (a) sandbox-runtime evaluates cleanly,
+or (b) a real user need surfaces. The current escape hatches
+(`DOTFILES_EGRESS_EXTRA_HOSTS` for research domains, or skip the
+egress allowlist entirely for hobbyist use) are good enough for now.

