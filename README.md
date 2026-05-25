@@ -1,34 +1,61 @@
 # Dotfiles
 
-A portable developer environment that lays down agentic-coding-ready tooling
-on hosts (macOS, Linux, WSL2), VS Code devcontainers, and GitHub Codespaces.
+A portable developer environment for hosts (macOS, Linux, WSL2), VS Code
+devcontainers, and GitHub Codespaces -- with a tier-aware agentic coding
+setup baked in.
 
-## Philosophy
+## Philosophy and scope
 
-This repo provides a **developer-specific** environment, not a project-specific
-one. The boundary is deliberate:
+This repo provides a **developer-specific** environment, not a
+project-specific one. The boundary is deliberate:
 
-- Universally useful CLI tools (rg, fd, bat, fzf, delta, ...) belong here -- they
-  improve every terminal session regardless of what you're working on.
-- Agentic coding tools (Claude Code, Codex CLI, Copilot CLI) belong here -- they're
-  part of how the developer works, not tied to any specific project. They get
-  the full treatment: installation, configuration, hooks, agents, commands,
-  state persistence, and a sandbox posture that adapts per tier.
-- Project-dependent executables (gh, docker, kubectl, mise, uv, ...) do **not**
-  belong here. Projects bring them in via `devcontainer.json` or `apt-get`;
-  this repo supplies the *configuration surface* (aliases, completions, state
-  persistence, shell integration) so the developer's workflow is already in
-  place when those tools show up.
+- **Universally useful CLI tools** (rg, fd, bat, fzf, delta, ...) belong here.
+  They improve every terminal session regardless of what you're working on.
+- **Customization and shell config** (aliases, functions, exports,
+  completions, git settings) belong here. A developer's preferences should
+  be ready on any machine.
+- **Agentic coding tools** (Claude Code, Codex CLI, Copilot CLI) belong here.
+  They're part of how the developer works, not tied to any specific project.
+  They get the full treatment: installation, configuration, hooks, agents,
+  commands, state persistence, and a sandbox posture that adapts per
+  environment.
+- **Project-dependent executables** (gh, docker, kubectl, mise, uv, ...) do
+  **not** belong here. Projects bring them in via `devcontainer.json` or
+  `apt-get`; this repo supplies the *configuration surface* (aliases,
+  completions, state persistence, shell integration) so the developer's
+  workflow is already in place when those tools show up.
 
-There are two products in this repo:
+Two products in this repo:
 
 1. **Dotfiles + terminal QoL** (default) -- `./install.sh`. What you want on
-   any machine.
-2. **Agentic harness** (opt-in) -- `./install.sh --with-agentic`. The
-   autonomous loop runner (`ralph.sh`), hardened devcontainer profile,
-   mitmproxy egress allowlist, and devcontainer linter rubric. Lives under
-   `agentic/`; see [`agentic/README.md`](agentic/README.md) for the harness's
-   own docs.
+   every machine. Includes the agentic coding *tools* (Claude Code, Codex
+   CLI, Copilot CLI) with their configs, hooks, agents, and commands.
+2. **Unattended coding harness** (opt-in) --
+   `./install.sh --with-unattended`. The configuration for running Claude
+   Code *without a human supervising each step*: the `ralph.sh` autonomous
+   loop runner, the hardened devcontainer profile (`--cap-drop=ALL` +
+   mitmproxy egress allowlist), and the devcontainer linter rubric.
+   Lives under [`unattended/`](unattended/README.md). "Agentic" alone
+   means the interactive tools (above); "unattended harness" means
+   specifically this opt-in subtree.
+
+## Where it runs (three tiers)
+
+This repo treats three environments as first-class targets. The install
+adapts automatically; the rest of the README uses these names as
+shorthand.
+
+| Tier | Definition |
+|------|-----------|
+| **Host** | Your laptop or workstation -- macOS, Linux, or WSL2. The dotfiles repo lives at `~/.dotfiles`; configs are symlinked into `~/`. |
+| **Local devcontainer** | VS Code devcontainer running on your host's Docker. The dotfiles install runs inside the container via `postCreateCommand`. |
+| **Codespaces / remote container** | GitHub Codespaces or any remote-container setup. Same install path as local devcontainers, with platform-level persistence handling. |
+
+The same dotfiles install behaves differently per tier: where configs are
+sourced from (host symlinks vs in-container copies), which settings variant
+to deploy (host sandbox vs container-as-boundary), how state persists
+(filesystem vs volume vs platform). Detection lives in
+`bootstrap/detect.sh:is_devcontainer` (env vars + `/.dockerenv` sentinel).
 
 ## Installation
 
@@ -75,52 +102,150 @@ WSL2 is covered by the Linux matrix.
 
 ---
 
-## What this gives you (three goals)
+## What you get
 
-### 1. Project-agnostic CLI tooling
+Three goals, in the order the developer encounters them. Each section has
+the highlights inline; deep details live in a focused doc.
 
-A curated set of modern terminal tools installed everywhere, with sensible
-defaults and shell integration. Core tools (rg, fd, bat, fzf, jq, delta,
-starship, zoxide, eza, sd, scc, yq, watchexec, atuin, ...) plus optional
-extras (lazygit, bottom, mise) and configuration-only support for tools your
-project brings in (gh, docker, kubectl, direnv, uv).
+### Project-agnostic CLI tooling
 
-See [`docs/tooling.md`](docs/tooling.md) for the full inventory plus shell and
-git configuration details.
+A curated set of modern terminal tools, installed everywhere with sensible
+defaults and shell integration. On Linux from GitHub releases
+(checksum-verified, musl-static where it matters); on macOS via Homebrew.
 
-### 2. Customized environment and configuration
+| Category                | Tools                                                                                  |
+|-------------------------|----------------------------------------------------------------------------------------|
+| Search / navigate       | fzf, ripgrep (rg), fd, zoxide, eza, yazi                                               |
+| View / diff             | bat, git-delta, scc, dust, duf, procs                                                  |
+| Edit / process          | jq, yq, sd, ast-grep (sg), difftastic (difft)                                          |
+| Shell / prompt          | starship, atuin, carapace, watchexec, hyperfine                                        |
+| Quality                 | shellcheck, gitleaks                                                                   |
+| Optional (hosts)        | lazygit, bottom (btm), mise                                                            |
+| Config-only (project brings the tool) | gh, docker, kubectl, direnv, uv, xh                                      |
 
-Bash and zsh configs, 80+ aliases, 25+ utility functions, three-file git
-config (identity stays in `~/.gitconfig`, shared settings come via `[include]`),
-starship prompt, ripgrep defaults, optimized zsh startup (deferred zoxide/direnv,
-cached compinit), and machine-specific overrides via `*.local` files.
+Skip the AI-adjacent tools (ast-grep, difftastic) with
+`DOTFILES_NO_AI_TOOLS=1`; skip atuin with `DOTFILES_NO_ATUIN=1`.
 
-Six installation toggles (`DOTFILES_NO_AI_TOOLS`, `DOTFILES_NO_GIT_HOOKS`, etc.)
-let you opt out of pieces you don't want.
+See [`docs/tooling.md`](docs/tooling.md) for the full inventory, what each
+tool replaces, and the rationale behind the "config-only" line for
+project-dependent tools.
 
-See [`docs/customization.md`](docs/customization.md) for the override model,
-toggle table, and per-project / per-devcontainer extension patterns.
+### Customized environment and configuration
 
-### 3. Agentic coding support
+Shell, git, and tool configuration that travels with you:
 
-Native installs of Claude Code and Codex CLI in devcontainers (no Node.js, no
-features). Shared guardrails, six-file instruction architecture (project +
-global, one per tool), 4 hooks, 5 agents, 16 slash commands for Claude Code,
-Claude-parity workflow skills for Codex, and a Pushover notification hook for
-both.
+- **Shell configs** -- bash and zsh with optimized startup (deferred
+  zoxide/direnv, cached `compinit`), 80+ aliases, 25+ utility functions
+  (`mkcd`, `extract`, `killport`, `gcof`, `glf`, `dotfiles-doctor`,
+  `serve`, smart `cat` that uses bat in terminals and plain cat in pipes).
+- **Git** -- three-file model: your identity stays in `~/.gitconfig`,
+  shared settings (delta, 44 aliases, hooks) come via an `[include]` in
+  `~/.config/git/config`. Conventional commits and gitleaks pre-commit
+  enforced globally via `core.hooksPath`.
+- **Prompt + defaults** -- starship two-line prompt with language/docker
+  status, ripgrep defaults (follow symlinks, hidden files, exclude .git).
 
-A three-tier sandbox posture (below) adapts the security model to the
-environment instead of fighting it.
+#### Override files (gitignored)
 
-See [`docs/agentic-tooling.md`](docs/agentic-tooling.md) for the tool-by-tool
-breakdown and [`docs/sandbox.md`](docs/sandbox.md) for the sandbox specifics.
+| File                   | Purpose                                          |
+|------------------------|--------------------------------------------------|
+| `~/.bashrc.local`      | Bash-specific overrides                          |
+| `~/.zshrc.local`       | Zsh-specific overrides                           |
+| `~/.exports.local`     | Environment variables (PATH additions, API keys) |
+| `~/.aliases.local`     | Extra aliases                                    |
+| `~/.functions.local`   | Extra functions                                  |
+
+#### Installation toggles
+
+Set before running `install.sh`, or in `~/.exports.local`, or in your
+devcontainer's `remoteEnv`:
+
+| Toggle                                  | Effect                                                                  |
+|-----------------------------------------|-------------------------------------------------------------------------|
+| `DOTFILES_NO_AI_TOOLS=1`                | Skip Claude Code, Codex CLI, ast-grep, difftastic, all AI configs       |
+| `DOTFILES_NO_ATUIN=1`                   | Skip atuin shell history                                                |
+| `DOTFILES_NO_GIT_HOOKS=1`               | Skip global git hooks (conventional commits, gitleaks pre-commit)       |
+| `DOTFILES_NO_STATE_PERSISTENCE=1`       | Skip state persistence wiring                                           |
+| `DOTFILES_NO_SSH_SIGNING=1`             | Skip SSH commit signing auto-detection                                  |
+| `DOTFILES_OPINIONATED_ALIASES=1`        | Shadow `grep` with rg and `find` with fd                                |
+| `DOTFILES_INSTALL_UNATTENDED=1`         | Deploy the opt-in unattended coding harness to `~/.unattended/`                      |
+| `DOTFILES_DEVCONTAINER_EGRESS=1`        | Install the iptables egress allowlist in devcontainers (needs NET_ADMIN)|
+| `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`     | Comma-separated extra hosts for the egress allowlist                    |
+
+See [`docs/customization.md`](docs/customization.md) for opinionated-alias
+details, per-project Claude/Codex overrides via `settings.local.json`,
+per-devcontainer `remoteEnv` patterns, diagnostics, and the full env-var
+reference.
+
+### Agentic coding support
+
+Native installs of Claude Code and Codex CLI in devcontainers (no Node.js,
+no devcontainer features). Shared guardrails across a six-file instruction
+architecture (project-scope `AGENTS.md` + `CLAUDE.md` +
+`.github/copilot-instructions.md`, plus global-scope `claude-code/CLAUDE.md`
++ `codex/AGENTS.md` + `copilot/copilot-instructions.md`).
+
+| Component                       | Count | What it does                                                                                          |
+|---------------------------------|-------|-------------------------------------------------------------------------------------------------------|
+| Settings variants per tool      | 2     | Host (`settings.json` / `config.toml`) and container (`settings.container.json` / `config.container.toml`) flavors |
+| Hooks (Claude Code)             | 4     | Credential blocking, conventional commits enforcement, no-emoji blocker, Pushover idle notification   |
+| Agents (Claude Code)            | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer (wired into `/pipeline`)           |
+| Commands (Claude Code)          | 16    | `/commit`, `/pr-create`, `/review-pr`, `/debug`, `/test`, `/refactor`, `/security-audit`, `/pipeline` |
+| Skills (Codex)                  | n/a   | Claude-parity workflow skills mapping user intent                                                     |
+
+The **4-stage pipeline** (`/pipeline`) runs PM spec -> architecture review
+-> implementation + tests -> QA review, with user checkpoints between
+stages.
+
+Sandbox is **tier-aware** (see [Sandbox posture](#sandbox-posture) below):
+
+- **Host**: full Claude Code Bash sandbox (Seatbelt on macOS, bwrap on
+  Linux/WSL2), `allowedDomains` enforced kernel-level via a host proxy.
+- **Devcontainer / Codespaces**: container *is* the sandbox boundary;
+  OS-level sandbox disabled to avoid leaky abstractions; opt-in iptables
+  egress allowlist available behind `DOTFILES_DEVCONTAINER_EGRESS=1`.
+
+WebFetch and WebSearch are **not** gated by `allowedDomains` -- only Bash
+subprocesses are -- so research is unaffected by a narrow allowlist.
+
+Skip the whole agentic stack with `DOTFILES_NO_AI_TOOLS=1`.
+
+See [`docs/agentic-tooling.md`](docs/agentic-tooling.md) for the
+tool-by-tool breakdown (hooks deep-dive, MCP posture, per-tier behavior)
+and [`docs/sandbox.md`](docs/sandbox.md) for the full sandbox story.
 
 ---
 
-## How it works (three tiers)
+## How it works
 
-The same dotfiles install gives a different shape per tier. The differences
-aren't accidental -- each tier is the right boundary for its environment.
+### Architecture
+
+- **Symlinks on hosts, copies in containers.** Hosts symlink dotfiles
+  config into `~/` so edits to the repo immediately reflect in your
+  environment. Containers stomp-copy on every install so the dotfiles repo
+  doesn't have to exist inside the container.
+- **One shared state volume.** A single Docker named volume mount line --
+  `source=${devcontainerId}-state,target=/home/vscode/.dotfiles-state,type=volume`
+  -- persists Claude Code, Codex, and Copilot CLI state across rebuilds.
+  `install.sh` symlinks `~/.claude`, `~/.codex`, `~/.copilot` into
+  subdirectories of the volume. Codespaces uses platform-level home
+  persistence; no mount line needed.
+- **Two settings files per tool.** Host vs container variants for Claude
+  Code (`settings.json` / `settings.container.json`) and Codex
+  (`config.toml` / `config.container.toml`). A `bin/settings-drift.sh`
+  linter in `make lint` enforces sync on every non-sandbox key so the
+  variants don't drift.
+- **Devcontainer linting.** `bin/dc-audit.sh` checks any
+  `devcontainer.json` against a security-focused rubric (image/feature
+  pinning, forbidden credential mounts, resource caps, `shutdownAction`,
+  ...) with safe additive `--fix` mode. Wired into
+  `make lint-devcontainers`.
+
+See [`docs/architecture.md`](docs/architecture.md) for the repository
+layout, the detection logic, the three-tier state-persistence
+implementation, and a "how to modify this for your own use" walkthrough.
+
+### Sandbox posture
 
 | Tier                          | Filesystem isolation       | Network egress                                         | Settings variant            | Persistence                         |
 |-------------------------------|----------------------------|--------------------------------------------------------|-----------------------------|-------------------------------------|
@@ -130,76 +255,15 @@ aren't accidental -- each tier is the right boundary for its environment.
 
 Why three tiers instead of one? Trying to run `bwrap` inside devcontainers
 produced friction at every step (WSL2 path detection, Docker seccomp,
-`CAP_SYS_ADMIN`, an AF_UNIX filter that breaks ssh-agent). The container is
-itself a kernel-enforced isolation primitive -- bwrap on top is
+`CAP_SYS_ADMIN`, an AF_UNIX filter that breaks ssh-agent). The container
+is itself a kernel-enforced isolation primitive -- bwrap on top is
 defense-in-depth with high maintenance cost. Hosts keep bwrap (where it
 works cleanly); containers drop it.
 
-`install.sh` picks the right settings variant by checking `is_devcontainer()`
-(env vars + `/.dockerenv` sentinel) and deploys the matching
-`settings.container.json` or `settings.json` for Claude Code, plus
-`config.container.toml` or `config.toml` for Codex.
-
-See [`docs/sandbox.md`](docs/sandbox.md) for the full sandbox story including
-what's gated and what isn't, the SSH-signing nuance on Linux/WSL2 hosts, the
-egress allowlist, and the upstream issues (`#44180`, `#10767`, `#29274`) that
-shape the design.
-
----
-
-## Architecture
-
-- **Symlinks on hosts, copies in containers.** Hosts symlink dotfiles config
-  into `~/` so edits to the repo immediately reflect in your environment.
-  Containers stomp-copy on every install so the dotfiles repo doesn't have to
-  exist inside the container.
-- **One shared state volume.** A single Docker named volume mount at
-  `/home/vscode/.dotfiles-state` (one line in `devcontainer.json`) persists
-  Claude Code, Codex, and Copilot CLI state across rebuilds. `install.sh`
-  symlinks `~/.claude`, `~/.codex`, `~/.copilot` into subdirectories.
-  Codespaces uses platform-level home persistence; no mount line needed.
-- **Two settings files per tool.** Host vs container variants for Claude Code
-  (`settings.json` / `settings.container.json`) and Codex
-  (`config.toml` / `config.container.toml`). A `bin/settings-drift.sh` linter
-  in `make lint` enforces sync on every non-sandbox key so variants don't drift.
-- **Devcontainer linting.** `bin/dc-audit.sh` checks any `devcontainer.json`
-  against a security-focused rubric (image/feature pinning, forbidden
-  credential mounts, resource caps, `shutdownAction`, ...) with safe additive
-  `--fix` mode. Wired into `make lint-devcontainers`.
-
-For the repository layout, the symlinking/copy strategy, the three-tier state
-persistence implementation, and a "how to modify this for your own use"
-walkthrough, see [`docs/architecture.md`](docs/architecture.md).
-
----
-
-## Customization
-
-Quick reference:
-
-| Override file       | Purpose                                                     |
-|---------------------|-------------------------------------------------------------|
-| `~/.bashrc.local`   | Bash-specific overrides                                     |
-| `~/.zshrc.local`    | Zsh-specific overrides                                      |
-| `~/.exports.local`  | Environment variables (PATH additions, API keys)            |
-| `~/.aliases.local`  | Extra aliases                                               |
-| `~/.functions.local`| Extra functions                                             |
-
-| Toggle (set before install)             | Effect                                          |
-|-----------------------------------------|-------------------------------------------------|
-| `DOTFILES_NO_AI_TOOLS=1`                | Skip Claude Code, Codex CLI, ast-grep, difft, configs |
-| `DOTFILES_NO_ATUIN=1`                   | Skip atuin shell history                        |
-| `DOTFILES_NO_GIT_HOOKS=1`               | Skip global git hooks                           |
-| `DOTFILES_NO_STATE_PERSISTENCE=1`       | Skip state persistence wiring                   |
-| `DOTFILES_NO_SSH_SIGNING=1`             | Skip SSH commit signing auto-detection          |
-| `DOTFILES_OPINIONATED_ALIASES=1`        | Shadow `grep` with rg and `find` with fd       |
-| `DOTFILES_INSTALL_AGENTIC=1`            | Deploy the agentic harness to `~/.agentic/`     |
-| `DOTFILES_DEVCONTAINER_EGRESS=1`        | Install the iptables egress allowlist (needs NET_ADMIN) |
-| `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`     | Add hosts to the egress allowlist               |
-
-For the full table, opinionated-alias details, per-project Claude/Codex
-overrides via `settings.local.json`, devcontainer `remoteEnv` patterns, and
-shell profiling, see [`docs/customization.md`](docs/customization.md).
+See [`docs/sandbox.md`](docs/sandbox.md) for what's gated and what isn't
+(WebFetch / WebSearch are intentionally exempt), the SSH-signing nuance on
+Linux/WSL2 hosts, the iptables egress allowlist details, and the upstream
+Claude Code issues (#44180, #10767, #29274) that shape the design.
 
 ---
 
@@ -207,15 +271,19 @@ shell profiling, see [`docs/customization.md`](docs/customization.md).
 
 A few pieces are good candidates to spin out of this repo once they earn it:
 
-- **State persistence as a devcontainer Feature.** Today users add one volume
-  mount line to `devcontainer.json`. Publishing a Feature on GHCR could let
-  the mount + install command be declared in a single `features` entry.
-- **Agentic harness as a standalone package.** The `agentic/` subtree is
-  already opt-in (`./install.sh --with-agentic`) and self-contained; an
-  independent distribution would let non-dotfiles users adopt it.
-- **Workspace-local state.** Evaluated and removed for security reasons (auth
-  tokens in the project tree are a footgun); the analysis is preserved at
+- **State persistence as a devcontainer Feature** -- publish on GHCR so
+  projects can declare the mount + install command in a single `features`
+  entry instead of a mount line.
+- **Unattended coding harness as a standalone package** -- the
+  `unattended/` subtree (autonomous loop runner, hardened devcontainer
+  profile, mitmproxy allowlist) is already opt-in and self-contained;
+  could distribute independently as an unattended-Claude-Code package.
+- **Workspace-local state** -- evaluated and removed for security reasons
+  (auth tokens in the project tree are a footgun); analysis preserved at
   [`docs/future-workspace-local-state.md`](docs/future-workspace-local-state.md).
+- **Shared instruction-file partials** -- the cross-file dup of
+  Guardrails / Preferred CLI Tools / MCP across six files could fold into
+  templating at deploy time.
 
 See [`docs/spinoffs.md`](docs/spinoffs.md) for the rationale on each.
 
@@ -224,34 +292,37 @@ See [`docs/spinoffs.md`](docs/spinoffs.md) for the rationale on each.
 ## Diagnostics and testing
 
 ```bash
-dotfiles-doctor          # Health check: symlinks, tools, git config, signing
-make lint                # shellcheck + bin/settings-drift.sh
-make test                # Full suite (unit, packages, integration, etc.)
-make test-integration    # Just the install integration test
+dotfiles-doctor                # Health check: symlinks, tools, git config, signing
+make lint                      # shellcheck + bin/settings-drift.sh drift check
+make test                      # Full suite (unit, packages, integration, drift, egress, ...)
+make test-integration          # Just the install integration test
 ZSH_PROFILE=1 zsh -i -c exit   # Profile zsh startup (zprof output)
 ```
 
 Currently 389 tests across 9 suites. Test files live in `tests/`; see
-[`docs/architecture.md`](docs/architecture.md#testing) for what each covers.
+[`docs/architecture.md#testing`](docs/architecture.md#testing) for what
+each suite covers.
 
 ---
 
 ## Documentation map
 
-- [`docs/architecture.md`](docs/architecture.md) -- repo layout, scope boundary,
-  symlink/copy strategy, state persistence, devcontainer linting, modifying
-  for your own use.
-- [`docs/tooling.md`](docs/tooling.md) -- full CLI inventory, shell config,
-  git config.
-- [`docs/agentic-tooling.md`](docs/agentic-tooling.md) -- the six-file
-  instruction architecture, hooks/agents/commands, per-tier behavior.
-- [`docs/sandbox.md`](docs/sandbox.md) -- three-tier sandbox posture in full
-  detail.
+- [`docs/architecture.md`](docs/architecture.md) -- repo layout, scope
+  boundary, symlink/copy strategy, state persistence, devcontainer
+  linting, modifying for your own use.
+- [`docs/tooling.md`](docs/tooling.md) -- full CLI inventory, shell
+  config, three-file git config.
+- [`docs/agentic-tooling.md`](docs/agentic-tooling.md) -- six-file
+  instruction architecture, hooks / agents / commands, MCP posture,
+  per-tier behavior.
+- [`docs/sandbox.md`](docs/sandbox.md) -- three-tier sandbox posture in
+  full detail.
 - [`docs/customization.md`](docs/customization.md) -- override files,
   toggles, per-project extensions, environment-variable reference.
 - [`docs/spinoffs.md`](docs/spinoffs.md) -- forward-looking directions.
-- [`agentic/README.md`](agentic/README.md) -- the agentic harness's own docs
-  (`ralph.sh`, unattended profile, `dc-audit.sh`).
+- [`unattended/README.md`](unattended/README.md) -- the unattended coding
+  harness's own docs (`ralph.sh`, hardened devcontainer profile,
+  `dc-audit.sh`).
 
 ## Resources
 

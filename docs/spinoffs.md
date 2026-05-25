@@ -38,26 +38,28 @@ there's a second consumer.
 For implementation rationale and the alternative we evaluated and rejected
 (workspace-local state), see [`future-workspace-local-state.md`](future-workspace-local-state.md).
 
-## Agentic harness as a standalone package
+## Unattended coding harness as a standalone package
 
-**What's there today.** The `agentic/` subtree is the "second product" in
-this repo:
+**What's there today.** The `unattended/` subtree is the "second product"
+in this repo:
 
-- `agentic/scripts/ralph.sh` -- autonomous loop runner for Claude Code.
-- `agentic/scripts/ralph-parallel.sh` -- N loops across separate worktrees.
-- `agentic/bootstrap/unattended-*.sh` -- hardened devcontainer profile setup
-  (mitmproxy egress allowlist, vulnerability scanners, entrypoint validation).
-- `agentic/templates/` -- PRD, prompt, progress templates.
-- `agentic/devcontainer-rubric.json` -- consumed by `bin/dc-audit.sh`.
+- `unattended/scripts/ralph.sh` -- autonomous loop runner for Claude Code.
+- `unattended/scripts/ralph-parallel.sh` -- N loops across separate worktrees.
+- `unattended/bootstrap/unattended-*.sh` -- hardened devcontainer profile
+  setup (mitmproxy egress allowlist, vulnerability scanners, entrypoint
+  validation).
+- `unattended/templates/` -- PRD, prompt, progress templates.
+- `unattended/devcontainer-rubric.json` -- consumed by `bin/dc-audit.sh`.
 
-Already opt-in: `./install.sh --with-agentic` or
-`DOTFILES_INSTALL_AGENTIC=1`. Lives at `~/.agentic/` when deployed. See
-[`../agentic/README.md`](../agentic/README.md) for the harness's own docs.
+Already opt-in: `./install.sh --with-unattended` or
+`DOTFILES_INSTALL_UNATTENDED=1`. Lives at `~/.unattended/` when deployed.
+See [`../unattended/README.md`](../unattended/README.md) for the harness's
+own docs.
 
-**The spinoff.** Distribute the harness independently of the dotfiles. A
-standalone repo or npm/pipx package could let non-dotfiles users adopt
-`ralph.sh` + the unattended profile + the linter without committing to the
-rest of the developer environment.
+**The spinoff.** Distribute the unattended harness independently of the
+dotfiles. A standalone repo or npm/pipx package could let non-dotfiles
+users adopt `ralph.sh` + the unattended profile + the linter without
+committing to the rest of the developer environment.
 
 **Trade-off.** Today the harness reuses `bootstrap/logging.sh` and
 `bootstrap/detect.sh` from the dotfiles. A standalone distribution would

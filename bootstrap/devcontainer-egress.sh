@@ -10,7 +10,7 @@
 # Anything else is REJECTed with icmp-host-prohibited (clean errors, not hangs).
 #
 # Using a custom chain (rather than -P OUTPUT DROP) lets this coexist with
-# other tools that install OUTPUT rules (e.g. agentic/bootstrap/unattended-proxy.sh).
+# other tools that install OUTPUT rules (e.g. unattended/bootstrap/unattended-proxy.sh).
 #
 # Gates (all required, else exits 0 with reason logged):
 #   1. DOTFILES_DEVCONTAINER_EGRESS=1

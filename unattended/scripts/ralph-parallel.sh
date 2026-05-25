@@ -17,7 +17,7 @@ elif [[ -f "$SCRIPT_DIR/../lib/logging.sh" ]]; then
 elif [[ -f "${DOTFILES_DIR:-}/bootstrap/logging.sh" ]]; then
     LOGGING_SH="$DOTFILES_DIR/bootstrap/logging.sh"
 else
-    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.agentic/lib/)" >&2
+    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.unattended/lib/)" >&2
     exit 1
 fi
 

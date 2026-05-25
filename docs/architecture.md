@@ -65,7 +65,7 @@ dotfiles/
 |   +-- copilot-instructions.md # Global Copilot CLI instructions
 |-- config/                    # Starship, ripgrep, bat, bottom, lazygit, yazi
 |-- bin/                       # User-facing CLI tools (dc-audit, settings-drift, gh-repo-policy)
-|-- agentic/                   # Opt-in agentic harness (separate product)
+|-- unattended/                # Opt-in unattended coding harness (separate product)
 |-- tests/                     # 9 test suites, 389 tests total
 +-- .devcontainer/             # Example + reference devcontainer configurations
 ```
@@ -145,7 +145,7 @@ configs in sync with what you've committed to the repo. The user's own
 Two complementary linters live in `bin/`:
 
 - [`bin/dc-audit.sh`](../bin/dc-audit.sh) -- security-focused linter for
-  `devcontainer.json` files. Rubric-driven (`agentic/devcontainer-rubric.json`):
+  `devcontainer.json` files. Rubric-driven (`unattended/devcontainer-rubric.json`):
   image/feature pinning, `--security-opt=no-new-privileges`, resource caps,
   forbidden host credential mounts (unattended profile), `shutdownAction`,
   `updateRemoteUserUID`, `waitFor`. Profiles: `attended` (light safety) and

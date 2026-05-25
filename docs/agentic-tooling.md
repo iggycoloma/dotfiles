@@ -3,7 +3,7 @@
 How Claude Code, Codex CLI, and Copilot CLI are integrated. For the sandbox
 posture (host vs container, egress, signing), see [`sandbox.md`](sandbox.md).
 For the autonomous-loop harness (`ralph.sh`, unattended profile), see
-[`../agentic/README.md`](../agentic/README.md).
+[`../unattended/README.md`](../unattended/README.md).
 
 ## Installation
 

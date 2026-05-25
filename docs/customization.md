@@ -32,7 +32,7 @@ in your devcontainer's `remoteEnv`:
 | `DOTFILES_NO_STATE_PERSISTENCE=1`     | off     | Skip state persistence (no volume or Codespaces tier wiring)            |
 | `DOTFILES_NO_SSH_SIGNING=1`           | off     | Skip SSH commit signing auto-detection                                  |
 | `DOTFILES_OPINIONATED_ALIASES=1`      | off     | Shadow `grep` with `rg` and `find` with `fd`                            |
-| `DOTFILES_INSTALL_AGENTIC=1`          | off     | Deploy the opt-in agentic harness to `~/.agentic/`                      |
+| `DOTFILES_INSTALL_UNATTENDED=1`       | off     | Deploy the opt-in unattended coding harness to `~/.unattended/`         |
 | `DOTFILES_DEVCONTAINER_EGRESS=1`      | off     | Install iptables egress allowlist in devcontainers (needs `NET_ADMIN`)  |
 | `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`   | (empty) | Comma-separated hosts to add to the egress allowlist                    |
 | `DOTFILES_NO_SSH_SIGNING=1`           | off     | (same as above)                                                         |

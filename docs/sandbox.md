@@ -78,6 +78,52 @@ To extend in a project, copy the relevant block into
 managed > CLI > local > project > user, so a project-local entry strictly
 adds to (doesn't replace) the global allowlist.
 
+Auto mode and the sandbox are independent layers
+------------------------------------------------
+
+A common question: does running Claude Code in auto-accept mode (or with
+`--dangerously-skip-permissions`) bypass the bash sandbox? **No.** Permission
+mode and the OS sandbox sit at different layers:
+
+- **Permission mode** is a UX-layer behavior. It controls when Claude prompts
+  you before invoking a tool. Auto-accept skips the prompt; bypass mode
+  skips everything in the prompting pipeline.
+- **The sandbox** is kernel-enforced. Every Bash subprocess runs inside
+  bwrap (Linux/WSL2) or Seatbelt (macOS) regardless of how the tool call
+  was approved. The kernel doesn't care whether Claude asked you first.
+
+What auto-accept and bypass mode do **not** bypass:
+
+| Layer                                              | Bypassed?  |
+|----------------------------------------------------|:----------:|
+| Interactive "allow tool X?" prompt                 | yes        |
+| `permissions.deny[]` rules                         | **no**     |
+| PreToolUse hooks (`pre-security.sh`, etc.)         | **no**     |
+| OS sandbox (bwrap / Seatbelt)                      | **no**     |
+| `sandbox.network.allowedDomains` (kernel-enforced) | **no**     |
+| `sandbox.allowUnixSockets` (macOS path globs)      | **no**     |
+
+So in auto mode on a host with `sandbox.enabled: true`:
+
+- A bash subprocess that tries to reach a domain outside `allowedDomains`
+  still fails (`curl: (6) Could not resolve host`).
+- A read against `~/.ssh/id_ed25519` still hits the deny-list and the
+  `pre-security.sh` hook.
+- `Bash(sudo:*)`, `Bash(rm -rf:*)`, and the other hard-blocked patterns
+  still reject.
+
+What you *do* lose in auto mode is the human-in-the-loop check on
+*ambiguous* cases -- anything that falls in the gap between
+`permissions.allow` and `permissions.deny` gets auto-accepted, where in
+interactive mode you'd be asked. The sandbox is your remaining backstop.
+
+One caveat: `sandbox.failIfUnavailable: false` (the default in this repo's
+config) means that if bwrap *itself* can't start (stripped kernel, missing
+binary, Codespaces), Claude falls back to running bash without the
+sandbox. That fallback is an *environment* condition, not a permission-mode
+one -- it triggers regardless of auto vs. interactive mode. The deny-list
+and pre-security hook still apply in that fallback.
+
 Why three tiers
 ---------------
 
@@ -270,7 +316,7 @@ Devcontainer.json linter
 
 `bin/dc-audit.sh` is a rubric-driven, security-focused linter that scans
 devcontainer.json files for patterns that would punch holes in the container
-boundary. The rubric lives in `agentic/devcontainer-rubric.json`; rules are
+boundary. The rubric lives in `unattended/devcontainer-rubric.json`; rules are
 profile-tagged (`attended` or `unattended`). Wired into `make lint-devcontainers`.
 Checks include:
 
