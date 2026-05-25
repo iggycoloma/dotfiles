@@ -69,6 +69,7 @@ echo "Line 2" >> "$TEST_FILE"
 echo "Line 3" >> "$TEST_FILE"
 
 # Cleanup function
+# shellcheck disable=SC2329  # invoked indirectly via trap on EXIT
 cleanup() {
     rm -f "$TEST_FILE" "$TEST_OUTPUT"
 }

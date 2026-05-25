@@ -81,26 +81,6 @@ check_symlink() {
     fi
 }
 
-# Helper: Check if symlink target exists and is readable
-check_symlink_target() {
-    local link=$1
-    local name=$2
-
-    if [[ -L "$link" ]]; then
-        local target
-        target=$(readlink "$link")
-        if [[ -e "$target" ]]; then
-            if [[ -r "$target" ]]; then
-                log_pass "$name: target exists and is readable"
-            else
-                log_fail "$name: target exists but is not readable"
-            fi
-        else
-            log_fail "$name: broken symlink (target does not exist: $target)"
-        fi
-    fi
-}
-
 #
 # MAIN VALIDATION CHECKS
 #
