@@ -69,8 +69,7 @@ check_dependencies() {
         fi
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
-        log_error "Missing required tools: ${missing[*]}"
-        return 1
+        log_and_return error 1 "Missing required tools: ${missing[*]}"
     fi
 }
 

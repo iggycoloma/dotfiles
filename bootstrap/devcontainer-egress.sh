@@ -10,7 +10,7 @@
 # Anything else is REJECTed with icmp-host-prohibited (clean errors, not hangs).
 #
 # Using a custom chain (rather than -P OUTPUT DROP) lets this coexist with
-# other tools that install OUTPUT rules (e.g. agentic/bootstrap/unattended-proxy.sh).
+# other tools that install OUTPUT rules (e.g. unattended/bootstrap/unattended-proxy.sh).
 #
 # Gates (all required, else exits 0 with reason logged):
 #   1. DOTFILES_DEVCONTAINER_EGRESS=1
@@ -73,8 +73,6 @@ _skip() {
     exit 0
 }
 
-_have() { command -v "$1" >/dev/null 2>&1; }
-
 _iptables_works() {
     local cmd="$1"
     # NET_ADMIN required even to list. Prefer non-sudo so we can detect a
@@ -89,9 +87,9 @@ _iptables_works() {
 # iptables userspace binary by default; the kernel netfilter modules are
 # present but unusable without it.
 _install_iptables() {
-    _have iptables && return 0
+    has_tool iptables && return 0
     log_info "devcontainer-egress: iptables not found; attempting install"
-    if [[ -f /etc/debian_version ]] && _have apt-get; then
+    if [[ -f /etc/debian_version ]] && has_tool apt-get; then
         sudo -n apt-get update -qq 2>/dev/null || {
             log_warn "  apt-get update failed (no passwordless sudo?)"
             return 1
@@ -100,7 +98,7 @@ _install_iptables() {
             log_warn "  apt-get install iptables failed"
             return 1
         }
-    elif _have apk; then
+    elif has_tool apk; then
         sudo -n apk add --no-cache iptables >/dev/null 2>&1 || {
             log_warn "  apk add iptables failed"
             return 1
@@ -110,7 +108,7 @@ _install_iptables() {
         log_warn "  add 'iptables' to your devcontainer's package install step"
         return 1
     fi
-    _have iptables
+    has_tool iptables
 }
 
 # Build (or rebuild) the egress chain on a given iptables binary (iptables / ip6tables).
@@ -166,7 +164,7 @@ main() {
         _skip "DOTFILES_NO_AI_TOOLS=1, skipping"
     fi
 
-    if ! _have iptables; then
+    if ! has_tool iptables; then
         _install_iptables || _skip "iptables unavailable (see warnings above)"
     fi
     if ! _iptables_works iptables; then
@@ -232,7 +230,7 @@ main() {
     log_success "devcontainer-egress: ${#v4_ips[@]} IPv4 destinations allowed"
 
     # IPv6 chain (best-effort: not all containers have IPv6).
-    if _have ip6tables && _iptables_works ip6tables; then
+    if has_tool ip6tables && _iptables_works ip6tables; then
         _install_chain ip6tables "${v6_ips[@]}"
         log_success "devcontainer-egress: ${#v6_ips[@]} IPv6 destinations allowed"
     else

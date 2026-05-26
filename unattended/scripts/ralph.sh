@@ -7,8 +7,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve logging.sh. Three valid layouts:
-#   1. Dev checkout: SCRIPT_DIR=<repo>/agentic/scripts, logging at <repo>/bootstrap/logging.sh
-#   2. Deployed unattended: SCRIPT_DIR=~/.agentic/scripts, logging vendored at ~/.agentic/lib/logging.sh
+#   1. Dev checkout: SCRIPT_DIR=<repo>/unattended/scripts, logging at <repo>/bootstrap/logging.sh
+#   2. Deployed unattended: SCRIPT_DIR=~/.unattended/scripts, logging vendored at ~/.unattended/lib/logging.sh
 #   3. DOTFILES_DIR env var points at a repo checkout
 LOGGING_SH=""
 if [[ -f "$SCRIPT_DIR/../../bootstrap/logging.sh" ]]; then
@@ -19,7 +19,7 @@ elif [[ -f "$SCRIPT_DIR/../lib/logging.sh" ]]; then
 elif [[ -f "${DOTFILES_DIR:-}/bootstrap/logging.sh" ]]; then
     LOGGING_SH="$DOTFILES_DIR/bootstrap/logging.sh"
 else
-    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.agentic/lib/)" >&2
+    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.unattended/lib/)" >&2
     exit 1
 fi
 
