@@ -83,9 +83,12 @@ log_info "Environment: $ENV_TYPE"
 log_info "Operating System: $OS_TYPE"
 log_info "Package Manager: $PKG_MGR"
 log_info "Minimal Install: $IS_MINIMAL"
+# Unattended harness is a devcontainer concern -- only surface its status when
+# it's actually relevant (in a devcontainer, or when the caller explicitly
+# opted in on a host).
 if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]]; then
     log_info "Unattended Harness: enabled (deploying ~/.unattended/)"
-else
+elif is_devcontainer; then
     log_info "Unattended Harness: disabled (pass --with-unattended to opt in)"
 fi
 
@@ -188,10 +191,11 @@ else
     log_success "SSH commit signing already configured"
 fi
 
-# Optional in-container egress allowlist. Gated on env + NET_ADMIN +
-# is_devcontainer; the script logs the reason and exits 0 if any gate fails,
-# so this hook is safe to keep wired in unconditionally.
-if [[ -x "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" ]]; then
+# Optional in-container egress allowlist. The script has its own gates
+# (DOTFILES_DEVCONTAINER_EGRESS, NET_ADMIN, etc.) and exits 0 cleanly if any
+# fail, but on a host there is nothing it can possibly do -- skip the call
+# entirely so we don't print a noisy "skipping" line for every host install.
+if is_devcontainer && [[ -x "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" ]]; then
     "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" || \
         log_warn "devcontainer-egress.sh exited non-zero (continuing)"
 fi
