@@ -203,6 +203,6 @@ The test suite (389 tests across 9 suites) runs via `make test`:
 
 Auxiliary scripts in `tests/`:
 
-- `tests/test-security-hook.sh` -- credential blocking via pre-security hook (89 cases)
-- `tests/test-emoji-hook.sh`, `tests/test-commit-hook.sh`, `tests/test-functions.sh`
+- `tests/test-security-hook.sh` -- credential blocking via pre-security hook
+- `tests/test-emoji-hook.sh`, `tests/test-commit-msg-hook.sh`, `tests/test-functions.sh`
 - `tests/validate-dotfiles.sh` -- post-install health check (also exposed as `dotfiles-doctor`)

@@ -104,6 +104,20 @@ test_hook_requires_jq() {
     fi
 }
 
+test_hook_handles_multiline_json() {
+    # Regression: read -r used to truncate the payload at the first newline.
+    # Pretty-printed JSON would parse-fail in jq and silently allow.
+    local payload
+    payload=$'{\n  "tool_name": "Bash",\n  "tool_input": {"command": "cat .env"}\n}'
+    local result
+    result=$(printf '%s' "$payload" | bash "$HOOK" 2>/dev/null)
+    if [[ -n "$result" ]] && echo "$result" | jq -e '.hookSpecificOutput.permissionDecision' >/dev/null 2>&1; then
+        test_pass "Hook blocks pretty-printed JSON payloads"
+    else
+        test_fail "Hook should not fail open on multi-line JSON"
+    fi
+}
+
 #
 # Layer 2: Exact path substring matching (SENSITIVE_PATHS + SENSITIVE_EXTENSIONS)
 #
@@ -175,12 +189,44 @@ test_bash_sensitive_dirs_new() {
     assert_blocked "$(run_bash_hook 'rg x ~/.gem/')" "Blocks .gem/"
     assert_blocked "$(run_bash_hook 'rg x ~/.composer/')" "Blocks .composer/"
     assert_blocked "$(run_bash_hook 'rg x ~/.stripe/')" "Blocks .stripe/"
+    # Agent-tool credential dirs from CLAUDE.md.
+    assert_blocked "$(run_bash_hook 'cat ~/.copilot/auth.json')" "Blocks .copilot/"
+    assert_blocked "$(run_bash_hook 'cat ~/.cursor/credentials')" "Blocks .cursor/"
+    assert_blocked "$(run_bash_hook 'cat ~/.windsurf/config')" "Blocks .windsurf/"
+    assert_blocked "$(run_bash_hook 'cat ~/.continue/config.json')" "Blocks .continue/"
 }
 
 test_bash_sensitive_dirs_glob_bypass() {
     # These previously bypassed the hook via glob expansion
     assert_blocked "$(run_bash_hook 'cp ~/.ssh/* /tmp/')" "Blocks glob copy from .ssh"
     assert_blocked "$(run_bash_hook 'find ~/.ssh -type f | xargs cat')" "Blocks pipe from .ssh"
+}
+
+test_bash_shell_expansion_bypass() {
+    # Variable expansion that splits a sensitive identifier across tokens.
+    # The literal `.ssh` never appears in the command, so substring scans miss
+    # it; Check 4 catches the combination of `~/.` and `$`.
+    # shellcheck disable=SC2016  # literals being passed as input
+    assert_blocked "$(run_bash_hook 'D=ssh; cat ~/.$D/id_rsa')" "Blocks dotfile + var expansion"
+    # shellcheck disable=SC2016
+    assert_blocked "$(run_bash_hook 'x=$(printf %s ssh); cat ~/.$x/id_rsa')" "Blocks dotfile + command substitution"
+    # shellcheck disable=SC2016
+    assert_blocked "$(run_bash_hook 'cat $HOME/.$(echo aws)/credentials')" "Blocks \$HOME dotfile + cmd subst"
+    # Backtick form
+    # shellcheck disable=SC2016
+    assert_blocked "$(run_bash_hook 'cat ~/.`echo ssh`/id_rsa')" "Blocks dotfile + backticks"
+}
+
+test_bash_sensitive_env_assignment() {
+    # Assigning a credential-redirecting env-var is suspicious whether or not
+    # the redirected path is sensitive on disk -- the *purpose* is exfil.
+    assert_blocked "$(run_bash_hook 'AWS_SHARED_CREDENTIALS_FILE=/tmp/x aws s3 ls')" "Blocks AWS_SHARED_CREDENTIALS_FILE assignment"
+    assert_blocked "$(run_bash_hook 'AWS_CONFIG_FILE=/tmp/c aws sts get-caller-identity')" "Blocks AWS_CONFIG_FILE assignment"
+    assert_blocked "$(run_bash_hook 'KUBECONFIG=/tmp/k kubectl get pods')" "Blocks KUBECONFIG assignment"
+    assert_blocked "$(run_bash_hook 'GNUPGHOME=/tmp/g gpg --list-keys')" "Blocks GNUPGHOME assignment"
+    assert_blocked "$(run_bash_hook 'GOOGLE_APPLICATION_CREDENTIALS=/tmp/g gcloud auth list')" "Blocks GOOGLE_APPLICATION_CREDENTIALS assignment"
+    assert_blocked "$(run_bash_hook 'export KUBECONFIG=/tmp/k')" "Blocks export KUBECONFIG=..."
+    assert_blocked "$(run_bash_hook 'a=1; b=2; AWS_CONFIG_FILE=/tmp/x aws sts get-caller-identity')" "Blocks AWS_CONFIG_FILE after other assigns"
 }
 
 test_bash_sensitive_dirs_end_of_string() {
@@ -323,6 +369,18 @@ test_no_false_positives() {
     assert_allowed "$(run_bash_hook 'git log --oneline')" "Allows git log"
     assert_allowed "$(run_bash_hook 'npm test')" "Allows npm test"
     assert_allowed "$(run_bash_hook 'python3 -c print(1)')" "Allows python3"
+    # Check-4 shouldn't trip on legitimate dotfile paths that just happen to
+    # appear in the same command as a $-expansion. The literal command text
+    # contains a $, but Check-4 fires only when $ or ` *immediately follows*
+    # the dotfile dot.
+    # shellcheck disable=SC2016  # literals being passed to the hook
+    assert_allowed "$(run_bash_hook 'echo $HOME/.local/bin')" "Allows \$HOME/.local"
+    # shellcheck disable=SC2016
+    assert_allowed "$(run_bash_hook 'for f in ~/.local/share/*; do echo \"\$f\"; done')" "Allows ~/.local glob in for-loop"
+    # Check-5 shouldn't trip on innocuous assignments.
+    # shellcheck disable=SC2016
+    assert_allowed "$(run_bash_hook 'PATH=/usr/local/bin:$PATH ls')" "Allows PATH= assignment"
+    assert_allowed "$(run_bash_hook 'DEBUG=1 npm test')" "Allows DEBUG= assignment"
 }
 
 test_non_bash_tool_passthrough() {
@@ -347,6 +405,7 @@ main() {
     test_suite "Prerequisites"
     test_hook_syntax
     test_hook_requires_jq
+    test_hook_handles_multiline_json
 
     test_suite "Layer 2: Exact Path Matching"
     test_bash_env_files
@@ -361,6 +420,8 @@ main() {
     test_bash_sensitive_dirs_new
     test_bash_sensitive_dirs_glob_bypass
     test_bash_sensitive_dirs_end_of_string
+    test_bash_shell_expansion_bypass
+    test_bash_sensitive_env_assignment
 
     test_suite "Layer 3b: Standalone Sensitive Files"
     test_bash_sensitive_standalone_files

@@ -17,6 +17,10 @@ HOOK="$DOTFILES_DIR/agent-hooks/pre-code-no-emoji.sh"
 
 source "$SCRIPT_DIR/test-framework.sh"
 
+# Pin HOME so the hook's anchored exemption (case "$FILE_PATH" in "$HOME"/...)
+# matches the /home/vscode/... fixtures used throughout this file.
+FIXTURE_HOME=/home/vscode
+
 # Build emoji strings via printf so this file stays emoji-free
 ROCKET=$(printf '\xF0\x9F\x9A\x80')       # U+1F680
 PARTY=$(printf '\xF0\x9F\x8E\x89')        # U+1F389
@@ -31,7 +35,7 @@ run_write_hook() {
     local json
     json=$(jq -n -c --arg content "$content" --arg fp "$file_path" '{"tool_name":"Write","tool_input":{"file_path":$fp,"content":$content}}')
     local result
-    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    result=$(echo "$json" | HOME="$FIXTURE_HOME" bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
         echo "allowed"
     elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
@@ -49,7 +53,7 @@ run_edit_hook() {
     local json
     json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" --arg fp "$file_path" '{"tool_name":"Edit","tool_input":{"file_path":$fp,"old_string":$old,"new_string":$new}}')
     local result
-    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    result=$(echo "$json" | HOME="$FIXTURE_HOME" bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
         echo "allowed"
     elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
@@ -64,7 +68,7 @@ run_multiedit_hook() {
     local json
     json=$(jq -n -c --arg new "$new_string" '{"tool_name":"MultiEdit","tool_input":{"file_path":"/tmp/test.sh","edits":[{"old_string":"old","new_string":$new}]}}')
     local result
-    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    result=$(echo "$json" | HOME="$FIXTURE_HOME" bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
         echo "allowed"
     elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
@@ -79,7 +83,7 @@ run_apply_patch_hook() {
     local json
     json=$(jq -n -c --arg patch "$patch" '{"tool_name":"apply_patch","tool_input":{"command":$patch}}')
     local result
-    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    result=$(echo "$json" | HOME="$FIXTURE_HOME" bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
         echo "allowed"
     elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
@@ -258,6 +262,14 @@ assert_denied "$(run_write_hook "CLAUDE.md note ${SPARKLES}" "/home/vscode/.clau
 
 assert_denied "$(run_write_hook "AGENTS.md note ${SPARKLES}" "/home/vscode/.codex/AGENTS.md")" \
     "Still blocks emoji in ~/.codex/AGENTS.md"
+
+# Regression: the plan/memory exemption is anchored to $HOME. A path that
+# only contains the substring "/.claude/plans/" elsewhere on disk (an
+# adversarial prompt picking /tmp/.claude/plans/x.sh) must not be exempted.
+assert_denied "$(run_write_hook "evil ${ROCKET}" "/tmp/.claude/plans/payload.sh")" \
+    "Blocks emoji in /tmp/.claude/plans/* (not anchored to HOME)"
+assert_denied "$(run_write_hook "evil ${ROCKET}" "/var/cache/.codex/plans/x.md")" \
+    "Blocks emoji in non-HOME .codex/plans path"
 
 #
 # Test Suite: Non-Write/Edit tools pass through

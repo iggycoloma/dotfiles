@@ -13,7 +13,9 @@ if ! command -v jq &> /dev/null; then
     exit 0
 fi
 
-read -r input
+# Slurp the whole stdin payload; read -r stops at the first newline and would
+# silently drop multi-line JSON.
+input=$(cat)
 
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 CONTENT_TO_CHECK=""
@@ -22,9 +24,12 @@ CONTENT_TO_CHECK=""
 # entries are agent-generated scratch content, not code or docs we ship,
 # so the no-emoji guardrail does not apply. Without this, a stray glyph in
 # a generated plan blocks every subsequent plan update with a hard deny.
+# Anchor to $HOME so a path-substring match (e.g. /tmp/.claude/plans/x.sh)
+# cannot be used by an adversarial prompt to slip non-policy content past
+# the check.
 FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 case "$FILE_PATH" in
-    */.claude/plans/*|*/.claude/projects/*/memory/*|*/.codex/plans/*|*/.codex/projects/*/memory/*) exit 0 ;;
+    "$HOME"/.claude/plans/*|"$HOME"/.claude/projects/*/memory/*|"$HOME"/.codex/plans/*|"$HOME"/.codex/projects/*/memory/*) exit 0 ;;
 esac
 
 # Validate file-editing tools.

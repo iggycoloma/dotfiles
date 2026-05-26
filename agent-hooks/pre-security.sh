@@ -10,7 +10,9 @@ if ! command -v jq &> /dev/null; then
     exit 0
 fi
 
-read -r input
+# Slurp the whole stdin payload. read -r would stop at the first newline,
+# silently dropping pretty-printed JSON into the jq parser and failing open.
+input=$(cat)
 
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 ASK_DECISION="${DOTFILES_HOOK_ASK_DECISION:-ask}"
@@ -76,6 +78,10 @@ SENSITIVE_DIRS=(
     ".composer"
     ".stripe"
     ".dotfiles-state"
+    ".copilot"
+    ".cursor"
+    ".windsurf"
+    ".continue"
 )
 
 # Additional sensitive files not covered by SENSITIVE_PATHS above
@@ -95,6 +101,28 @@ SENSITIVE_GLOB_PATTERNS=(
     '\.en[v*?]'
     '\.env\b'
     '\.htpasswd'
+)
+
+# Env-var names that, when assigned, can redirect a credential-using tool at a
+# new file. Matched as <NAME>= at the start of a token. The substring scan
+# above misses these because the redirected path is attacker-chosen and need
+# not look like a credential file.
+SENSITIVE_ASSIGNED_VARS=(
+    'AWS_SHARED_CREDENTIALS_FILE'
+    'AWS_CONFIG_FILE'
+    'AWS_WEB_IDENTITY_TOKEN_FILE'
+    'GOOGLE_APPLICATION_CREDENTIALS'
+    'CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE'
+    'KUBECONFIG'
+    'GNUPGHOME'
+    'GH_TOKEN'
+    'GITHUB_TOKEN'
+    'NPM_TOKEN'
+    'NPM_CONFIG_USERCONFIG'
+    'PIP_CONFIG_FILE'
+    'DOCKER_CONFIG'
+    'SSH_AUTH_SOCK'
+    'SSH_AGENT_PID'
 )
 
 check_file_path() {
@@ -180,6 +208,32 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     for pattern in "${SENSITIVE_GLOB_PATTERNS[@]}"; do
         if echo "$COMMAND" | perl -ne "BEGIN{\$f=1} if(/$pattern/){\$f=0} END{exit \$f}" 2>/dev/null; then
             emit_decision "$ASK_DECISION" "This command may access sensitive files (pattern: $pattern)"
+            exit 0
+        fi
+    done
+
+    # Check 4: Shell-expansion obfuscation immediately after a dotfile dot.
+    # The earlier substring scans only see literal text; a prompt of the form
+    #   D=ssh; cat ~/.$D/id_rsa
+    # bypasses every check above because the literal `~/.ssh` never appears.
+    # The narrow pattern that distinguishes obfuscation from legitimate uses
+    # (e.g. `cd ~/.config && echo $HOME`) is a variable or command
+    # substitution *directly* following the dot: `~/.$`, `~/.${`, `~/.` + `` ` ``.
+    # shellcheck disable=SC2016  # literal $ in the pattern, not an expansion
+    if [[ "$COMMAND" == *'~/.$'* ]] || [[ "$COMMAND" == *'~/.`'* ]] ||
+       [[ "$COMMAND" == *'$HOME/.$'* ]] || [[ "$COMMAND" == *'$HOME/.`'* ]]; then
+        emit_decision "$ASK_DECISION" "Dotfile path constructed via shell expansion -- possible obfuscation"
+        exit 0
+    fi
+
+    # Check 5: Assignment to a known sensitive env-var. Redirects credential-
+    # using tools (aws, gcloud, kubectl, gpg, gh, npm, pip, docker) at an
+    # attacker-chosen file -- the actual access never names a credential path.
+    for var in "${SENSITIVE_ASSIGNED_VARS[@]}"; do
+        # Match `<VAR>=` either at the start of the command or right after a
+        # whitespace / shell-separator character.
+        if [[ "$COMMAND" =~ (^|[[:space:];&|])${var}= ]]; then
+            emit_decision "$ASK_DECISION" "Assignment to sensitive environment variable: $var"
             exit 0
         fi
     done

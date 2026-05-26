@@ -78,12 +78,21 @@ Summary:
 | Hook                      | Trigger          | Action                                                              |
 |---------------------------|------------------|---------------------------------------------------------------------|
 | `pre-security.sh`         | Read/Write/Edit/Bash | Blocks ~50 sensitive file patterns and credential directories   |
-| `pre-commit-validate.sh`  | Bash (git commit)| Enforces conventional commits, blocks AI attribution                |
+| `pre-commit-validate.sh`  | Bash (git commit)| Intentional no-op (see below); commit messages are gated by git's `commit-msg` hook |
 | `pre-code-no-emoji.sh`    | Write/Edit       | Blocks decorative emoji in code files                               |
 | `notify.sh`               | Notification     | Pushover notification when Claude is idle and waiting for input     |
 
 Exit codes: `0` = continue, `2` = block (stderr shown as denial reason).
 Other non-zero codes are logged but don't block.
+
+Commit message validation lives in `git/hooks/commit-msg` (installed via
+`core.hooksPath`), not in `pre-commit-validate.sh`. The PreToolUse hook
+only saw the raw `Bash` command string and could not reliably parse
+every shape git accepts (`-m`, `-F`, `--file=`, `-t`, heredocs, editor),
+so an apparent gate would silently allow whichever shapes it failed to
+parse. `commit-msg` runs against the resolved message file after git
+has handled every input form, so coverage is uniform across input
+shapes. Behavioral tests live in `tests/test-commit-msg-hook.sh`.
 
 ## Codex CLI
 
