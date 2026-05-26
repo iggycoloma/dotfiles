@@ -29,8 +29,53 @@ rules, so treat them with different confidence.
   scans the full command string for sensitive-path substrings and sensitive-directory
   access) plus the credential glob rules above.
 
+### Three-tier responsibility model
+
+Bash deny entries are kept deliberately narrow. Each risk is defended at exactly one
+tier; do not duplicate across tiers.
+
+- **Tier 1 -- file content (this layer defends).** Credential exposure is caught by
+  `Read`/`Write`/`Edit` glob denies in `settings.json` plus the substring scan in
+  `pre-security.sh`. Authoritative. New file-content guards belong here.
+- **Tier 2 -- system state and network (sandbox/host defends).** Container boundary,
+  OS sandbox (bwrap on Linux/WSL2, seatbelt on macOS), and the `sudo:*` deny entry are
+  the gates. Do NOT add per-binary Bash denies for `iptables`, `systemctl`, `mkfs`,
+  `dd`, `shutdown`, etc. -- they all need sudo to do anything meaningful, and sudo is
+  already blocked. Adding them just creates redundant prompts.
+- **Tier 3 -- remote / shared (server defends).** Trunk protection, required reviews,
+  and push restrictions are configured on the remote (GitHub branch protection rules).
+  Do NOT simulate with `Bash(git push * main*)` glob-prefix tripwires -- the prefix
+  matcher does not support inline wildcards reliably, and remote protection is the
+  only authoritative defense against an accidental trunk push.
+
+### What stays in the Bash deny list
+
+Local-state footguns where no other layer catches a typo: `rm -rf` variants,
+`git reset --hard`, `git clean -fdx`/`-fd`, `git filter-branch`/`filter-repo`,
+recursive `chmod` to dangerous modes, recursive `chown`, the plain `git push --force`
+and `git push -f` (asymmetric -- the safe variant has a separate path), destructive
+docker ops (`system prune`, `volume rm`), and the `sudo:*` upstream gate. These are
+friction speed bumps, not security boundaries.
+
+### Force-push policy
+
+`git push --force-with-lease` is allowed. Use it for stacked-PR rebases -- the lease
+refuses to overwrite a ref that has moved since your last fetch, which is the actual
+safety property worth preserving locally. Plain `git push --force` and `git push -f`
+stay denied because they have no such check.
+
+### Codex / Copilot parity
+
+By design, Codex CLI and GitHub Copilot CLI do not get an equivalent Bash deny list.
+Their config formats do not expose per-command deny syntax; Codex relies on its
+native `sandbox_mode` setting (`workspace-write` on hosts, `danger-full-access` in
+containers where the container itself is the boundary), and Copilot relies on
+interactive permission prompts plus `--deny-tool` CLI flags. Both pick up the shared
+`pre-security.sh` hook for Tier 1.
+
 If you are adding a new deny entry, prefer `Read`/`Write`/`Edit` with a glob when the
-risk is about file contents, and use `Bash(...)` only as a best-effort tripwire.
+risk is about file contents, and use `Bash(...)` only as a best-effort tripwire for a
+Tier-A local-state footgun.
 
 ## Skill trigger precedence
 
