@@ -35,7 +35,6 @@ in your devcontainer's `remoteEnv`:
 | `DOTFILES_INSTALL_UNATTENDED=1`       | off     | Deploy the opt-in unattended coding harness to `~/.unattended/`         |
 | `DOTFILES_DEVCONTAINER_EGRESS=1`      | off     | Install iptables egress allowlist in devcontainers (needs `NET_ADMIN`)  |
 | `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`   | (empty) | Comma-separated hosts to add to the egress allowlist                    |
-| `DOTFILES_NO_SSH_SIGNING=1`           | off     | (same as above)                                                         |
 
 AI tools (Claude Code + Codex CLI) install as native binaries in devcontainer
 environments only. On hosts, users manage their own AI installs.

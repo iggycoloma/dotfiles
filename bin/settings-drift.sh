@@ -14,8 +14,8 @@
 # is a real bug we want to catch at lint time.
 #
 # Exit codes:
-#   0  in sync (or files missing -- warned, not failed)
-#   1  drift detected on at least one variant pair
+#   0  variants in sync
+#   1  drift detected, or one half of a pair is missing (deletion is drift)
 
 set -euo pipefail
 
@@ -43,7 +43,7 @@ Options:
 
 Exit code:
   0  variants in sync
-  1  drift detected
+  1  drift detected (incl. one half of a variant pair missing)
 HELP
 }
 
@@ -98,16 +98,33 @@ emit_skip() {
     fi
 }
 
+# Missing one half of a variant pair is itself a drift class (deletion bug).
+# Report as drift, not skip, so make lint catches it.
+emit_missing() {
+    local pair="$1" reason="$2"
+    ERRORS=$((ERRORS + 1))
+    if [[ "$JSON_OUTPUT" == true ]]; then
+        jq -cn \
+            --arg pair "$pair" \
+            --arg reason "$reason" \
+            '{pair: $pair, status: "drift", reason: $reason}'
+    else
+        log_error "$pair: $reason"
+    fi
+}
+
 # Compare two JSON files after deleting an excluded key path.
 check_json_drift() {
     local pair="$1" host="$2" container="$3" exclude="$4"
 
+    # A missing half is the deletion form of drift -- exactly the bug class
+    # this linter exists to catch. Report and fail, do not silently skip.
     if [[ ! -f "$host" ]]; then
-        emit_skip "$pair" "host variant missing: $host"
+        emit_missing "$pair" "host variant missing: $host"
         return 0
     fi
     if [[ ! -f "$container" ]]; then
-        emit_skip "$pair" "container variant missing: $container"
+        emit_missing "$pair" "container variant missing: $container"
         return 0
     fi
 
@@ -137,11 +154,11 @@ check_toml_drift() {
     local pair="$1" host="$2" container="$3" exclude="$4"
 
     if [[ ! -f "$host" ]]; then
-        emit_skip "$pair" "host variant missing: $host"
+        emit_missing "$pair" "host variant missing: $host"
         return 0
     fi
     if [[ ! -f "$container" ]]; then
-        emit_skip "$pair" "container variant missing: $container"
+        emit_missing "$pair" "container variant missing: $container"
         return 0
     fi
     if ! command -v yq >/dev/null 2>&1; then

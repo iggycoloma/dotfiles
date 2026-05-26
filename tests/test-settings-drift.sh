@@ -173,10 +173,10 @@ rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------
 
-test_suite "settings-drift: missing variant is skipped, not failed"
+test_suite "settings-drift: missing variant is treated as drift"
 
 tmp=$(setup_fixture)
-# Only host variant present.
+# Only host variant present -- the deletion form of drift.
 cat > "$tmp/claude-code/settings.json" <<'JSON'
 {"sandbox": {"enabled": true}}
 JSON
@@ -186,8 +186,23 @@ TOML
 
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
-assert_equals 0 "$rc" "exits 0 when a variant is missing"
-assert_contains "$out" "container variant missing" "logs the skip reason"
+assert_equals 1 "$rc" "exits 1 when a variant is missing (deletion bug)"
+assert_contains "$out" "container variant missing" "logs the missing-variant reason"
+rm -rf "$tmp"
+
+# Symmetric case: host missing.
+tmp=$(setup_fixture)
+cat > "$tmp/claude-code/settings.container.json" <<'JSON'
+{"sandbox": {"enabled": false}}
+JSON
+cat > "$tmp/codex/config.container.toml" <<'TOML'
+sandbox_mode = "danger-full-access"
+TOML
+
+out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
+rc=$?
+assert_equals 1 "$rc" "exits 1 when host variant is missing"
+assert_contains "$out" "host variant missing" "logs the missing-variant reason"
 rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------

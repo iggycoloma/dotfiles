@@ -271,7 +271,7 @@ error (not a hang). Project-specific extras via `DOTFILES_EGRESS_EXTRA_HOSTS`
 (comma-separated hostnames).
 
 Using a custom chain rather than `-P OUTPUT DROP` lets the script coexist
-with other tools that install OUTPUT rules (e.g. the agentic profile's
+with other tools that install OUTPUT rules (e.g. the unattended profile's
 mitmproxy iptables rules) instead of flushing the whole chain.
 
 Hostnames are resolved to IPs at install time and pinned in the rules. Re-run
