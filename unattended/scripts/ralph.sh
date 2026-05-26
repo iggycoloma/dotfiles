@@ -333,14 +333,16 @@ resolve_safety() {
     fi
 
     # Loud warning when --bare (which skips hooks) combines with acceptEdits.
-    # This bypasses every guardrail: pre-security, pre-commit-validate,
-    # pre-code-no-emoji, and any PostToolUse audit.
+    # This bypasses every PreToolUse guardrail: pre-security,
+    # pre-code-no-emoji, and any PostToolUse audit. The git commit-msg
+    # hook still runs because it is wired via core.hooksPath, independent
+    # of the agent harness.
     if [[ "$BARE" == true ]] && [[ "$PERMISSION_MODE" == "acceptEdits" ]]; then
         log_warn "=================================================================="
         log_warn "DANGER: --bare + --permission-mode acceptEdits disables ALL hooks"
         log_warn "and auto-approves every file edit. The credential deny list in"
-        log_warn "settings.json still applies, but hook-based scope/emoji/commit"
-        log_warn "checks do NOT. Only use inside a hardened sandbox."
+        log_warn "settings.json still applies, but hook-based scope/emoji checks"
+        log_warn "do NOT. Only use inside a hardened sandbox."
         log_warn "=================================================================="
     fi
 

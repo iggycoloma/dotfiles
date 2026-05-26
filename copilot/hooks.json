@@ -16,12 +16,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/pre-commit-validate.sh",
-            "if": "Bash(git commit*)",
-            "timeout": 10
-          },
-          {
-            "type": "command",
             "command": "~/.claude/hooks/pre-security.sh",
             "timeout": 10
           }

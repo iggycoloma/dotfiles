@@ -54,7 +54,7 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Component       | Count | Purpose                                                                |
 |-----------------|-------|------------------------------------------------------------------------|
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
-| Hooks           | 4     | Security blocking, conventional commits, no-emoji, idle notification   |
+| Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
 | Agents          | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer     |
 | Commands        | 16    | commit, pr-create, review-pr, debug, test, refactor, pipeline, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
@@ -78,7 +78,6 @@ Summary:
 | Hook                      | Trigger          | Action                                                              |
 |---------------------------|------------------|---------------------------------------------------------------------|
 | `pre-security.sh`         | Read/Write/Edit/Bash | Blocks ~50 sensitive file patterns and credential directories   |
-| `pre-commit-validate.sh`  | Bash (git commit)| Intentional no-op (see below); commit messages are gated by git's `commit-msg` hook |
 | `pre-code-no-emoji.sh`    | Write/Edit       | Blocks decorative emoji in code files                               |
 | `notify.sh`               | Notification     | Pushover notification when Claude is idle and waiting for input     |
 
@@ -86,8 +85,8 @@ Exit codes: `0` = continue, `2` = block (stderr shown as denial reason).
 Other non-zero codes are logged but don't block.
 
 Commit message validation lives in `git/hooks/commit-msg` (installed via
-`core.hooksPath`), not in `pre-commit-validate.sh`. The PreToolUse hook
-only saw the raw `Bash` command string and could not reliably parse
+`core.hooksPath`). There is intentionally no PreToolUse equivalent: a
+hook that only sees the raw `Bash` command string cannot reliably parse
 every shape git accepts (`-m`, `-F`, `--file=`, `-t`, heredocs, editor),
 so an apparent gate would silently allow whichever shapes it failed to
 parse. `commit-msg` runs against the resolved message file after git
@@ -109,7 +108,8 @@ Lives at `codex/`. Deployed to `~/.codex/`.
 - `skills/claude-parity/` maps user intent to Claude Code-style workflows.
 - `hooks.json` wires Codex PreToolUse hooks through `~/.codex/hooks/`
   wrappers, which exec the shared `~/.agent-hooks/` implementations so
-  sensitive-path, commit-message, and no-emoji behavior stays in sync.
+  sensitive-path and no-emoji behavior stays in sync. Commit messages
+  are validated by git's `commit-msg` hook, not by an agent hook.
 - `hooks/notify.sh` sends Pushover notifications when idle.
 - Shell aliases: `cx` (codex), `cxe` (codex exec), `cxr`
   (codex review --uncommitted).

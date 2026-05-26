@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared detection patterns for commit validation and content hooks.
-# Sourced by pre-commit-validate.sh, pre-code-no-emoji.sh, and git/hooks/commit-msg.
+# Sourced by pre-code-no-emoji.sh and git/hooks/commit-msg.
 # Not executable on its own.
 
 # Attribution detection: returns 0 if text contains AI tool attribution.

@@ -244,7 +244,7 @@ test_attribution_regex_shared_vs_commit_msg() {
 
 test_agent_hook_wrappers_point_to_shared_dir() {
     local hook tool wrapper
-    for hook in pre-security.sh pre-commit-validate.sh pre-code-no-emoji.sh; do
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
         if [[ -x "$DOTFILES_DIR/agent-hooks/$hook" ]]; then
             test_pass "Shared hook is executable: $hook"
         else
@@ -266,7 +266,7 @@ test_agent_hook_wrappers_point_to_shared_dir() {
 
 test_codex_wrappers_do_not_depend_on_claude_hooks() {
     local hook wrapper
-    for hook in pre-security.sh pre-commit-validate.sh pre-code-no-emoji.sh; do
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
         wrapper="$DOTFILES_DIR/codex/hooks/$hook"
         if grep -q '\.claude/hooks' "$wrapper"; then
             test_fail "Codex wrapper depends on Claude hook path: $hook"
@@ -280,7 +280,7 @@ test_codex_wrappers_do_not_emit_ask_decisions() {
     local tmpdir wrapper output decision
     tmpdir="$(mktemp -d)"
 
-    for hook in pre-security.sh pre-commit-validate.sh; do
+    for hook in pre-security.sh; do
         cat > "$tmpdir/$hook" <<'SH'
 #!/usr/bin/env bash
 read -r _input
@@ -307,7 +307,7 @@ test_codex_wrappers_fail_closed_on_hook_errors() {
     local tmpdir wrapper output decision
     tmpdir="$(mktemp -d)"
 
-    for hook in pre-security.sh pre-commit-validate.sh pre-code-no-emoji.sh; do
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
         cat > "$tmpdir/$hook" <<'SH'
 #!/usr/bin/env bash
 exit 1

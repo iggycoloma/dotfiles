@@ -10,10 +10,15 @@ wrappers plus notification/session hooks.
 | Hook | Trigger | Purpose |
 |------|---------|---------|
 | pre-security.sh | Read/Write/Edit/Bash | Protects sensitive files (.env, credentials, keys) |
-| pre-commit-validate.sh | Bash (git commit) | Validates conventional commits, blocks AI attribution |
 | pre-code-no-emoji.sh | Write/Edit | Blocks emoji characters in code files |
 | notify.sh | Notification | Cross-platform desktop alert when Claude needs attention |
 | *(inline)* | SessionStart (compact) | Re-injects key rules after context compaction |
+
+Commit message validation (conventional-commit format, no AI attribution, no
+emoji) is handled by git's `commit-msg` hook at `git/hooks/commit-msg`, wired
+globally via `core.hooksPath`. It runs against the resolved message file after
+git has handled every input form (`-m`, `-F`, `--file=`, `-t`, heredoc,
+editor), so coverage is uniform. There is no PreToolUse equivalent here.
 
 ## Configuration
 
