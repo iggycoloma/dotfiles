@@ -47,19 +47,20 @@ dotfiles/
 |   |-- .gitignore_global      # Global gitignore
 |   |-- .gitmessage            # Conventional commit template
 |   +-- hooks/                 # Global git hooks (commit-msg, pre-commit)
+|-- agent-hooks/               # Shared Claude/Codex hook implementations
 |-- claude-code/
 |   |-- CLAUDE.md              # Global Claude Code instructions
 |   |-- settings.json          # Host variant (sandbox.enabled=true)
 |   |-- settings.container.json # Container variant (sandbox.enabled=false)
 |   |-- statusline.sh          # Status bar (git, context, model)
-|   |-- hooks/                 # Security, conventional commits, no-emoji, notify
+|   |-- hooks/                 # Claude hook wrappers + notify
 |   |-- agents/                # PM, architect, implementer, QA, code reviewer
 |   +-- commands/              # 16 slash commands (/commit, /pipeline, ...)
 |-- codex/
 |   |-- AGENTS.md              # Global Codex instructions
 |   |-- config.toml            # Host variant (sandbox_mode=workspace-write)
 |   |-- config.container.toml  # Container variant (sandbox_mode=danger-full-access)
-|   |-- hooks/                 # Pushover notify hook
+|   |-- hooks/                 # Codex hook wrappers + notify
 |   +-- skills/                # Claude-parity workflow skills
 |-- copilot/
 |   +-- copilot-instructions.md # Global Copilot CLI instructions
@@ -85,7 +86,9 @@ dotfiles/
 For settings files that have both host and container variants
 (`claude-code/settings.json` vs `settings.container.json`, similarly for
 codex), `_deploy_variant_file` in `bootstrap/symlinks.sh` picks the right
-source based on `is_devcontainer()`.
+source based on `is_devcontainer()`. Codex's deployed `config.toml` is a
+managed copy even on hosts because the installer appends a local absolute
+notify hook path after selecting the variant.
 
 The deployed home-dir instruction files (`~/.claude/CLAUDE.md`,
 `~/.codex/AGENTS.md`, `~/.copilot/copilot-instructions.md`) are global

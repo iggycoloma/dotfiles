@@ -108,6 +108,27 @@ markdown for the AI tools to read.
 maintenance bug actually bites; until then, the consistency tests are the
 guardrail. Out of scope for the current PR.
 
+## Shared Claude/Codex workflow sources
+
+**What's there today.** Claude Code has first-class slash commands and
+subagents in `claude-code/commands/` and `claude-code/agents/`. Codex has a
+lighter `codex/skills/claude-parity/` skill that maps the same user intents to
+Codex-native behavior. The overlap is conceptual, not structural: Claude
+frontmatter (`allowed-tools`, `argument-hint`, `$ARGUMENTS`, subagent
+dispatch) does not map cleanly to Codex skills.
+
+**The spinoff.** Introduce a neutral workflow source tree that generates or
+checks both harness-specific outputs:
+
+- Claude slash command markdown and subagent prompts.
+- Codex skill reference files and pipeline role docs.
+
+**Trade-off.** This is premature until the workflows have been hardened through
+real use. Prompt drift is lower risk than hook or config drift, and a generator
+would add maintenance machinery before the right shared abstraction is obvious.
+Revisit when workflow drift causes real bugs or the Codex skill format settles
+enough for a clean one-to-one mapping.
+
 ## Bash-only egress filtering inside containers
 
 **What's there today.** The opt-in iptables egress allowlist

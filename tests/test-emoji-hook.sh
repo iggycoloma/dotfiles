@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for claude-code/hooks/pre-code-no-emoji.sh
+# Tests for agent-hooks/pre-code-no-emoji.sh
 # Covers:
 #   1. Decorative emoji detection in Write tool content
 #   2. Decorative emoji detection in Edit tool new_string
@@ -13,7 +13,7 @@ set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOK="$DOTFILES_DIR/claude-code/hooks/pre-code-no-emoji.sh"
+HOOK="$DOTFILES_DIR/agent-hooks/pre-code-no-emoji.sh"
 
 source "$SCRIPT_DIR/test-framework.sh"
 
@@ -48,6 +48,36 @@ run_edit_hook() {
     local file_path="${3:-/tmp/test.sh}"
     local json
     json=$(jq -n -c --arg old "$old_string" --arg new "$new_string" --arg fp "$file_path" '{"tool_name":"Edit","tool_input":{"file_path":$fp,"old_string":$old,"new_string":$new}}')
+    local result
+    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        echo "allowed"
+    elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
+        echo "denied"
+    else
+        echo "allowed"
+    fi
+}
+
+run_multiedit_hook() {
+    local new_string="$1"
+    local json
+    json=$(jq -n -c --arg new "$new_string" '{"tool_name":"MultiEdit","tool_input":{"file_path":"/tmp/test.sh","edits":[{"old_string":"old","new_string":$new}]}}')
+    local result
+    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        echo "allowed"
+    elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
+        echo "denied"
+    else
+        echo "allowed"
+    fi
+}
+
+run_apply_patch_hook() {
+    local patch="$1"
+    local json
+    json=$(jq -n -c --arg patch "$patch" '{"tool_name":"apply_patch","tool_input":{"command":$patch}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -155,6 +185,34 @@ assert_allowed "$(run_edit_hook 'old code' 'new code')" \
     "Allows plain text edit"
 
 #
+# Test Suite: MultiEdit and apply_patch added content checked
+#
+
+test_suite "MultiEdit/apply_patch -- Added Content Checked"
+
+assert_denied "$(run_multiedit_hook "new code ${ROCKET}")" \
+    "Blocks emoji in MultiEdit new_string"
+
+assert_allowed "$(run_multiedit_hook 'new code')" \
+    "Allows plain MultiEdit new_string"
+
+patch_with_emoji='*** Begin Patch
+*** Add File: docs/example.md
++hello '"${ROCKET}"'
+*** End Patch'
+assert_denied "$(run_apply_patch_hook "$patch_with_emoji")" \
+    "Blocks emoji in apply_patch added line"
+
+patch_removes_emoji='*** Begin Patch
+*** Update File: docs/example.md
+@@
+-hello '"${ROCKET}"'
++hello
+*** End Patch'
+assert_allowed "$(run_apply_patch_hook "$patch_removes_emoji")" \
+    "Allows emoji only in apply_patch removed line"
+
+#
 # Test Suite: Claude-internal paths exempt from emoji check
 #
 # Plan-mode output and auto-memory entries are Claude-generated scratch
@@ -163,7 +221,7 @@ assert_allowed "$(run_edit_hook 'old code' 'new code')" \
 # checked.
 #
 
-test_suite "Claude-Internal Paths Exempt"
+test_suite "Agent-Internal Paths Exempt"
 
 assert_allowed "$(run_write_hook "Step 1 ${ROCKET} ship it" "/home/vscode/.claude/plans/my-plan.md")" \
     "Allows emoji in plan file (Write)"
@@ -177,6 +235,18 @@ assert_allowed "$(run_write_hook "memory note ${SPARKLES}" "/home/vscode/.claude
 assert_allowed "$(run_edit_hook "old" "new ${BUG}" "/home/vscode/.claude/projects/-some-proj/memory/MEMORY.md")" \
     "Allows emoji in auto-memory file (Edit)"
 
+assert_allowed "$(run_write_hook "Step 1 ${ROCKET} ship it" "/home/vscode/.codex/plans/my-plan.md")" \
+    "Allows emoji in Codex plan file (Write)"
+
+assert_allowed "$(run_edit_hook "old" "new ${PARTY}" "/home/vscode/.codex/plans/my-plan.md")" \
+    "Allows emoji in Codex plan file (Edit)"
+
+assert_allowed "$(run_write_hook "memory note ${SPARKLES}" "/home/vscode/.codex/projects/-some-proj/memory/note.md")" \
+    "Allows emoji in Codex auto-memory file (Write)"
+
+assert_allowed "$(run_edit_hook "old" "new ${BUG}" "/home/vscode/.codex/projects/-some-proj/memory/MEMORY.md")" \
+    "Allows emoji in Codex auto-memory file (Edit)"
+
 assert_denied "$(run_write_hook "command help ${ROCKET}" "/home/vscode/.claude/commands/foo.md")" \
     "Still blocks emoji under ~/.claude/commands/"
 
@@ -185,6 +255,9 @@ assert_denied "$(run_write_hook "agent description ${PARTY}" "/home/vscode/.clau
 
 assert_denied "$(run_write_hook "CLAUDE.md note ${SPARKLES}" "/home/vscode/.claude/CLAUDE.md")" \
     "Still blocks emoji in ~/.claude/CLAUDE.md"
+
+assert_denied "$(run_write_hook "AGENTS.md note ${SPARKLES}" "/home/vscode/.codex/AGENTS.md")" \
+    "Still blocks emoji in ~/.codex/AGENTS.md"
 
 #
 # Test Suite: Non-Write/Edit tools pass through

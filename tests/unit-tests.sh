@@ -435,9 +435,16 @@ _setup_toggle_env() {
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/settings.json" "{}"
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/statusline.sh" "#!/bin/sh"
 
+    # Shared agent hooks
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/agent-hooks"
+    mock_file "$TEST_TEMP_DIR/dotfiles/agent-hooks/pre-security.sh" "#!/bin/sh"
+    chmod +x "$TEST_TEMP_DIR/dotfiles/agent-hooks/pre-security.sh"
+
     # Codex config
     mkdir -p "$TEST_TEMP_DIR/dotfiles/codex/hooks"
     mock_file "$TEST_TEMP_DIR/dotfiles/codex/AGENTS.md" "# codex"
+    mock_file "$TEST_TEMP_DIR/dotfiles/codex/config.toml" 'sandbox_mode = "workspace-write"'
+    mock_file "$TEST_TEMP_DIR/dotfiles/codex/config.container.toml" 'sandbox_mode = "danger-full-access"'
 
     # Ensure XDG config dir
     mkdir -p "$TEST_TEMP_DIR/home/.config/git"
@@ -501,6 +508,68 @@ test_toggle_default_installs_all() {
     assert_is_symlink "$TEST_TEMP_DIR/home/.config/git/hooks" \
         "Default (no toggles) should symlink git hooks"
 
+    teardown_test_env
+}
+
+test_default_installs_shared_agent_hooks() {
+    _setup_toggle_env
+    unset DOTFILES_NO_AI_TOOLS 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    assert_dir_exists "$TEST_TEMP_DIR/home/.agent-hooks" \
+        "Default should deploy shared agent hooks"
+    if is_devcontainer; then
+        assert_not_symlink "$TEST_TEMP_DIR/home/.agent-hooks" \
+            "Devcontainer shared agent hooks should be copied"
+    else
+        assert_is_symlink "$TEST_TEMP_DIR/home/.agent-hooks" \
+            "Host shared agent hooks should be symlinked"
+    fi
+
+    teardown_test_env
+}
+
+test_codex_config_is_managed_copy() {
+    _setup_toggle_env
+    unset REMOTE_CONTAINERS DOTFILES_NO_STATE_PERSISTENCE 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    assert_file_exists "$TEST_TEMP_DIR/home/.codex/config.toml" \
+        "Codex config should be deployed"
+    assert_not_symlink "$TEST_TEMP_DIR/home/.codex/config.toml" \
+        "Codex config should be a managed copy, not a repo symlink"
+
+    local config
+    config=$(<"$TEST_TEMP_DIR/home/.codex/config.toml")
+    if is_devcontainer; then
+        assert_contains "$config" 'sandbox_mode = "danger-full-access"' \
+            "Devcontainer Codex config should use danger-full-access sandbox"
+    else
+        assert_contains "$config" 'sandbox_mode = "workspace-write"' \
+            "Host Codex config should use workspace-write sandbox"
+    fi
+
+    teardown_test_env
+}
+
+test_codex_container_config_overwrites_persisted_host_variant() {
+    _setup_toggle_env
+    export REMOTE_CONTAINERS=true
+    export DOTFILES_NO_STATE_PERSISTENCE=1
+
+    mkdir -p "$TEST_TEMP_DIR/home/.codex"
+    mock_file "$TEST_TEMP_DIR/home/.codex/config.toml" 'sandbox_mode = "workspace-write"'
+
+    create_symlinks &>/dev/null
+
+    local config
+    config=$(<"$TEST_TEMP_DIR/home/.codex/config.toml")
+    assert_contains "$config" 'sandbox_mode = "danger-full-access"' \
+        "Devcontainer Codex config should overwrite stale host sandbox mode"
+
+    unset REMOTE_CONTAINERS DOTFILES_NO_STATE_PERSISTENCE
     teardown_test_env
 }
 
@@ -782,6 +851,9 @@ main() {
     test_toggle_no_ai_tools_skips_codex_config
     test_toggle_no_git_hooks_skips_hooks
     test_toggle_default_installs_all
+    test_default_installs_shared_agent_hooks
+    test_codex_config_is_managed_copy
+    test_codex_container_config_overwrites_persisted_host_variant
     test_toggle_no_ai_tools_log_message
 
     # Print summary

@@ -1,6 +1,9 @@
 # Claude Code Hooks
 
-Universal hooks for Claude Code that work across all projects.
+Universal hook entrypoints for Claude Code that work across all projects.
+The guardrail implementations are shared with Codex in `agent-hooks/` and
+deployed to `~/.agent-hooks/`; `~/.claude/hooks/` contains Claude-specific
+wrappers plus notification/session hooks.
 
 ## Included Hooks
 
@@ -16,12 +19,13 @@ Universal hooks for Claude Code that work across all projects.
 
 Hooks are configured in `~/.claude/settings.json`. To disable a hook, remove its entry from settings.
 
-Scripts are in `~/.claude/hooks/` and can be edited directly - changes take effect immediately.
+The guardrail wrapper scripts are in `~/.claude/hooks/`. Edit shared guardrail
+logic in `agent-hooks/` so Claude and Codex stay aligned.
 
 ## Troubleshooting
 
 ### Hook Not Running
-1. Check executable: `ls -la ~/.claude/hooks/`
+1. Check executable: `ls -la ~/.claude/hooks/ ~/.agent-hooks/`
 2. Test manually: `echo '{}' | ~/.claude/hooks/hook-name.sh`
 3. Check logs: `~/.claude/debug/`
 

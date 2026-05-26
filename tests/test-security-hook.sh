@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for claude-code/hooks/pre-security.sh
+# Tests for agent-hooks/pre-security.sh
 # Covers all 4 defense layers:
 #   1. Permissions deny list (settings.json) -- not testable here, declarative config
 #   2. Exact path/extension substring matching (Check 1)
@@ -10,7 +10,7 @@ set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOOK="$DOTFILES_DIR/claude-code/hooks/pre-security.sh"
+HOOK="$DOTFILES_DIR/agent-hooks/pre-security.sh"
 
 source "$SCRIPT_DIR/test-framework.sh"
 
@@ -34,6 +34,21 @@ run_file_hook() {
     local path="$2"
     local json
     json=$(jq -n -c --arg tool "$tool" --arg path "$path" '{"tool_name":$tool,"tool_input":{"file_path":$path}}')
+    local result
+    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        echo "allowed"
+    elif echo "$result" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null | grep -q "deny"; then
+        echo "denied"
+    else
+        echo "blocked"
+    fi
+}
+
+run_apply_patch_hook() {
+    local patch="$1"
+    local json
+    json=$(jq -n -c --arg patch "$patch" '{"tool_name":"apply_patch","tool_input":{"command":$patch}}')
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
     if [[ -z "$result" ]]; then
@@ -78,14 +93,14 @@ test_hook_syntax() {
 }
 
 test_hook_requires_jq() {
-    # jq is needed; if missing, hook should exit 1
+    # jq is needed; if missing, hook should fail closed with a deny decision.
     local result
-    result=$(echo '{}' | PATH=/nonexistent bash "$HOOK" 2>&1)
+    result=$(echo '{}' | PATH=/nonexistent /usr/bin/bash "$HOOK" 2>&1)
     local rc=$?
-    if [[ $rc -ne 0 ]]; then
-        test_pass "Hook exits non-zero when jq is missing"
+    if [[ $rc -eq 0 ]] && echo "$result" | grep -q '"permissionDecision":"deny"'; then
+        test_pass "Hook denies when jq is missing"
     else
-        test_fail "Hook should fail when jq is unavailable"
+        test_fail "Hook should deny when jq is unavailable"
     fi
 }
 
@@ -225,6 +240,14 @@ test_file_tool_env() {
     assert_blocked "$(run_file_hook Read '/home/user/project/.env')" "Read blocks .env"
     assert_blocked "$(run_file_hook Write '/home/user/.env.local')" "Write blocks .env.local"
     assert_blocked "$(run_file_hook Edit '/home/user/.env.production')" "Edit blocks .env.production"
+    assert_blocked "$(run_file_hook MultiEdit '/home/user/.env.staging')" "MultiEdit blocks .env.staging"
+}
+
+test_file_tool_sensitive_dirs() {
+    assert_blocked "$(run_file_hook Read '/home/user/.ssh/config')" "Read blocks .ssh directory contents"
+    assert_blocked "$(run_file_hook Write '/home/user/.aws/config')" "Write blocks .aws directory contents"
+    assert_blocked "$(run_file_hook Edit '/home/user/.config/gh/hosts.yml')" "Edit blocks .config/gh directory contents"
+    assert_blocked "$(run_file_hook MultiEdit '/home/user/.docker/config.json')" "MultiEdit blocks .docker directory contents"
 }
 
 test_file_tool_extensions() {
@@ -249,6 +272,40 @@ test_file_tool_safe_paths() {
     assert_allowed "$(run_file_hook Read '/home/user/project/README.md')" "Allows README.md"
     assert_allowed "$(run_file_hook Read '/home/user/project/src/index.js')" "Allows src/index.js"
     assert_allowed "$(run_file_hook Write '/home/user/project/output.txt')" "Allows writing output.txt"
+}
+
+#
+# Codex apply_patch checks
+#
+
+test_apply_patch_sensitive_paths() {
+    local patch
+    patch='*** Begin Patch
+*** Add File: .env
++TOKEN=x
+*** End Patch'
+    assert_blocked "$(run_apply_patch_hook "$patch")" "apply_patch blocks sensitive add path"
+
+    patch='*** Begin Patch
+*** Update File: src/../secrets.json
++{}
+*** End Patch'
+    assert_blocked "$(run_apply_patch_hook "$patch")" "apply_patch blocks path traversal"
+
+    patch='*** Begin Patch
+*** Add File: .ssh/config
++Host example
+*** End Patch'
+    assert_blocked "$(run_apply_patch_hook "$patch")" "apply_patch blocks sensitive directory path"
+}
+
+test_apply_patch_safe_paths() {
+    local patch
+    patch='*** Begin Patch
+*** Add File: docs/example.md
++hello
+*** End Patch'
+    assert_allowed "$(run_apply_patch_hook "$patch")" "apply_patch allows safe add path"
 }
 
 #
@@ -315,9 +372,14 @@ main() {
 
     test_suite "File Tool Checks (Read/Write/Edit)"
     test_file_tool_env
+    test_file_tool_sensitive_dirs
     test_file_tool_extensions
     test_file_tool_path_traversal
     test_file_tool_safe_paths
+
+    test_suite "Codex apply_patch Checks"
+    test_apply_patch_sensitive_paths
+    test_apply_patch_safe_paths
 
     test_suite "False Positive Prevention"
     test_no_false_positives

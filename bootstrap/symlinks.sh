@@ -173,8 +173,8 @@ _chmod_hooks() {
 
 # Deploy one of two variant files (host vs container) to a single target.
 # In devcontainers: copy the container variant. On hosts: symlink the host
-# variant. preserve_existing=1 leaves an existing real file in place (used
-# for configs the user may have tweaked locally, e.g. codex/config.toml).
+# variant. preserve_existing=1 leaves an existing real file in place for
+# configs the user may have tweaked locally.
 # Args: source_dir host_name container_name target_path [preserve_existing]
 _deploy_variant_file() {
     local source_dir="$1"
@@ -275,6 +275,51 @@ _deploy_notify_lib() {
     fi
 }
 
+_setup_agent_hooks() {
+    [[ -d "$DOTFILES_DIR/agent-hooks" ]] || return 0
+
+    log_info "Setting up shared agent hooks..."
+
+    if is_devcontainer; then
+        rm -rf "$HOME/.agent-hooks"
+        cp -rf "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
+        _chmod_hooks "$HOME/.agent-hooks"
+        log_success "agent-hooks -> $HOME/.agent-hooks (container copy)"
+    else
+        _chmod_hooks "$DOTFILES_DIR/agent-hooks"
+        create_symlink "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
+    fi
+}
+
+# Deploy one of two variant files as a real managed copy. Use this when a
+# follow-up step writes machine-specific local settings into the deployed file.
+_deploy_variant_copy() {
+    local source_dir="$1"
+    local host_name="$2"
+    local container_name="$3"
+    local target="$4"
+    local src
+
+    if is_devcontainer; then
+        src="$source_dir/$container_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Container variant missing: $src"
+            return 0
+        fi
+    else
+        src="$source_dir/$host_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Host variant missing: $src"
+            return 0
+        fi
+    fi
+
+    [[ -L "$target" ]] && rm -f "$target"
+    mkdir -p "$(dirname "$target")"
+    cp -f "$src" "$target"
+    log_success "$(basename "$src") -> $target (managed copy)"
+}
+
 _setup_claude_code() {
     log_info "Setting up Claude Code configuration..."
 
@@ -368,13 +413,14 @@ _setup_codex() {
         fi
     fi
 
-    # config.toml: host vs container variant. Host uses sandbox_mode=workspace-write;
-    # container uses sandbox_mode=danger-full-access (container is the boundary).
-    # preserve_existing=1 -- local trust/preferences in ~/.codex/config.toml are
-    # left untouched if the user has hand-edited the file. See docs/sandbox.md.
-    _deploy_variant_file "$DOTFILES_DIR/codex" \
+    # config.toml: host vs container variant. Deploy as a real managed copy in
+    # both environments because _setup_codex_notify appends a machine-specific
+    # absolute hook path. Symlinking would dirty the tracked source TOML.
+    # Containers must also overwrite persisted config so a stale host sandbox
+    # mode cannot survive rebuilds.
+    _deploy_variant_copy "$DOTFILES_DIR/codex" \
         config.toml config.container.toml \
-        "$HOME/.codex/config.toml" 1
+        "$HOME/.codex/config.toml"
 
     # Ensure notify hook is wired in config.toml
     _setup_codex_notify
@@ -505,6 +551,11 @@ create_symlinks() {
     # Ripgrep configuration
     if [[ -d "$DOTFILES_DIR/config/ripgrep" ]]; then
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
+    fi
+
+    # Shared agent hooks (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+        _setup_agent_hooks
     fi
 
     # Claude Code configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)

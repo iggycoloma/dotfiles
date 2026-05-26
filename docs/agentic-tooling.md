@@ -69,9 +69,11 @@ the OS-level sandbox; see [sandbox.md](sandbox.md) for how the layers stack.
 
 ### Hooks deep-dive
 
-The hooks themselves are documented in
+The hook entrypoints are documented in
 [`../claude-code/hooks/README.md`](../claude-code/hooks/README.md) (deployed
-to `~/.claude/hooks/README.md`). Summary:
+to `~/.claude/hooks/README.md`). Claude and Codex both use thin wrappers around
+the shared implementations in `agent-hooks/`, deployed to `~/.agent-hooks/`.
+Summary:
 
 | Hook                      | Trigger          | Action                                                              |
 |---------------------------|------------------|---------------------------------------------------------------------|
@@ -96,6 +98,9 @@ Lives at `codex/`. Deployed to `~/.codex/`.
   `sandbox_mode = "danger-full-access"` (container is the boundary),
   `approval_policy = "on-request"` (independent of sandbox mode).
 - `skills/claude-parity/` maps user intent to Claude Code-style workflows.
+- `hooks.json` wires Codex PreToolUse hooks through `~/.codex/hooks/`
+  wrappers, which exec the shared `~/.agent-hooks/` implementations so
+  sensitive-path, commit-message, and no-emoji behavior stays in sync.
 - `hooks/notify.sh` sends Pushover notifications when idle.
 - Shell aliases: `cx` (codex), `cxe` (codex exec), `cxr`
   (codex review --uncommitted).

@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Source shared detection patterns (resolve through symlink to dotfiles repo)
 HOOK_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
-SHARED_PATTERNS="${HOOK_DIR}/../../claude-code/hooks/shared-patterns.sh"
+SHARED_PATTERNS="${HOOK_DIR}/../../agent-hooks/shared-patterns.sh"
 if [[ -f "$SHARED_PATTERNS" ]]; then
     source "$SHARED_PATTERNS"
 fi

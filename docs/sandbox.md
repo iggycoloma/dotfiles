@@ -95,18 +95,24 @@ The default list covers the common agentic-coding bash surface:
 What's intentionally **not** in the default global allowlist:
 
 - **Project-specific deploy targets**: Vercel, Fly.io, Heroku, Netlify, AWS,
-  GCP, Azure, your kubernetes API. These vary per project; add them in
-  `.claude/settings.local.json` (not tracked by dotfiles) so they don't
-  pollute the global config.
+  GCP, Azure, your kubernetes API. These vary per project; keep host-only
+  Claude Code additions in `.claude/settings.local.json` (not tracked by
+  dotfiles). For the devcontainer iptables allowlist, add them through
+  `DOTFILES_EGRESS_EXTRA_HOSTS` in the devcontainer's `remoteEnv`.
 - **Public Docker Hub** (`docker.io`, `registry-1.docker.io`): rarely needed
   by Claude itself; add per-project if testing pulls public images.
 - **Toolchain installers** (`sh.rustup.rs`, `dl.google.com`, etc.): rare
-  enough to handle case-by-case in `settings.local.json`.
+  enough to handle case-by-case in the host or container-specific extension
+  point above.
 
-To extend in a project, copy the relevant block into
-`.claude/settings.local.json` and merge -- Claude Code settings precedence is
-managed > CLI > local > project > user, so a project-local entry strictly
-adds to (doesn't replace) the global allowlist.
+To extend the host Claude Code sandbox in a project, copy the relevant
+`allowedDomains` block into `.claude/settings.local.json` and merge -- Claude
+Code settings precedence is managed > CLI > local > project > user, so a
+project-local entry strictly adds to (doesn't replace) the global allowlist.
+To extend the container egress sandbox, set
+`DOTFILES_EGRESS_EXTRA_HOSTS=host1.example.com,host2.example.com` in the
+devcontainer environment and rebuild or rerun `bootstrap/devcontainer-egress.sh`;
+Claude settings files do not update iptables rules.
 
 Auto mode and the sandbox are independent layers
 ------------------------------------------------
@@ -466,13 +472,18 @@ exporting the env var still resolve correctly). Then:
    On hosts this would be a symlink to the source file; in containers it is a
    copy (avoiding a symlink dependency that could break if the source repo is
    not present in the container).
-2. Deploys `codex/config.container.toml` over `~/.codex/config.toml`. Same
-   copy-not-symlink pattern.
-3. Wires `~/.claude`, `~/.codex`, `~/.copilot` as symlinks under
+2. Deploys `codex/config.container.toml` over `~/.codex/config.toml` as a
+   managed copy, then appends the local absolute notify hook path. This
+   intentionally overwrites a persisted in-container config so a stale host
+   `sandbox_mode` cannot survive rebuilds. Hosts also use a managed copy for
+   Codex config so notify wiring never dirties tracked source TOML.
+3. Deploys shared Claude/Codex guardrail hook implementations to
+   `~/.agent-hooks/`; per-tool hook directories contain wrappers.
+4. Wires `~/.claude`, `~/.codex`, `~/.copilot` as symlinks under
    `~/.dotfiles-state/` (when the volume mount is present), or as plain real
    directories (when it is not).
-4. Normalizes ownership of `~/.dotfiles-state/` if root-owned (first-mount fix).
-5. Optionally installs the iptables egress allowlist (gated on env var +
+5. Normalizes ownership of `~/.dotfiles-state/` if root-owned (first-mount fix).
+6. Optionally installs the iptables egress allowlist (gated on env var +
    NET_ADMIN cap).
 
 The container does not install `bubblewrap` or `socat` -- those are skipped in
