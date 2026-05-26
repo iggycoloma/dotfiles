@@ -256,23 +256,21 @@ _deploy_configs() {
     fi
 }
 
-# Deploy the shared Pushover notify lib into a hooks dir. The per-tool
-# notify hooks (claude-code/hooks/notify.sh, codex/hooks/notify.sh) source
-# the lib via "$(dirname "$0")/notify-pushover.sh" -- a sibling file in
-# their deployed dir. Copy in containers, symlink on hosts (same strategy
-# as other config deploys).
+# Deploy the shared Pushover notify lib alongside the per-tool notify
+# hooks in devcontainers. On hosts the notify hooks resolve the lib by
+# walking back through their own symlink to <repo>/bootstrap/lib/, so a
+# sibling deployment isn't needed -- and would in fact write the lib
+# *into the repo* because the tool's hooks dir is itself a symlink into
+# the repo on hosts.
 _deploy_notify_lib() {
     local target_dir="$1"
     local src="$DOTFILES_DIR/bootstrap/lib/notify-pushover.sh"
     [[ -f "$src" ]] || return 0
+    is_devcontainer || return 0
     mkdir -p "$target_dir"
     local target="$target_dir/notify-pushover.sh"
-    if is_devcontainer; then
-        [[ -L "$target" ]] && rm -f "$target"
-        cp -f "$src" "$target"
-    else
-        create_symlink "$src" "$target"
-    fi
+    [[ -L "$target" ]] && rm -f "$target"
+    cp -f "$src" "$target"
 }
 
 _setup_agent_hooks() {

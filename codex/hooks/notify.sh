@@ -2,7 +2,23 @@
 # Push notification when Codex CLI is idle and waiting for input.
 # Receives hook JSON as $1; sends push via Pushover.
 
-LIB="$(dirname "$0")/notify-pushover.sh"
+# Resolve the pushover lib by walking symlinks back to the real script
+# location. On hosts the hook is a symlink into the dotfiles repo, so
+# the lib lives at <repo>/bootstrap/lib/. In devcontainers the hook is
+# a real copy with the lib deployed as a sibling.
+_resolve_self() {
+    local s="${BASH_SOURCE[0]}"
+    while [[ -L "$s" ]]; do
+        local d
+        d="$(cd "$(dirname "$s")" && pwd)"
+        s="$(readlink "$s")"
+        [[ "$s" != /* ]] && s="$d/$s"
+    done
+    cd "$(dirname "$s")" && pwd
+}
+SELF_DIR="$(_resolve_self)"
+LIB="$SELF_DIR/../../bootstrap/lib/notify-pushover.sh"
+[[ -f "$LIB" ]] || LIB="$(dirname "$0")/notify-pushover.sh"
 [[ -f "$LIB" ]] || exit 0
 # shellcheck source=../../bootstrap/lib/notify-pushover.sh
 source "$LIB"
