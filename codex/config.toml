@@ -1,0 +1,12 @@
+# Codex CLI host configuration.
+#
+# Deployed to ~/.codex/config.toml on hosts (macOS, Linux, WSL2).
+# Container variant is codex/config.container.toml; see docs/sandbox.md.
+#
+# sandbox_mode = "workspace-write" lets Codex modify files under the current
+# workspace without per-write approval, while still blocking writes outside.
+# approval_policy = "on-request" keeps the human-in-the-loop gate for actions
+# Codex itself escalates (e.g. shell commands that need elevated trust).
+
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
