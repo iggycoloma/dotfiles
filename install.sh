@@ -9,31 +9,32 @@ set -u  # Error on undefined variables
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bootstrap/logging.sh"
 
 # Parse minimal CLI args. Keep this tiny -- the only knob the installer
-# cares about right now is opting in to the agentic harness.
+# cares about right now is opting in to the unattended coding harness.
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --with-agentic)
-            export DOTFILES_INSTALL_AGENTIC=1
+        --with-unattended)
+            export DOTFILES_INSTALL_UNATTENDED=1
             shift
             ;;
-        --without-agentic)
-            export DOTFILES_INSTALL_AGENTIC=0
+        --without-unattended)
+            export DOTFILES_INSTALL_UNATTENDED=0
             shift
             ;;
         -h|--help)
             cat <<'HELP'
-Usage: install.sh [--with-agentic] [--without-agentic]
+Usage: install.sh [--with-unattended] [--without-unattended]
 
 Options:
-  --with-agentic      Deploy the agentic harness (ralph, dc-audit rubric,
-                      templates, unattended bootstrap scripts) to ~/.agentic/.
-                      Equivalent to DOTFILES_INSTALL_AGENTIC=1.
-  --without-agentic   Explicit opt-out (sets DOTFILES_INSTALL_AGENTIC=0).
-  -h, --help          Show this help.
+  --with-unattended      Deploy the unattended coding harness (ralph,
+                         dc-audit rubric, templates, unattended bootstrap
+                         scripts) to ~/.unattended/. Equivalent to
+                         DOTFILES_INSTALL_UNATTENDED=1.
+  --without-unattended   Explicit opt-out (sets DOTFILES_INSTALL_UNATTENDED=0).
+  -h, --help             Show this help.
 
 Default: P1 (terminal QoL + personal Claude Code config) only. The unattended
-devcontainer profile sets DOTFILES_INSTALL_AGENTIC=1 in containerEnv so this
-script opts in automatically there.
+devcontainer profile sets DOTFILES_INSTALL_UNATTENDED=1 in containerEnv so
+this script opts in automatically there.
 HELP
             exit 0
             ;;
@@ -82,10 +83,10 @@ log_info "Environment: $ENV_TYPE"
 log_info "Operating System: $OS_TYPE"
 log_info "Package Manager: $PKG_MGR"
 log_info "Minimal Install: $IS_MINIMAL"
-if [[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]]; then
-    log_info "Agentic Harness: enabled (deploying ~/.agentic/)"
+if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]]; then
+    log_info "Unattended Harness: enabled (deploying ~/.unattended/)"
 else
-    log_info "Agentic Harness: disabled (pass --with-agentic to opt in)"
+    log_info "Unattended Harness: disabled (pass --with-unattended to opt in)"
 fi
 
 # Make bootstrap scripts executable

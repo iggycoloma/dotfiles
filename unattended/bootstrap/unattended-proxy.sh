@@ -21,7 +21,7 @@ DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=../../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-ALLOWLIST_FILE="${ALLOWLIST_FILE:-$DOTFILES_DIR/agentic/egress-allowlist.txt}"
+ALLOWLIST_FILE="${ALLOWLIST_FILE:-$DOTFILES_DIR/unattended/egress-allowlist.txt}"
 MITMPROXY_DIR="${MITMPROXY_DIR:-/etc/mitmproxy}"
 PROXY_PORT="${PROXY_PORT:-8080}"
 PROXY_USER="${PROXY_USER:-mitmproxy}"

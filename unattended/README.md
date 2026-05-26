@@ -1,13 +1,13 @@
-# Agentic Harness
+# Unattended Coding Harness
 
-Tooling for running Claude Code autonomously -- overnight loops, parallel feature work across worktrees, and hardened devcontainer sandboxes. This subtree is opt-in; pass `--with-agentic` to `install.sh` (or set `DOTFILES_INSTALL_AGENTIC=1`) to deploy it to `~/.agentic/`.
+Tooling for running Claude Code *unattended* -- overnight loops, parallel feature work across worktrees, and hardened devcontainer sandboxes. This subtree is opt-in; pass `--with-unattended` to `install.sh` (or set `DOTFILES_INSTALL_UNATTENDED=1`) to deploy it to `~/.unattended/`.
 
-This is a separate product from the rest of the repo. The root `install.sh` is for terminal quality-of-life on any machine the user wants a consistent developer environment on. Everything here only matters when you are running Claude Code without a human reviewing every step.
+This is a separate product from the rest of the repo. The root `install.sh` is for terminal quality-of-life on any machine the user wants a consistent developer environment on, including the *interactive* agentic coding tools (Claude Code, Codex CLI, Copilot CLI). Everything here only matters when you are running Claude Code without a human reviewing every step.
 
 ## Layout
 
 ```
-agentic/
+unattended/
 |-- README.md                       (this file)
 |-- scripts/
 |   |-- ralph.sh                    Autonomous loop runner
@@ -35,7 +35,7 @@ CLI tools live in the repo's top-level `bin/`:
 ### 1. `ralph.sh` -- run Claude Code in a loop
 
 ```bash
-ralph.sh --prompt-file agentic/templates/PROMPT.md --prd PRD.md \
+ralph.sh --prompt-file unattended/templates/PROMPT.md --prd PRD.md \
     --spec-file PRD.md \
     --verify-cmd "make test" \
     --session-budget 5 \
@@ -76,10 +76,10 @@ devcontainer up --workspace-folder . --config .devcontainer/unattended/devcontai
 What this profile does:
 
 - `--cap-drop=ALL` + minimal adds + `--pids-limit=1024` + resource caps + `--security-opt=no-new-privileges`
-- `containerEnv` sets `CLAUDE_UNATTENDED=1` and `DOTFILES_INSTALL_AGENTIC=1`
-- `postCreateCommand` runs `install.sh --with-agentic`, then `agentic/bootstrap/unattended-deps.sh`, then `agentic/bootstrap/unattended-proxy.sh`
+- `containerEnv` sets `CLAUDE_UNATTENDED=1` and `DOTFILES_INSTALL_UNATTENDED=1`
+- `postCreateCommand` runs `install.sh --with-unattended`, then `unattended/bootstrap/unattended-deps.sh`, then `unattended/bootstrap/unattended-proxy.sh`
 - No `~/.ssh`, `~/.config/gh`, or `~/.aws` mounted from host
-- mitmproxy runs on the container with an allowlist at `agentic/egress-allowlist.txt`; every request is logged
+- mitmproxy runs on the container with an allowlist at `unattended/egress-allowlist.txt`; every request is logged
 - `GH_TOKEN` passed per-run via `localEnv.GH_TOKEN_UNATTENDED` (prefer a fine-grained single-repo token)
 
 ## Stack maturity
@@ -99,8 +99,8 @@ Overall ~72%. The main remaining gaps are context sharing across parallel loops 
 
 ## Opting in
 
-- **Per-install**: `./install.sh --with-agentic` or `DOTFILES_INSTALL_AGENTIC=1 ./install.sh`
-- **Per-devcontainer**: add `DOTFILES_INSTALL_AGENTIC=1` to `containerEnv` in any profile that should deploy the harness
-- **Opt out**: `./install.sh --without-agentic` (explicit) or just omit the flag
+- **Per-install**: `./install.sh --with-unattended` or `DOTFILES_INSTALL_UNATTENDED=1 ./install.sh`
+- **Per-devcontainer**: add `DOTFILES_INSTALL_UNATTENDED=1` to `containerEnv` in any profile that should deploy the harness
+- **Opt out**: `./install.sh --without-unattended` (explicit) or just omit the flag
 
-When deployed, the harness lives at `~/.agentic/`.
+When deployed, the harness lives at `~/.unattended/`.

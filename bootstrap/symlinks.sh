@@ -256,6 +256,25 @@ _deploy_configs() {
     fi
 }
 
+# Deploy the shared Pushover notify lib into a hooks dir. The per-tool
+# notify hooks (claude-code/hooks/notify.sh, codex/hooks/notify.sh) source
+# the lib via "$(dirname "$0")/notify-pushover.sh" -- a sibling file in
+# their deployed dir. Copy in containers, symlink on hosts (same strategy
+# as other config deploys).
+_deploy_notify_lib() {
+    local target_dir="$1"
+    local src="$DOTFILES_DIR/bootstrap/lib/notify-pushover.sh"
+    [[ -f "$src" ]] || return 0
+    mkdir -p "$target_dir"
+    local target="$target_dir/notify-pushover.sh"
+    if is_devcontainer; then
+        [[ -L "$target" ]] && rm -f "$target"
+        cp -f "$src" "$target"
+    else
+        create_symlink "$src" "$target"
+    fi
+}
+
 _setup_claude_code() {
     log_info "Setting up Claude Code configuration..."
 
@@ -276,37 +295,40 @@ _setup_claude_code() {
         "$HOME/.claude/settings.json"
 
     # Personal Claude Code config. scripts/ and templates/ used to live here
-    # but moved to the agentic/ subtree. See _setup_agentic for deployment of
+    # but moved to the unattended/ subtree. See _setup_unattended for deployment of
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
         CLAUDE.md statusline.sh -- hooks agents commands
 
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.claude/hooks"
+
     log_success "Claude Code configuration complete"
 }
 
-# Deploy the agentic (unattended) harness to ~/.agentic/. Only runs when
-# DOTFILES_INSTALL_AGENTIC=1 is set (opt-in). Terminal-QoL users never see
-# ralph.sh or the devcontainer rubric in their home.
-_setup_agentic() {
-    log_info "Setting up agentic harness (DOTFILES_INSTALL_AGENTIC=1)..."
+# Deploy the unattended coding harness to ~/.unattended/. Only runs when
+# DOTFILES_INSTALL_UNATTENDED=1 is set (opt-in). Terminal-QoL users never
+# see ralph.sh or the devcontainer rubric in their home.
+_setup_unattended() {
+    log_info "Setting up unattended coding harness (DOTFILES_INSTALL_UNATTENDED=1)..."
 
-    mkdir -p "$HOME/.agentic/lib"
+    mkdir -p "$HOME/.unattended/lib"
 
-    _deploy_configs "$DOTFILES_DIR/agentic" "$HOME/.agentic" \
+    _deploy_configs "$DOTFILES_DIR/unattended" "$HOME/.unattended" \
         devcontainer-rubric.json egress-allowlist.txt -- scripts templates bootstrap hooks
 
     # Vendor logging.sh so deployed ralph can source it without DOTFILES_DIR.
-    cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.agentic/lib/logging.sh"
+    cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.unattended/lib/logging.sh"
 
     # Ensure scripts are executable.
-    if [[ -d "$HOME/.agentic/scripts" ]]; then
-        chmod +x "$HOME/.agentic/scripts"/*.sh 2>/dev/null || true
+    if [[ -d "$HOME/.unattended/scripts" ]]; then
+        chmod +x "$HOME/.unattended/scripts"/*.sh 2>/dev/null || true
     fi
-    if [[ -d "$HOME/.agentic/bootstrap" ]]; then
-        chmod +x "$HOME/.agentic/bootstrap"/*.sh 2>/dev/null || true
+    if [[ -d "$HOME/.unattended/bootstrap" ]]; then
+        chmod +x "$HOME/.unattended/bootstrap"/*.sh 2>/dev/null || true
     fi
 
-    log_success "Agentic harness deployed to ~/.agentic/"
+    log_success "Unattended coding harness deployed to ~/.unattended/"
 }
 
 _setup_codex() {
@@ -322,6 +344,9 @@ _setup_codex() {
 
     _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
         AGENTS.md hooks.json -- hooks
+
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.codex/hooks"
 
     # Skills: copy subdirectories individually (preserves .system in devcontainer)
     if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
@@ -375,7 +400,7 @@ _setup_codex_notify() {
         # Fix legacy string format -> array format
         if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
             log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
-            if command -v sd >/dev/null 2>&1; then
+            if has_tool sd; then
                 # shellcheck disable=SC2016  # $1 is a regex capture group, not a shell variable
                 sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
             else
@@ -408,7 +433,7 @@ create_symlinks() {
     # (gh, claude, codex) silently fails to persist.
     if [[ -d "$HOME/.dotfiles-state" ]]; then
         if [[ ! -w "$HOME/.dotfiles-state" ]]; then
-            if command -v sudo >/dev/null 2>&1; then
+            if has_tool sudo; then
                 sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state" ||
                     log_warn "Could not chown ~/.dotfiles-state (sudo blocked, e.g. no_new_privs); rebuild the container or chown the volume from the host. State persistence may fail."
             else
@@ -503,12 +528,12 @@ create_symlinks() {
         _setup_copilot
     fi
 
-    # Agentic harness (opt-in via DOTFILES_INSTALL_AGENTIC=1). Default is off
-    # so terminal-QoL installs do not deploy ralph, the rubric, templates, or
-    # unattended bootstrap scripts. The unattended devcontainer profile sets
-    # this env var in containerEnv so it always installs there.
-    if [[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/agentic" ]]; then
-        _setup_agentic
+    # Unattended coding harness (opt-in via DOTFILES_INSTALL_UNATTENDED=1).
+    # Default is off so terminal-QoL installs do not deploy ralph, the rubric,
+    # templates, or unattended bootstrap scripts. The unattended devcontainer
+    # profile sets this env var in containerEnv so it always installs there.
+    if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/unattended" ]]; then
+        _setup_unattended
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)
