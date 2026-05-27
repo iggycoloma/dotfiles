@@ -4,11 +4,9 @@
 
 ## Summary
 
-Three-file git config model: `~/.gitconfig` (identity, untouched),
-`~/.config/git/config` (XDG real file with `[include]`),
-`<DOTFILES_DIR>/git/.gitconfig` (defaults). Installer prepends `[include]`
-idempotently and migrates legacy whole-file symlinks. Delta integration,
-44 aliases, SSH commit signing.
+Three-file git config model: `~/.gitconfig` (identity, untouched), `~/.config/git/config` (XDG real file with `[include]`), `<DOTFILES_DIR>/git/.gitconfig` (defaults).
+Installer prepends `[include]` idempotently and migrates legacy whole-file symlinks.
+Delta integration, 44 aliases, SSH commit signing.
 
 ## Technical Context
 
@@ -48,8 +46,9 @@ bootstrap/
 
 ### Structure Decision
 
-Single Project. Git config is one file with sections; aliases inline. Hook
-deployment is its own capability (`005-git-hooks`).
+Single Project.
+Git config is one file with sections; aliases inline.
+Hook deployment is its own capability (`005-git-hooks`).
 
 ## Complexity Tracking
 

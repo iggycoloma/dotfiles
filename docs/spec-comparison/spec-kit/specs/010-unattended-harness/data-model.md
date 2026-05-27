@@ -2,8 +2,8 @@
 
 ## Devcontainer rubric (`unattended/devcontainer-rubric.json`)
 
-The rubric is the authoritative rule set consumed by `dc-audit.sh`. It
-is JSON; one top-level key per concern, each with a list of rules.
+The rubric is the authoritative rule set consumed by `dc-audit.sh`.
+It is JSON; one top-level key per concern, each with a list of rules.
 
 ### Top-level shape
 
@@ -101,18 +101,12 @@ A profile lists which rules to apply:
 }
 ```
 
-The unattended profile is not a strict superset of attended: a few
-rules are profile-specific (`host-creds-mount-attended` warns when an
-attended profile mounts host credentials; `no-host-creds-unattended`
-errors when an unattended profile does the same; the resource-cap
-rules apply only to unattended). The shared rules cover image
-pinning, lifecycle, privilege flags, and the docker-socket / broad-
-home-mount footguns.
+The unattended profile is not a strict superset of attended: a few rules are profile-specific (`host-creds-mount-attended` warns when an attended profile mounts host credentials; `no-host-creds-unattended` errors when an unattended profile does the same; the resource-cap rules apply only to unattended).
+The shared rules cover image pinning, lifecycle, privilege flags, and the docker-socket / broad-home-mount footguns.
 
 ## Egress allowlist (`unattended/egress-allowlist.txt`)
 
-Plain text; one hostname per line; `#` for comments. mitmproxy reads
-the file at startup.
+Plain text; one hostname per line; `#` for comments. mitmproxy reads the file at startup.
 
 ### Categories of allowed hosts
 
@@ -145,8 +139,8 @@ Lines starting with `#` and blank lines are skipped.
 
 ## Iteration progress (`progress.txt` in workspace)
 
-ralph reads and writes `progress.txt` at the workspace root each
-iteration. Free-form text but with conventional sections:
+ralph reads and writes `progress.txt` at the workspace root each iteration.
+Free-form text but with conventional sections:
 
 ```
 # Progress
@@ -170,10 +164,7 @@ iteration. Free-form text but with conventional sections:
 - 2026-05-08T14:32:01Z PASS (`make test`)
 ```
 
-ralph parses this loosely -- no rigid schema -- but the "Learnings"
-section is critical: ralph's prompt template instructs Claude to read
-learnings before planning, so accumulated knowledge from prior
-iterations doesn't get lost.
+ralph parses this loosely -- no rigid schema -- but the "Learnings" section is critical: ralph's prompt template instructs Claude to read learnings before planning, so accumulated knowledge from prior iterations doesn't get lost.
 
 ## PRD frontmatter (`PRD.md` consumed by ralph)
 

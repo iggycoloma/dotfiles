@@ -4,10 +4,8 @@
 
 ## Summary
 
-Three diagnostic surfaces: `dotfiles-doctor` shell function (install
-health), `ZSH_PROFILE=1` (zprof startup analysis), and structured
-colored install logging (`bootstrap/logging.sh`). All read-only, all
-graceful when their dependencies are missing.
+Three diagnostic surfaces: `dotfiles-doctor` shell function (install health), `ZSH_PROFILE=1` (zprof startup analysis), and structured colored install logging (`bootstrap/logging.sh`).
+All read-only, all graceful when their dependencies are missing.
 
 ## Technical Context
 
@@ -45,8 +43,8 @@ tests/validate-dotfiles.sh   # sources bootstrap/{detect,logging}.sh -- no local
 
 ### Structure Decision
 
-Single Project. Diagnostics are co-located with the code they
-diagnose; no separate diagnostic binary.
+Single Project.
+Diagnostics are co-located with the code they diagnose; no separate diagnostic binary.
 
 ## Complexity Tracking
 

@@ -4,16 +4,10 @@
 
 ## Summary
 
-Auto-detect devcontainer / Codespaces; install AI tools as native
-binaries (no Node.js); pick one of three state-persistence tiers
-(volume > Codespaces persistedshare > ephemeral); wire AI tool config
-dirs to volume-backed paths; force-refresh dotfiles config on every
-container start. Container variant files are deployed as copies so the
-dotfiles repo need not be present at runtime. Attended devcontainers
-do not enforce network-layer egress -- dc-audit spec-linting is the
-attended-profile defense; the prior `bootstrap/devcontainer-egress.sh`
-script and its env vars have been removed. Workspace-local state was
-evaluated and rejected (see research.md).
+Auto-detect devcontainer / Codespaces; install AI tools as native binaries (no Node.js); pick one of three state-persistence tiers (volume > Codespaces persistedshare > ephemeral); wire AI tool config dirs to volume-backed paths; force-refresh dotfiles config on every container start.
+Container variant files are deployed as copies so the dotfiles repo need not be present at runtime.
+Attended devcontainers do not enforce network-layer egress -- dc-audit spec-linting is the attended-profile defense; the prior `bootstrap/devcontainer-egress.sh` script and its env vars have been removed.
+Workspace-local state was evaluated and rejected (see research.md).
 
 ## Technical Context
 
@@ -51,15 +45,13 @@ bootstrap/
 +-- unattended/         (delegated to 010-unattended-harness)
 ```
 
-Notably absent: `bootstrap/devcontainer-egress.sh`. The attended
-devcontainer egress script was removed (see PR #53); dc-audit
-spec-linting under `make lint` is the new attended-profile defense.
+Notably absent: `bootstrap/devcontainer-egress.sh`.
+The attended devcontainer egress script was removed (see PR #53); dc-audit spec-linting under `make lint` is the new attended-profile defense.
 
 ### Structure Decision
 
-Single Project. State-persistence logic is split across `detect.sh`
-(pure detection) and `symlinks.sh` (side-effecting setup) following
-the project pattern of detect/setup separation.
+Single Project.
+State-persistence logic is split across `detect.sh` (pure detection) and `symlinks.sh` (side-effecting setup) following the project pattern of detect/setup separation.
 
 ## Complexity Tracking
 

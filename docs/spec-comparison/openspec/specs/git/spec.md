@@ -2,65 +2,41 @@
 
 ## Overview
 
-Git configuration deployed via a three-file model that keeps user identity
-separate from repo settings. Provides delta-rendered diffs, 44 aliases, SSH
-commit signing, and an XDG-compliant config that supports `git config --global`
-writes without dirtying the dotfiles repo.
+Git configuration deployed via a three-file model that keeps user identity separate from repo settings.
+Provides delta-rendered diffs, 44 aliases, SSH commit signing, and an XDG-compliant config that supports `git config --global` writes without dirtying the dotfiles repo.
 
 ## Requirements
 
 ### Three-file config model
 
-- `~/.gitconfig` MUST hold user identity only (`user.name`, `user.email`,
-  `user.signingkey`). The installer MUST NOT touch this file.
-- `~/.config/git/config` MUST be a real file (not a symlink) so `git config
-  --global` writes succeed safely.
-- `~/.config/git/config` MUST contain an `[include]` directive whose `path`
-  points at `<DOTFILES_DIR>/git/.gitconfig`.
-- The dotfiles `git/.gitconfig` MUST hold all shared settings: delta config,
-  aliases, hook path, merge/diff/push/fetch/rebase defaults.
+- `~/.gitconfig` MUST hold user identity only (`user.name`, `user.email`, `user.signingkey`).
+  The installer MUST NOT touch this file.
+- `~/.config/git/config` MUST be a real file (not a symlink) so `git config --global` writes succeed safely.
+- `~/.config/git/config` MUST contain an `[include]` directive whose `path` points at `<DOTFILES_DIR>/git/.gitconfig`.
+- The dotfiles `git/.gitconfig` MUST hold all shared settings: delta config, aliases, hook path, merge/diff/push/fetch/rebase defaults.
 
 ### Include semantics
 
-- The installer MUST detect an existing `[include]` for the dotfiles
-  gitconfig and MUST NOT add a duplicate on re-run.
-- The installer MUST migrate from a legacy whole-file symlink (older
-  installs) by removing the symlink and creating a real file with
-  `[include]` prepended.
-- Personal settings written via `git config --global` MUST go to
-  `~/.config/git/config` (the XDG file) and MUST override the included
-  defaults.
+- The installer MUST detect an existing `[include]` for the dotfiles gitconfig and MUST NOT add a duplicate on re-run.
+- The installer MUST migrate from a legacy whole-file symlink (older installs) by removing the symlink and creating a real file with `[include]` prepended.
+- Personal settings written via `git config --global` MUST go to `~/.config/git/config` (the XDG file) and MUST override the included defaults.
 
 ### Aliases
 
-- The dotfiles `git/.gitconfig` MUST define at least 44 aliases covering
-  every common operation: status (`s`), commit (`c`, `cm`, `ca`, `can`),
-  checkout (`co`, `cob`), branch (`b`, `ba`, `bd`, `bD`), push/pull (`p`,
-  `pf`, `pl`, `plr`), diff (`d`, `ds`, `dc`), log (`l`, `la`, `lg`, `lga`),
-  stash (`st`, `stp`, `stl`, `sta`), reset (`unstage`, `undo`, `rh`, `rhh`),
-  rebase (`r`, `ri`, `rc`, `ra`), and discovery (`aliases`, `branches`,
-  `remotes`, `tags`, `last`, `contributors`).
+- The dotfiles `git/.gitconfig` MUST define at least 44 aliases covering every common operation: status (`s`), commit (`c`, `cm`, `ca`, `can`), checkout (`co`, `cob`), branch (`b`, `ba`, `bd`, `bD`), push/pull (`p`, `pf`, `pl`, `plr`), diff (`d`, `ds`, `dc`), log (`l`, `la`, `lg`, `lga`), stash (`st`, `stp`, `stl`, `sta`), reset (`unstage`, `undo`, `rh`, `rhh`), rebase (`r`, `ri`, `rc`, `ra`), and discovery (`aliases`, `branches`, `remotes`, `tags`, `last`, `contributors`).
 
 ### Delta integration
 
-- `git/.gitconfig` MUST set `core.pager = delta` and
-  `interactive.diffFilter = delta --color-only`.
-- The `[delta]` section MUST set `navigate=true`, `light=false`,
-  `side-by-side=false`, `line-numbers=true`,
-  `syntax-theme=OneHalfDark`.
+- `git/.gitconfig` MUST set `core.pager = delta` and `interactive.diffFilter = delta --color-only`.
+- The `[delta]` section MUST set `navigate=true`, `light=false`, `side-by-side=false`, `line-numbers=true`, `syntax-theme=OneHalfDark`.
 
 ### SSH commit signing
 
-- `git/.gitconfig` MUST set `gpg.format = ssh` and
-  `gpg.ssh.allowedSignersFile = ~/.config/git/allowed_signers`.
-- The installer MUST NOT set `commit.gpgsign` in the dotfiles config; that
-  flag is set per-host by `install.sh` only when an SSH key is detected.
-- The `allowed_signers` file MUST be created at
-  `~/.config/git/allowed_signers` with the user's email and public key.
-- SSH commit signing requires `git >= 2.35` (the version that introduced
-  the `key::<literal>` parser for `user.signingkey`). The `packages`
-  capability MUST ensure a qualifying git is available; the `install`
-  capability handles the host/devcontainer split for key detection.
+- `git/.gitconfig` MUST set `gpg.format = ssh` and `gpg.ssh.allowedSignersFile = ~/.config/git/allowed_signers`.
+- The installer MUST NOT set `commit.gpgsign` in the dotfiles config; that flag is set per-host by `install.sh` only when an SSH key is detected.
+- The `allowed_signers` file MUST be created at `~/.config/git/allowed_signers` with the user's email and public key.
+- SSH commit signing requires `git >= 2.35` (the version that introduced the `key::<literal>` parser for `user.signingkey`).
+  The `packages` capability MUST ensure a qualifying git is available; the `install` capability handles the host/devcontainer split for key detection.
 
 ### Defaults
 
@@ -111,7 +87,5 @@ AND logs `Migrating git config from symlink to [include] pattern`.
 - The installer does NOT modify `~/.gitconfig` for any reason.
 - The installer does NOT set `commit.gpgsign` in the dotfiles config.
 - The dotfiles config does NOT use GPG signing -- SSH only.
-- The dotfiles config does NOT set `user.email` or `user.name` (those
-  belong to identity).
-- The dotfiles config does NOT enable submodule recursion by default
-  (intentional; explicit `git submodule update --init --recursive` only).
+- The dotfiles config does NOT set `user.email` or `user.name` (those belong to identity).
+- The dotfiles config does NOT enable submodule recursion by default (intentional; explicit `git submodule update --init --recursive` only).

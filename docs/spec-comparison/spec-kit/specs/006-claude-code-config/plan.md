@@ -4,17 +4,12 @@
 
 ## Summary
 
-Global Claude Code config deployed to `~/.claude/`. Two-layer permission
-model (settings.json deny globs + pre-security.sh hook) plus the OS-
-level Claude Code sandbox on hosts (bwrap / seatbelt). 5 hooks, 5
-agents, 16 slash commands, status line, CLAUDE.md. Two settings
-variants -- host (`settings.json`, sandbox on) vs. container
-(`settings.container.json`, sandbox off) -- picked at install time by
-`_deploy_variant_file`. Devcontainers force-copy on every boot; hosts
-get directory symlinks for live edits. Migrates legacy
-`~/.claude.json` to `~/.claude/config.json`. Hook contract is JSON-on-
-stdin / JSON-on-stdout per Claude Code's documented PreToolUse /
-PostToolUse / Notification / SessionStart events.
+Global Claude Code config deployed to `~/.claude/`.
+Two-layer permission model (settings.json deny globs + pre-security.sh hook) plus the OS-level Claude Code sandbox on hosts (bwrap / seatbelt). 5 hooks, 5 agents, 16 slash commands, status line, CLAUDE.md.
+Two settings variants -- host (`settings.json`, sandbox on) vs. container (`settings.container.json`, sandbox off) -- picked at install time by `_deploy_variant_file`.
+Devcontainers force-copy on every boot; hosts get directory symlinks for live edits.
+Migrates legacy `~/.claude.json` to `~/.claude/config.json`.
+Hook contract is JSON-on-stdin / JSON-on-stdout per Claude Code's documented PreToolUse / PostToolUse / Notification / SessionStart events.
 
 ## Technical Context
 
@@ -70,11 +65,10 @@ claude-code/
 
 ### Structure Decision
 
-Single Project. Hooks, agents, and commands are flat directories with one
-file per entity. Shared regex/utility logic lives under the repo-level
-`agent-hooks/lib/` and is sourced by hooks across capabilities. The
-two `settings*.json` files MUST stay in lockstep except for the
-sandbox block; `bin/settings-drift.sh` enforces this.
+Single Project.
+Hooks, agents, and commands are flat directories with one file per entity.
+Shared regex/utility logic lives under the repo-level `agent-hooks/lib/` and is sourced by hooks across capabilities.
+The two `settings*.json` files MUST stay in lockstep except for the sandbox block; `bin/settings-drift.sh` enforces this.
 
 ## Complexity Tracking
 

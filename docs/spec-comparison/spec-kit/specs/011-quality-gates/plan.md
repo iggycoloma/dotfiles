@@ -4,12 +4,10 @@
 
 ## Summary
 
-Lint = `lint-settings-drift` + `lint-devcontainers` + shellcheck on
-every `*.sh`, run in that order as prerequisites of the `lint` target.
-Tests = 8 hand-rolled bash suites under `tests/` (the 7 originals plus
-`test-drift`). CI = GitHub Actions matrix across 13+ platform
-combinations. `lint-devcontainers` is no longer advisory: Error-severity
-findings fail `make lint`; Warn / Info remain advisory hints.
+Lint = `lint-settings-drift` + `lint-devcontainers` + shellcheck on every `*.sh`, run in that order as prerequisites of the `lint` target.
+Tests = 8 hand-rolled bash suites under `tests/` (the 7 originals plus `test-drift`).
+CI = GitHub Actions matrix across 13+ platform combinations.
+`lint-devcontainers` is no longer advisory: Error-severity findings fail `make lint`; Warn / Info remain advisory hints.
 
 ## Technical Context
 
@@ -54,9 +52,9 @@ tests/
 
 ### Structure Decision
 
-Single Project. No bats / pytest / etc. -- the test suites are bash
-scripts that the Makefile wraps. Trade-off: less framework support, but
-no extra dependency.
+Single Project.
+No bats / pytest / etc. -- the test suites are bash scripts that the Makefile wraps.
+Trade-off: less framework support, but no extra dependency.
 
 ## Complexity Tracking
 

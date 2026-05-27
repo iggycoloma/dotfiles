@@ -4,16 +4,11 @@
 
 ## Summary
 
-Opt-in harness for autonomous Claude Code execution. Three components:
-ralph.sh (loop with 7 safety gates), dc-audit.sh (devcontainer linter
-with additive `--fix`; 20+ rules), unattended devcontainer profile (cap
-drops, mitmproxy egress allowlist, scoped per-run GH_TOKEN). Lives in
-`unattended/` in the repo; deploys to `~/.unattended/` only when
-`--with-unattended`. Tier 2 work (pre-flight estimate, cross-loop
-discoveries, phased iteration mode) is in flight via a separate change
-proposal -- see Complexity Tracking. The capability was renamed from
-"agentic harness" to "unattended harness" in PR #53 to disambiguate from
-the broad "agentic" vocabulary covering Claude Code and Codex CLI.
+Opt-in harness for autonomous Claude Code execution.
+Three components: ralph.sh (loop with 7 safety gates), dc-audit.sh (devcontainer linter with additive `--fix`; 20+ rules), unattended devcontainer profile (cap drops, mitmproxy egress allowlist, scoped per-run GH_TOKEN).
+Lives in `unattended/` in the repo; deploys to `~/.unattended/` only when `--with-unattended`.
+Tier 2 work (pre-flight estimate, cross-loop discoveries, phased iteration mode) is in flight via a separate change proposal -- see Complexity Tracking.
+The capability was renamed from "agentic harness" to "unattended harness" in PR #53 to disambiguate from the broad "agentic" vocabulary covering Claude Code and Codex CLI.
 
 ## Technical Context
 
@@ -65,11 +60,10 @@ bin/
 
 ### Structure Decision
 
-Single Project. The harness has three sub-products that share the
-deployment but are independently usable:
+Single Project.
+The harness has three sub-products that share the deployment but are independently usable:
 - ralph (loop runner, ~/.unattended/scripts/)
-- dc-audit (lint tool, lives in repo's `bin/` because it should work
-  standalone in any repo)
+- dc-audit (lint tool, lives in repo's `bin/` because it should work standalone in any repo)
 - unattended profile (.devcontainer/unattended/, consumed by docker)
 
 ## Complexity Tracking

@@ -4,14 +4,10 @@
 
 ## Summary
 
-Per-OS install routing: macOS uses Homebrew exclusively, Linux prefers
-GitHub releases (musl-static, SHA-256 verified) for tools with active
-upstream releases, falling back to apt/apk for distro-friendly tools.
-Idempotent (skip if version is current). Honors AI-tool and atuin opt-outs.
-Linux hosts also get `bubblewrap` + `socat` as a paired sandbox
-prerequisite (skipped inside devcontainers), and Ubuntu opportunistically
-pulls a modern git from `ppa:git-core/ppa` when the stock package is below
-2.35 (required for SSH commit signing's `key::<literal>` parser).
+Per-OS install routing: macOS uses Homebrew exclusively, Linux prefers GitHub releases (musl-static, SHA-256 verified) for tools with active upstream releases, falling back to apt/apk for distro-friendly tools.
+Idempotent (skip if version is current).
+Honors AI-tool and atuin opt-outs.
+Linux hosts also get `bubblewrap` + `socat` as a paired sandbox prerequisite (skipped inside devcontainers), and Ubuntu opportunistically pulls a modern git from `ppa:git-core/ppa` when the stock package is below 2.35 (required for SSH commit signing's `key::<literal>` parser).
 
 ## Technical Context
 
@@ -55,8 +51,8 @@ bootstrap/packages.sh                 # install_packages + per-tool helpers
 
 ### Structure Decision
 
-Single Project. The packages logic is one file (`bootstrap/packages.sh`)
-with per-tool functions; routing per OS happens at function entry.
+Single Project.
+The packages logic is one file (`bootstrap/packages.sh`) with per-tool functions; routing per OS happens at function entry.
 
 ## Complexity Tracking
 

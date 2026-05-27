@@ -4,10 +4,8 @@
 
 ## Summary
 
-Bash and zsh runtime config split into modular files (aliases, functions,
-exports, completion). zsh startup optimized via cached compinit and
-deferred init for zoxide/direnv. Local-override convention via gitignored
-`*.local` files for per-machine customization.
+Bash and zsh runtime config split into modular files (aliases, functions, exports, completion). zsh startup optimized via cached compinit and deferred init for zoxide/direnv.
+Local-override convention via gitignored `*.local` files for per-machine customization.
 
 ## Technical Context
 
@@ -43,9 +41,9 @@ shell/
 
 ### Structure Decision
 
-Single Project. Shell config is a flat set of sourced files with no
-nesting. The rc files orchestrate; aliases / functions / exports /
-completion each live in their own concern-specific file.
+Single Project.
+Shell config is a flat set of sourced files with no nesting.
+The rc files orchestrate; aliases / functions / exports / completion each live in their own concern-specific file.
 
 ## Complexity Tracking
 

@@ -6,12 +6,9 @@
 
 ### User Story 1 - Codespaces auto-uses persisted share (Priority: P1)
 
-A developer opens a Codespace and gets all their state (Claude
-credentials, gh auth, atuin history) restored automatically across
-rebuilds without configuring anything.
+A developer opens a Codespace and gets all their state (Claude credentials, gh auth, atuin history) restored automatically across rebuilds without configuring anything.
 
-**Independent Test**: Open a Codespace, log in to Claude, rebuild the
-container, assert Claude is still logged in.
+**Independent Test**: Open a Codespace, log in to Claude, rebuild the container, assert Claude is still logged in.
 
 **Acceptance Scenarios**:
 ```
@@ -34,12 +31,9 @@ THEN credentials persist (~/.claude is volume-backed)
 
 ### User Story 2 - Local devcontainer with volume mount (Priority: P1)
 
-A developer with a local devcontainer that has the recommended volume
-mount gets the volume tier, and state survives rebuilds.
+A developer with a local devcontainer that has the recommended volume mount gets the volume tier, and state survives rebuilds.
 
-**Independent Test**: Add the recommended `mounts` line to
-devcontainer.json, rebuild, write a sentinel file to
-`~/.dotfiles-state/`, rebuild again, assert sentinel persists.
+**Independent Test**: Add the recommended `mounts` line to devcontainer.json, rebuild, write a sentinel file to `~/.dotfiles-state/`, rebuild again, assert sentinel persists.
 
 **Acceptance Scenarios**:
 ```
@@ -53,9 +47,7 @@ THEN detect_state_tier returns "volume"
 
 ### User Story 3 - Ephemeral fallback with helpful logging (Priority: P2)
 
-A developer running a local devcontainer without the volume mount gets
-a working install with state in `~/.dotfiles-state/`, plus a log line
-showing the mount snippet to add to `devcontainer.json`.
+A developer running a local devcontainer without the volume mount gets a working install with state in `~/.dotfiles-state/`, plus a log line showing the mount snippet to add to `devcontainer.json`.
 
 **Acceptance Scenarios**:
 ```
@@ -69,9 +61,8 @@ THEN tier detection returns "ephemeral"
 
 ### User Story 4 - Native AI tool install (Priority: P1)
 
-In devcontainers and Codespaces, the installer drops Claude Code and
-Codex CLI as native binaries. No devcontainer features required, no
-Node.js required.
+In devcontainers and Codespaces, the installer drops Claude Code and Codex CLI as native binaries.
+No devcontainer features required, no Node.js required.
 
 **Acceptance Scenarios**:
 ```
@@ -85,96 +76,56 @@ THEN claude is installed as a native binary in ~/.local/bin/
 
 ### Edge Cases
 
-- **Codespaces persistedshare unwritable**: fall back to ephemeral
-  with a warning.
-- **Volume present but root-owned**: installer chowns to current user
-  before setup.
-- **`DOTFILES_NO_STATE_PERSISTENCE=1`**: skip all state setup;
-  config still deploys.
-- **Volume + Codespaces both apparent**: volume tier wins
-  (real-directory check).
-- **Dotfiles repo missing at runtime**: in-container variant files
-  (`settings.container.json`, `config.container.toml`) are deployed
-  as copies, not symlinks, so the in-container AI tools keep working
-  even if the `~/.dotfiles` checkout is deleted.
-- **Legacy `bootstrap/devcontainer-egress.sh` or
-  `DOTFILES_DEVCONTAINER_EGRESS` env var present**: must not exist
-  in the current tree. Network-layer egress for attended devcontainers
-  was removed; dc-audit spec-linting is the attended-profile defense.
+- **Codespaces persistedshare unwritable**: fall back to ephemeral with a warning.
+- **Volume present but root-owned**: installer chowns to current user before setup.
+- **`DOTFILES_NO_STATE_PERSISTENCE=1`**: skip all state setup; config still deploys.
+- **Volume + Codespaces both apparent**: volume tier wins (real-directory check).
+- **Dotfiles repo missing at runtime**: in-container variant files (`settings.container.json`, `config.container.toml`) are deployed as copies, not symlinks, so the in-container AI tools keep working even if the `~/.dotfiles` checkout is deleted.
+- **Legacy `bootstrap/devcontainer-egress.sh` or `DOTFILES_DEVCONTAINER_EGRESS` env var present**: must not exist in the current tree.
+  Network-layer egress for attended devcontainers was removed; dc-audit spec-linting is the attended-profile defense.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001** Installer MUST treat `CODESPACES=true` as Codespaces and
-  `REMOTE_CONTAINERS=true` as devcontainer.
-- **FR-002** `is_minimal_install` MUST be a thin alias for
-  `is_devcontainer` -- both names exist to preserve caller intent
-  ("are we in a container" vs "should we do a minimal install"), and
-  both MUST stay equivalent. If the policy ever diverges (e.g. minimal
-  installs on CI runners too) only `is_minimal_install`'s body changes.
-- **FR-003** In devcontainers/Codespaces, Claude Code and Codex MUST
-  install as native binaries (no Node.js dependency).
+- **FR-001** Installer MUST treat `CODESPACES=true` as Codespaces and `REMOTE_CONTAINERS=true` as devcontainer.
+- **FR-002** `is_minimal_install` MUST be a thin alias for `is_devcontainer` -- both names exist to preserve caller intent ("are we in a container" vs "should we do a minimal install"), and both MUST stay equivalent.
+  If the policy ever diverges (e.g. minimal installs on CI runners too) only `is_minimal_install`'s body changes.
+- **FR-003** In devcontainers/Codespaces, Claude Code and Codex MUST install as native binaries (no Node.js dependency).
 - **FR-004** `detect_state_tier` MUST be pure (no side effects).
-- **FR-005** `setup_state_persistence` MUST handle each tier per the
-  spec's tier semantics.
-- **FR-006** `DOTFILES_NO_STATE_PERSISTENCE=1` MUST skip all state
-  setup.
-- **FR-007** Per-AI-tool config dirs (~/.claude, ~/.codex,
-  ~/.copilot, ~/.config/gh) MUST be wired to volume-backed paths via
-  directory symlinks when state persistence is available.
-- **FR-008** Volume-backed setup MUST migrate existing real-directory
-  contents into the volume on first run.
-- **FR-009** Installer MUST chown ~/.dotfiles-state to current user
-  if root-owned.
+- **FR-005** `setup_state_persistence` MUST handle each tier per the spec's tier semantics.
+- **FR-006** `DOTFILES_NO_STATE_PERSISTENCE=1` MUST skip all state setup.
+- **FR-007** Per-AI-tool config dirs (~/.claude, ~/.codex, ~/.copilot, ~/.config/gh) MUST be wired to volume-backed paths via directory symlinks when state persistence is available.
+- **FR-008** Volume-backed setup MUST migrate existing real-directory contents into the volume on first run.
+- **FR-009** Installer MUST chown ~/.dotfiles-state to current user if root-owned.
 - **FR-010** State directory MUST be chmod 700.
-- **FR-011** AI-tool config files (settings.json, CLAUDE.md, hooks,
-  agents, commands) MUST be force-copied on every container start.
-- **FR-012** Persistent state (auth tokens, session data, history)
-  MUST NOT be touched by the per-boot config refresh.
-- **FR-013** Container variant files (`claude-code/settings.container.json`,
-  `codex/config.container.toml`) MUST be deployed as copies (not symlinks)
-  by `_deploy_variant_file`. Rationale: the dotfiles repo need not be
-  present at runtime for the in-container AI tools to keep working --
-  e.g. if `/workspaces/.dotfiles` is deleted or replaced by a different
-  branch, the deployed config keeps the last-known-good state.
-- **FR-014** Attended devcontainers MUST NOT enforce network-layer
-  egress. The prior `bootstrap/devcontainer-egress.sh` (and its
-  `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS` env
-  vars) MUST NOT exist in the current tree. The attended-profile
-  defense is dc-audit spec-linting of `.devcontainer/devcontainer.json`
-  for risky options (host network, privileged, sensitive bind mounts).
-  Unattended-profile egress enforcement (mitmproxy) is described in
-  spec 010-unattended-harness and is unaffected by this removal.
+- **FR-011** AI-tool config files (settings.json, CLAUDE.md, hooks, agents, commands) MUST be force-copied on every container start.
+- **FR-012** Persistent state (auth tokens, session data, history) MUST NOT be touched by the per-boot config refresh.
+- **FR-013** Container variant files (`claude-code/settings.container.json`, `codex/config.container.toml`) MUST be deployed as copies (not symlinks) by `_deploy_variant_file`.
+  Rationale: the dotfiles repo need not be present at runtime for the in-container AI tools to keep working --e.g. if `/workspaces/.dotfiles` is deleted or replaced by a different branch, the deployed config keeps the last-known-good state.
+- **FR-014** Attended devcontainers MUST NOT enforce network-layer egress.
+  The prior `bootstrap/devcontainer-egress.sh` (and its `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS` env vars) MUST NOT exist in the current tree.
+  The attended-profile defense is dc-audit spec-linting of `.devcontainer/devcontainer.json` for risky options (host network, privileged, sensitive bind mounts).
+  Unattended-profile egress enforcement (mitmproxy) is described in spec 010-unattended-harness and is unaffected by this removal.
 
 ### Key Entities
 
 - **State tier**: `volume | codespaces | ephemeral` (tagged enum).
-- **Volume-backed dir**: directory symlink from canonical path
-  (e.g. `~/.claude`) to a state-backed path
-  (e.g. `~/.dotfiles-state/claude/`).
+- **Volume-backed dir**: directory symlink from canonical path (e.g.
+  `~/.claude`) to a state-backed path (e.g.
+  `~/.dotfiles-state/claude/`).
 
 ## Success Criteria
 
-- **SC-001** Cold install in a Codespace persists Claude credentials
-  across one rebuild (CI integration test).
-- **SC-002** Local devcontainer with volume mount: state persists
-  across 3 simulated rebuilds.
-- **SC-003** Ephemeral fallback never breaks the install (only state
-  loss).
-- **SC-004** Native AI tool install: < 10s overhead vs. host install
-  (binaries pre-built; no compilation).
-- **SC-005** All four scenarios (volume / codespaces / ephemeral /
-  no-state) validated in CI.
+- **SC-001** Cold install in a Codespace persists Claude credentials across one rebuild (CI integration test).
+- **SC-002** Local devcontainer with volume mount: state persists across 3 simulated rebuilds.
+- **SC-003** Ephemeral fallback never breaks the install (only state loss).
+- **SC-004** Native AI tool install: < 10s overhead vs. host install (binaries pre-built; no compilation).
+- **SC-005** All four scenarios (volume / codespaces / ephemeral / no-state) validated in CI.
 
 ## Assumptions
 
-- VS Code's volume-mount syntax in `devcontainer.json` remains
-  stable.
-- GitHub Codespaces continues to expose `/workspaces/.codespaces/
-  .persistedshare/` for state.
-- Claude Code's credential storage path (`~/.claude/.credentials.json`)
-  remains stable.
-- Users do not symlink `~/.dotfiles-state` to a non-state path; if
-  they do, the volume detection will incorrectly treat the symlink
-  target as the volume.
+- VS Code's volume-mount syntax in `devcontainer.json` remains stable.
+- GitHub Codespaces continues to expose `/workspaces/.codespaces/ .persistedshare/` for state.
+- Claude Code's credential storage path (`~/.claude/.credentials.json`) remains stable.
+- Users do not symlink `~/.dotfiles-state` to a non-state path; if they do, the volume detection will incorrectly treat the symlink target as the volume.

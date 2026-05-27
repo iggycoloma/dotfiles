@@ -4,10 +4,10 @@
 
 ## Summary
 
-Two global git hooks deployed via `core.hooksPath`. `commit-msg` enforces
-conv-commits + no AI attribution + no emoji + min length. `pre-commit`
-runs gitleaks. Both delegate to per-repo `.local` overrides first and
-guard against recursion via env var.
+Two global git hooks deployed via `core.hooksPath`.
+`commit-msg` enforces conv-commits + no AI attribution + no emoji + min length.
+`pre-commit` runs gitleaks.
+Both delegate to per-repo `.local` overrides first and guard against recursion via env var.
 
 ## Technical Context
 
@@ -44,11 +44,9 @@ claude-code/hooks/shared-patterns.sh    # Shared regex patterns (deduplication)
 
 ### Structure Decision
 
-Single Project. Two hook scripts share regex patterns via a shared
-sourced utility to avoid drift across the global git `commit-msg`
-hook and Claude Code's content hooks. (Historically a third consumer
-existed -- the now-removed `pre-commit-validate.sh` PreToolUse hook --
-which is what motivated the extraction in the first place.)
+Single Project.
+Two hook scripts share regex patterns via a shared sourced utility to avoid drift across the global git `commit-msg` hook and Claude Code's content hooks.
+(Historically a third consumer existed -- the now-removed `pre-commit-validate.sh` PreToolUse hook --which is what motivated the extraction in the first place.)
 
 ## Complexity Tracking
 

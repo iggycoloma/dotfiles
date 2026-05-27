@@ -4,13 +4,9 @@
 
 ## Summary
 
-Mirror Claude Code's guardrails in Codex CLI. Deploy AGENTS.md (deny
-lists, preferred tools, MCP posture), claude-parity skill set
-(equivalent workflows for commit / pr-create / review / debug /
-pipeline), and a Pushover idle-notify hook. Deploy a host vs container
-variant pair for `config.toml`: hosts symlink the `workspace-write`
-variant (and preserve user edits); devcontainers copy the
-`danger-full-access` variant fresh on every install.
+Mirror Claude Code's guardrails in Codex CLI.
+Deploy AGENTS.md (deny lists, preferred tools, MCP posture), claude-parity skill set (equivalent workflows for commit / pr-create / review / debug / pipeline), and a Pushover idle-notify hook.
+Deploy a host vs container variant pair for `config.toml`: hosts symlink the `workspace-write` variant (and preserve user edits); devcontainers copy the `danger-full-access` variant fresh on every install.
 
 ## Technical Context
 
@@ -53,8 +49,8 @@ codex/
 
 ### Structure Decision
 
-Single Project. One skill pack (`claude-parity`) keeps the surface
-minimal; additional skill packs would each get their own subdirectory.
+Single Project.
+One skill pack (`claude-parity`) keeps the surface minimal; additional skill packs would each get their own subdirectory.
 
 ## Complexity Tracking
 

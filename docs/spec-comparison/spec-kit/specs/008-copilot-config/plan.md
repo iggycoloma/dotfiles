@@ -4,9 +4,9 @@
 
 ## Summary
 
-Minimal Copilot CLI guardrail surface: one `copilot-instructions.md`
-mirroring Claude / Codex deny lists and preferred tools. Stomp on
-devcontainers, symlink on hosts. Honors `DOTFILES_NO_AI_TOOLS=1`.
+Minimal Copilot CLI guardrail surface: one `copilot-instructions.md` mirroring Claude / Codex deny lists and preferred tools.
+Stomp on devcontainers, symlink on hosts.
+Honors `DOTFILES_NO_AI_TOOLS=1`.
 
 ## Technical Context
 
@@ -42,7 +42,8 @@ copilot/
 
 ### Structure Decision
 
-Single Project. One file + one config; no skills directory yet.
+Single Project.
+One file + one config; no skills directory yet.
 
 ## Complexity Tracking
 

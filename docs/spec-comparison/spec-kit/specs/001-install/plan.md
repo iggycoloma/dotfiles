@@ -1,15 +1,15 @@
 # Implementation Plan: Install
 
-**Branch**: `001-install` | **Date**: 2026-04-01 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `specs/001-install/spec.md`
+**Branch**: `001-install` | **Date**: 2026-04-01 | **Spec**: [spec.md](./spec.md) **Input**: Feature specification from `specs/001-install/spec.md`
 
 ## Summary
 
-Single-entrypoint installer driven by environment detection. POSIX-compatible
-bash, `set -u` for early failure, a tiny CLI surface (`--with-unattended` only),
-and `DOTFILES_NO_*` opt-out toggles. On hosts: symlinks to the repo. In
-devcontainers: stomp-copies for per-boot freshness. Variant files
-(host vs container) are deployed via `_deploy_variant_file`. Strict idempotency.
+Single-entrypoint installer driven by environment detection.
+POSIX-compatible bash, `set -u` for early failure, a tiny CLI surface (`--with-unattended` only), and `DOTFILES_NO_*` opt-out toggles.
+On hosts: symlinks to the repo.
+In devcontainers: stomp-copies for per-boot freshness.
+Variant files (host vs container) are deployed via `_deploy_variant_file`.
+Strict idempotency.
 
 ## Technical Context
 
@@ -35,7 +35,8 @@ devcontainers: stomp-copies for per-boot freshness. Variant files
 | IV. Idempotent and Reversible Installs        | PASS    | Backups created on replacement; re-run is no-op; all changes reversible from backup.   |
 | V. Opt-In for High-Risk Surface               | PASS    | `--with-unattended` is opt-in; SSH signing auto-detect is opt-out (`DOTFILES_NO_SSH_SIGNING`). |
 
-**Result**: All articles pass. No Complexity Tracking entries required.
+**Result**: All articles pass.
+No Complexity Tracking entries required.
 
 ## Project Structure
 
@@ -48,8 +49,7 @@ specs/001-install/
 +-- tasks.md
 ```
 
-(No `research.md`, `contracts/`, or `data-model.md` -- the feature has no
-external API, no data model beyond filesystem paths, and no design unknowns.)
+(No `research.md`, `contracts/`, or `data-model.md` -- the feature has no external API, no data model beyond filesystem paths, and no design unknowns.)
 
 ### Source Code (repository root)
 
@@ -65,9 +65,9 @@ bootstrap/
 
 ### Structure Decision
 
-**Pattern**: Single Project. The installer is a single bash entrypoint with
-delegated phase scripts under `bootstrap/`. No web/mobile distinction; no
-client/server split.
+**Pattern**: Single Project.
+The installer is a single bash entrypoint with delegated phase scripts under `bootstrap/`.
+No web/mobile distinction; no client/server split.
 
 ## Complexity Tracking
 
