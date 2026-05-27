@@ -1,5 +1,8 @@
 [core]
-	editor = vim
+	# editor: intentionally unset so git inherits $GIT_EDITOR / $VISUAL / $EDITOR.
+	# shell/exports.sh detects nvim -> vim -> vi at shell-init time; hard-coding
+	# `editor = vim` here breaks rebase / commit in environments where vim isn't
+	# installed (e.g. devcontainers that ship vi/nano only).
 	excludesfile = ~/.gitignore_global
 	autocrlf = input
 	pager = delta
