@@ -173,8 +173,8 @@ _chmod_hooks() {
 
 # Deploy one of two variant files (host vs container) to a single target.
 # In devcontainers: copy the container variant. On hosts: symlink the host
-# variant. preserve_existing=1 leaves an existing real file in place (used
-# for configs the user may have tweaked locally, e.g. codex/config.toml).
+# variant. preserve_existing=1 leaves an existing real file in place for
+# configs the user may have tweaked locally.
 # Args: source_dir host_name container_name target_path [preserve_existing]
 _deploy_variant_file() {
     local source_dir="$1"
@@ -256,6 +256,68 @@ _deploy_configs() {
     fi
 }
 
+# Deploy the shared Pushover notify lib alongside the per-tool notify
+# hooks in devcontainers. On hosts the notify hooks resolve the lib by
+# walking back through their own symlink to <repo>/bootstrap/lib/, so a
+# sibling deployment isn't needed -- and would in fact write the lib
+# *into the repo* because the tool's hooks dir is itself a symlink into
+# the repo on hosts.
+_deploy_notify_lib() {
+    local target_dir="$1"
+    local src="$DOTFILES_DIR/bootstrap/lib/notify-pushover.sh"
+    [[ -f "$src" ]] || return 0
+    is_devcontainer || return 0
+    mkdir -p "$target_dir"
+    local target="$target_dir/notify-pushover.sh"
+    [[ -L "$target" ]] && rm -f "$target"
+    cp -f "$src" "$target"
+}
+
+_setup_agent_hooks() {
+    [[ -d "$DOTFILES_DIR/agent-hooks" ]] || return 0
+
+    log_info "Setting up shared agent hooks..."
+
+    if is_devcontainer; then
+        rm -rf "$HOME/.agent-hooks"
+        cp -rf "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
+        _chmod_hooks "$HOME/.agent-hooks"
+        log_success "agent-hooks -> $HOME/.agent-hooks (container copy)"
+    else
+        _chmod_hooks "$DOTFILES_DIR/agent-hooks"
+        create_symlink "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
+    fi
+}
+
+# Deploy one of two variant files as a real managed copy. Use this when a
+# follow-up step writes machine-specific local settings into the deployed file.
+_deploy_variant_copy() {
+    local source_dir="$1"
+    local host_name="$2"
+    local container_name="$3"
+    local target="$4"
+    local src
+
+    if is_devcontainer; then
+        src="$source_dir/$container_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Container variant missing: $src"
+            return 0
+        fi
+    else
+        src="$source_dir/$host_name"
+        if [[ ! -f "$src" ]]; then
+            log_warn "Host variant missing: $src"
+            return 0
+        fi
+    fi
+
+    [[ -L "$target" ]] && rm -f "$target"
+    mkdir -p "$(dirname "$target")"
+    cp -f "$src" "$target"
+    log_success "$(basename "$src") -> $target (managed copy)"
+}
+
 _setup_claude_code() {
     log_info "Setting up Claude Code configuration..."
 
@@ -276,37 +338,40 @@ _setup_claude_code() {
         "$HOME/.claude/settings.json"
 
     # Personal Claude Code config. scripts/ and templates/ used to live here
-    # but moved to the agentic/ subtree. See _setup_agentic for deployment of
+    # but moved to the unattended/ subtree. See _setup_unattended for deployment of
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
         CLAUDE.md statusline.sh -- hooks agents commands
 
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.claude/hooks"
+
     log_success "Claude Code configuration complete"
 }
 
-# Deploy the agentic (unattended) harness to ~/.agentic/. Only runs when
-# DOTFILES_INSTALL_AGENTIC=1 is set (opt-in). Terminal-QoL users never see
-# ralph.sh or the devcontainer rubric in their home.
-_setup_agentic() {
-    log_info "Setting up agentic harness (DOTFILES_INSTALL_AGENTIC=1)..."
+# Deploy the unattended coding harness to ~/.unattended/. Only runs when
+# DOTFILES_INSTALL_UNATTENDED=1 is set (opt-in). Terminal-QoL users never
+# see ralph.sh or the devcontainer rubric in their home.
+_setup_unattended() {
+    log_info "Setting up unattended coding harness (DOTFILES_INSTALL_UNATTENDED=1)..."
 
-    mkdir -p "$HOME/.agentic/lib"
+    mkdir -p "$HOME/.unattended/lib"
 
-    _deploy_configs "$DOTFILES_DIR/agentic" "$HOME/.agentic" \
+    _deploy_configs "$DOTFILES_DIR/unattended" "$HOME/.unattended" \
         devcontainer-rubric.json egress-allowlist.txt -- scripts templates bootstrap hooks
 
     # Vendor logging.sh so deployed ralph can source it without DOTFILES_DIR.
-    cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.agentic/lib/logging.sh"
+    cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.unattended/lib/logging.sh"
 
     # Ensure scripts are executable.
-    if [[ -d "$HOME/.agentic/scripts" ]]; then
-        chmod +x "$HOME/.agentic/scripts"/*.sh 2>/dev/null || true
+    if [[ -d "$HOME/.unattended/scripts" ]]; then
+        chmod +x "$HOME/.unattended/scripts"/*.sh 2>/dev/null || true
     fi
-    if [[ -d "$HOME/.agentic/bootstrap" ]]; then
-        chmod +x "$HOME/.agentic/bootstrap"/*.sh 2>/dev/null || true
+    if [[ -d "$HOME/.unattended/bootstrap" ]]; then
+        chmod +x "$HOME/.unattended/bootstrap"/*.sh 2>/dev/null || true
     fi
 
-    log_success "Agentic harness deployed to ~/.agentic/"
+    log_success "Unattended coding harness deployed to ~/.unattended/"
 }
 
 _setup_codex() {
@@ -322,6 +387,9 @@ _setup_codex() {
 
     _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
         AGENTS.md hooks.json -- hooks
+
+    # Notify hook needs the shared Pushover lib alongside it.
+    _deploy_notify_lib "$HOME/.codex/hooks"
 
     # Skills: copy subdirectories individually (preserves .system in devcontainer)
     if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
@@ -343,13 +411,14 @@ _setup_codex() {
         fi
     fi
 
-    # config.toml: host vs container variant. Host uses sandbox_mode=workspace-write;
-    # container uses sandbox_mode=danger-full-access (container is the boundary).
-    # preserve_existing=1 -- local trust/preferences in ~/.codex/config.toml are
-    # left untouched if the user has hand-edited the file. See docs/sandbox.md.
-    _deploy_variant_file "$DOTFILES_DIR/codex" \
+    # config.toml: host vs container variant. Deploy as a real managed copy in
+    # both environments because _setup_codex_notify appends a machine-specific
+    # absolute hook path. Symlinking would dirty the tracked source TOML.
+    # Containers must also overwrite persisted config so a stale host sandbox
+    # mode cannot survive rebuilds.
+    _deploy_variant_copy "$DOTFILES_DIR/codex" \
         config.toml config.container.toml \
-        "$HOME/.codex/config.toml" 1
+        "$HOME/.codex/config.toml"
 
     # Ensure notify hook is wired in config.toml
     _setup_codex_notify
@@ -375,7 +444,7 @@ _setup_codex_notify() {
         # Fix legacy string format -> array format
         if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
             log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
-            if command -v sd >/dev/null 2>&1; then
+            if has_tool sd; then
                 # shellcheck disable=SC2016  # $1 is a regex capture group, not a shell variable
                 sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
             else
@@ -408,7 +477,7 @@ create_symlinks() {
     # (gh, claude, codex) silently fails to persist.
     if [[ -d "$HOME/.dotfiles-state" ]]; then
         if [[ ! -w "$HOME/.dotfiles-state" ]]; then
-            if command -v sudo >/dev/null 2>&1; then
+            if has_tool sudo; then
                 sudo chown -R "$(id -u):$(id -g)" "$HOME/.dotfiles-state" ||
                     log_warn "Could not chown ~/.dotfiles-state (sudo blocked, e.g. no_new_privs); rebuild the container or chown the volume from the host. State persistence may fail."
             else
@@ -482,6 +551,11 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
     fi
 
+    # Shared agent hooks (opt-out via DOTFILES_NO_AI_TOOLS=1)
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
+        _setup_agent_hooks
+    fi
+
     # Claude Code configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/claude-code" ]]; then
         _setup_claude_code
@@ -503,12 +577,12 @@ create_symlinks() {
         _setup_copilot
     fi
 
-    # Agentic harness (opt-in via DOTFILES_INSTALL_AGENTIC=1). Default is off
-    # so terminal-QoL installs do not deploy ralph, the rubric, templates, or
-    # unattended bootstrap scripts. The unattended devcontainer profile sets
-    # this env var in containerEnv so it always installs there.
-    if [[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/agentic" ]]; then
-        _setup_agentic
+    # Unattended coding harness (opt-in via DOTFILES_INSTALL_UNATTENDED=1).
+    # Default is off so terminal-QoL installs do not deploy ralph, the rubric,
+    # templates, or unattended bootstrap scripts. The unattended devcontainer
+    # profile sets this env var in containerEnv so it always installs there.
+    if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/unattended" ]]; then
+        _setup_unattended
     fi
 
     # GitHub CLI credentials (devcontainer persistence only)

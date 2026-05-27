@@ -3,9 +3,9 @@ set -euo pipefail
 
 # dc-audit.sh -- Audit devcontainer.json files against a best-practices rubric.
 #
-# Works standalone in any repo. Reads agentic/devcontainer-rubric.json from
-# the repo or from the deployed ~/.agentic/ location (or a --rubric path) and
-# evaluates each rule against the target file(s).
+# Works standalone in any repo. Reads unattended/devcontainer-rubric.json
+# from the repo or from the deployed ~/.unattended/ location (or a --rubric
+# path) and evaluates each rule against the target file(s).
 #
 # devcontainer.json is valid JSON with comments (JSONC). Comments are stripped
 # before jq parsing so the tool does not choke on real-world files.
@@ -64,10 +64,7 @@ HELP
 # --- Dependency checks ---
 
 check_dependencies() {
-    if ! command -v jq &>/dev/null; then
-        log_error "Missing required tool: jq"
-        return 1
-    fi
+    command -v jq &>/dev/null || log_and_return error 1 "Missing required tool: jq"
 }
 
 # --- Argument parsing ---
@@ -117,8 +114,8 @@ parse_args() {
 
     if [[ -z "$RUBRIC" ]]; then
         for candidate in \
-            "$DOTFILES_DIR/agentic/devcontainer-rubric.json" \
-            "$HOME/.agentic/devcontainer-rubric.json"
+            "$DOTFILES_DIR/unattended/devcontainer-rubric.json" \
+            "$HOME/.unattended/devcontainer-rubric.json"
         do
             if [[ -f "$candidate" ]]; then
                 RUBRIC="$candidate"
@@ -126,7 +123,7 @@ parse_args() {
             fi
         done
         if [[ -z "$RUBRIC" ]]; then
-            log_error "Rubric not found. Pass --rubric, or deploy agentic/ via DOTFILES_INSTALL_AGENTIC=1 ./install.sh."
+            log_error "Rubric not found. Pass --rubric, or deploy unattended/ via DOTFILES_INSTALL_UNATTENDED=1 ./install.sh."
             return 1
         fi
     fi

@@ -7,8 +7,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve logging.sh. Three valid layouts:
-#   1. Dev checkout: SCRIPT_DIR=<repo>/agentic/scripts, logging at <repo>/bootstrap/logging.sh
-#   2. Deployed unattended: SCRIPT_DIR=~/.agentic/scripts, logging vendored at ~/.agentic/lib/logging.sh
+#   1. Dev checkout: SCRIPT_DIR=<repo>/unattended/scripts, logging at <repo>/bootstrap/logging.sh
+#   2. Deployed unattended: SCRIPT_DIR=~/.unattended/scripts, logging vendored at ~/.unattended/lib/logging.sh
 #   3. DOTFILES_DIR env var points at a repo checkout
 LOGGING_SH=""
 if [[ -f "$SCRIPT_DIR/../../bootstrap/logging.sh" ]]; then
@@ -19,7 +19,7 @@ elif [[ -f "$SCRIPT_DIR/../lib/logging.sh" ]]; then
 elif [[ -f "${DOTFILES_DIR:-}/bootstrap/logging.sh" ]]; then
     LOGGING_SH="$DOTFILES_DIR/bootstrap/logging.sh"
 else
-    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.agentic/lib/)" >&2
+    echo "Error: cannot locate logging.sh (expected repo bootstrap/ or ~/.unattended/lib/)" >&2
     exit 1
 fi
 
@@ -333,14 +333,16 @@ resolve_safety() {
     fi
 
     # Loud warning when --bare (which skips hooks) combines with acceptEdits.
-    # This bypasses every guardrail: pre-security, pre-commit-validate,
-    # pre-code-no-emoji, and any PostToolUse audit.
+    # This bypasses every PreToolUse guardrail: pre-security,
+    # pre-code-no-emoji, and any PostToolUse audit. The git commit-msg
+    # hook still runs because it is wired via core.hooksPath, independent
+    # of the agent harness.
     if [[ "$BARE" == true ]] && [[ "$PERMISSION_MODE" == "acceptEdits" ]]; then
         log_warn "=================================================================="
         log_warn "DANGER: --bare + --permission-mode acceptEdits disables ALL hooks"
         log_warn "and auto-approves every file edit. The credential deny list in"
-        log_warn "settings.json still applies, but hook-based scope/emoji/commit"
-        log_warn "checks do NOT. Only use inside a hardened sandbox."
+        log_warn "settings.json still applies, but hook-based scope/emoji checks"
+        log_warn "do NOT. Only use inside a hardened sandbox."
         log_warn "=================================================================="
     fi
 

@@ -10,8 +10,8 @@
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 - Permission hooks enforce credential deny lists in `settings.json`
 - The `pre-security.sh` hook blocks access to sensitive paths at runtime
-- The `pre-commit-validate.sh` hook enforces conventional commits on `git commit`
 - The `pre-code-no-emoji.sh` hook blocks decorative emojis in code files
+- Commit messages are enforced by git's `commit-msg` hook (wired via `core.hooksPath`), not by a PreToolUse agent hook
 
 ## Deny-list semantics
 

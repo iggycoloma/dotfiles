@@ -113,7 +113,7 @@ fi
 EOF
 
     # Compile completions.zsh for faster loading
-    if command -v zsh &> /dev/null; then
+    if has_tool zsh; then
         zsh -c "zcompile '$zsh_dir/completions.zsh'" 2>/dev/null || true
     fi
 

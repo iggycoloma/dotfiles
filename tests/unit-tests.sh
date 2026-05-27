@@ -238,10 +238,20 @@ test_devcontainer_neither_set() {
     unset REMOTE_CONTAINERS
     unset CODESPACES
 
-    if is_devcontainer; then
-        test_fail "is_devcontainer should return 1 with neither variable set"
+    # is_devcontainer also checks /.dockerenv as a sentinel, so the expected
+    # result here depends on whether this test is running inside a container.
+    if [[ -f /.dockerenv ]]; then
+        if is_devcontainer; then
+            test_pass "is_devcontainer returns 0 via /.dockerenv sentinel"
+        else
+            test_fail "is_devcontainer should return 0 via /.dockerenv sentinel"
+        fi
     else
-        test_pass "is_devcontainer returns 1 with neither variable set"
+        if is_devcontainer; then
+            test_fail "is_devcontainer should return 1 with no env vars and no /.dockerenv"
+        else
+            test_pass "is_devcontainer returns 1 with no env vars and no /.dockerenv"
+        fi
     fi
 
     # Restore
@@ -302,7 +312,15 @@ test_detect_local() {
 
     local result
     result=$(detect_environment)
-    assert_equals "local" "$result" "Should detect local environment"
+    # The /.dockerenv sentinel makes plain docker shells resolve to
+    # devcontainer even when no env vars are set; only assert "local" when
+    # the sentinel is absent.
+    if [[ -f /.dockerenv ]]; then
+        assert_equals "devcontainer" "$result" \
+            "Should detect devcontainer via /.dockerenv sentinel when env vars unset"
+    else
+        assert_equals "local" "$result" "Should detect local environment"
+    fi
 
     # Restore original values
     if [[ -n "$original_cs" ]]; then
@@ -417,9 +435,16 @@ _setup_toggle_env() {
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/settings.json" "{}"
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/statusline.sh" "#!/bin/sh"
 
+    # Shared agent hooks
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/agent-hooks"
+    mock_file "$TEST_TEMP_DIR/dotfiles/agent-hooks/pre-security.sh" "#!/bin/sh"
+    chmod +x "$TEST_TEMP_DIR/dotfiles/agent-hooks/pre-security.sh"
+
     # Codex config
     mkdir -p "$TEST_TEMP_DIR/dotfiles/codex/hooks"
     mock_file "$TEST_TEMP_DIR/dotfiles/codex/AGENTS.md" "# codex"
+    mock_file "$TEST_TEMP_DIR/dotfiles/codex/config.toml" 'sandbox_mode = "workspace-write"'
+    mock_file "$TEST_TEMP_DIR/dotfiles/codex/config.container.toml" 'sandbox_mode = "danger-full-access"'
 
     # Ensure XDG config dir
     mkdir -p "$TEST_TEMP_DIR/home/.config/git"
@@ -483,6 +508,68 @@ test_toggle_default_installs_all() {
     assert_is_symlink "$TEST_TEMP_DIR/home/.config/git/hooks" \
         "Default (no toggles) should symlink git hooks"
 
+    teardown_test_env
+}
+
+test_default_installs_shared_agent_hooks() {
+    _setup_toggle_env
+    unset DOTFILES_NO_AI_TOOLS 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    assert_dir_exists "$TEST_TEMP_DIR/home/.agent-hooks" \
+        "Default should deploy shared agent hooks"
+    if is_devcontainer; then
+        assert_not_symlink "$TEST_TEMP_DIR/home/.agent-hooks" \
+            "Devcontainer shared agent hooks should be copied"
+    else
+        assert_is_symlink "$TEST_TEMP_DIR/home/.agent-hooks" \
+            "Host shared agent hooks should be symlinked"
+    fi
+
+    teardown_test_env
+}
+
+test_codex_config_is_managed_copy() {
+    _setup_toggle_env
+    unset REMOTE_CONTAINERS DOTFILES_NO_STATE_PERSISTENCE 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    assert_file_exists "$TEST_TEMP_DIR/home/.codex/config.toml" \
+        "Codex config should be deployed"
+    assert_not_symlink "$TEST_TEMP_DIR/home/.codex/config.toml" \
+        "Codex config should be a managed copy, not a repo symlink"
+
+    local config
+    config=$(<"$TEST_TEMP_DIR/home/.codex/config.toml")
+    if is_devcontainer; then
+        assert_contains "$config" 'sandbox_mode = "danger-full-access"' \
+            "Devcontainer Codex config should use danger-full-access sandbox"
+    else
+        assert_contains "$config" 'sandbox_mode = "workspace-write"' \
+            "Host Codex config should use workspace-write sandbox"
+    fi
+
+    teardown_test_env
+}
+
+test_codex_container_config_overwrites_persisted_host_variant() {
+    _setup_toggle_env
+    export REMOTE_CONTAINERS=true
+    export DOTFILES_NO_STATE_PERSISTENCE=1
+
+    mkdir -p "$TEST_TEMP_DIR/home/.codex"
+    mock_file "$TEST_TEMP_DIR/home/.codex/config.toml" 'sandbox_mode = "workspace-write"'
+
+    create_symlinks &>/dev/null
+
+    local config
+    config=$(<"$TEST_TEMP_DIR/home/.codex/config.toml")
+    assert_contains "$config" 'sandbox_mode = "danger-full-access"' \
+        "Devcontainer Codex config should overwrite stale host sandbox mode"
+
+    unset REMOTE_CONTAINERS DOTFILES_NO_STATE_PERSISTENCE
     teardown_test_env
 }
 
@@ -764,6 +851,9 @@ main() {
     test_toggle_no_ai_tools_skips_codex_config
     test_toggle_no_git_hooks_skips_hooks
     test_toggle_default_installs_all
+    test_default_installs_shared_agent_hooks
+    test_codex_config_is_managed_copy
+    test_codex_container_config_overwrites_persisted_host_variant
     test_toggle_no_ai_tools_log_message
 
     # Print summary

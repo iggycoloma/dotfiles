@@ -1,12 +1,18 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit lint-devcontainers
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift lint-devcontainers lint-settings-drift
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
 
-lint:
+lint: lint-settings-drift
 	shellcheck $(SHELL_SCRIPTS)
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit
+# Verify host vs container settings variants (claude-code, codex) stay in sync
+# on every key outside the per-tier sandbox block. Catches "added a permission
+# to settings.json and forgot settings.container.json" at lint time.
+lint-settings-drift:
+	@bin/settings-drift.sh --quiet
+
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -28,6 +34,9 @@ test-ralph:
 
 test-dc-audit:
 	bash tests/test-dc-audit.sh
+
+test-drift:
+	bash tests/test-settings-drift.sh
 
 # Audit the repo's own devcontainer.json files (advisory only, not fatal).
 lint-devcontainers:

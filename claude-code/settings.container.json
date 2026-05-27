@@ -224,11 +224,6 @@
       "Bash(git reset --hard:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Bash(git push --force-with-lease:*)",
-      "Bash(git push * main*)",
-      "Bash(git push * master*)",
-      "Bash(git push origin main*)",
-      "Bash(git push origin master*)",
       "Bash(git clean -fdx:*)",
       "Bash(git clean -fd:*)",
       "Bash(git filter-branch:*)",
@@ -239,20 +234,6 @@
       "Bash(chmod -R 755 /*)",
       "Bash(chown -R:*)",
       "Bash(sudo:*)",
-      "Bash(dd if=:*)",
-      "Bash(dd of=:*)",
-      "Bash(mkfs:*)",
-      "Bash(mkfs.*:*)",
-      "Bash(shutdown:*)",
-      "Bash(reboot:*)",
-      "Bash(halt:*)",
-      "Bash(init 0:*)",
-      "Bash(init 6:*)",
-      "Bash(systemctl:*)",
-      "Bash(service:*)",
-      "Bash(iptables:*)",
-      "Bash(ip6tables:*)",
-      "Bash(nft:*)",
       "Bash(docker system prune:*)",
       "Bash(docker volume rm:*)"
     ]
@@ -272,12 +253,6 @@
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/pre-commit-validate.sh",
-            "if": "Bash(git commit*)",
-            "timeout": 10
-          },
           {
             "type": "command",
             "command": "~/.claude/hooks/pre-security.sh",

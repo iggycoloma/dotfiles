@@ -163,7 +163,7 @@ test_credential_files_match() {
 # ============================================================================
 
 test_emoji_range_shared_vs_commit_msg() {
-    local shared_file="$DOTFILES_DIR/claude-code/hooks/shared-patterns.sh"
+    local shared_file="$DOTFILES_DIR/agent-hooks/shared-patterns.sh"
     local commit_msg="$DOTFILES_DIR/git/hooks/commit-msg"
 
     if [[ ! -f "$shared_file" ]]; then
@@ -200,7 +200,7 @@ test_emoji_range_shared_vs_commit_msg() {
 # ============================================================================
 
 test_attribution_regex_shared_vs_commit_msg() {
-    local shared_file="$DOTFILES_DIR/claude-code/hooks/shared-patterns.sh"
+    local shared_file="$DOTFILES_DIR/agent-hooks/shared-patterns.sh"
     local commit_msg="$DOTFILES_DIR/git/hooks/commit-msg"
 
     if [[ ! -f "$shared_file" ]]; then
@@ -236,6 +236,100 @@ test_attribution_regex_shared_vs_commit_msg() {
         test_info "shared-patterns.sh patterns: $(echo "$shared_patterns" | tr '\n' ' ')"
         test_info "commit-msg patterns:         $(echo "$commit_patterns" | tr '\n' ' ')"
     fi
+}
+
+# ============================================================================
+# Test Suite: Shared Agent Hook Wrappers
+# ============================================================================
+
+test_agent_hook_wrappers_point_to_shared_dir() {
+    local hook tool wrapper
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
+        if [[ -x "$DOTFILES_DIR/agent-hooks/$hook" ]]; then
+            test_pass "Shared hook is executable: $hook"
+        else
+            test_fail "Shared hook missing or not executable: $hook"
+        fi
+
+        for tool in claude-code codex; do
+            wrapper="$DOTFILES_DIR/$tool/hooks/$hook"
+            if [[ ! -x "$wrapper" ]]; then
+                test_fail "$tool wrapper missing or not executable: $hook"
+            elif grep -q '\.agent-hooks' "$wrapper" && grep -q '../../agent-hooks' "$wrapper"; then
+                test_pass "$tool wrapper resolves shared hook: $hook"
+            else
+                test_fail "$tool wrapper does not resolve shared hook: $hook"
+            fi
+        done
+    done
+}
+
+test_codex_wrappers_do_not_depend_on_claude_hooks() {
+    local hook wrapper
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
+        wrapper="$DOTFILES_DIR/codex/hooks/$hook"
+        if grep -q '\.claude/hooks' "$wrapper"; then
+            test_fail "Codex wrapper depends on Claude hook path: $hook"
+        else
+            test_pass "Codex wrapper is independent of Claude hook path: $hook"
+        fi
+    done
+}
+
+test_codex_wrappers_do_not_emit_ask_decisions() {
+    local tmpdir wrapper output decision
+    tmpdir="$(mktemp -d)"
+
+    # Currently only pre-security.sh does the ask->deny mapping. Keep the
+    # loop form so adding a second wrapper is a one-line change.
+    # shellcheck disable=SC2043
+    for hook in pre-security.sh; do
+        cat > "$tmpdir/$hook" <<'SH'
+#!/usr/bin/env bash
+read -r _input
+printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"test"}}'
+SH
+        chmod +x "$tmpdir/$hook"
+
+        wrapper="$DOTFILES_DIR/codex/hooks/$hook"
+        output=$(DOTFILES_AGENT_HOOKS_DIR="$tmpdir" "$wrapper" <<< '{}')
+        decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
+
+        if [[ "$decision" == "deny" ]]; then
+            test_pass "Codex wrapper maps ask to deny: $hook"
+        else
+            test_fail "Codex wrapper emitted unsupported decision for $hook"
+            test_info "Output: $output"
+        fi
+    done
+
+    rm -rf "$tmpdir"
+}
+
+test_codex_wrappers_fail_closed_on_hook_errors() {
+    local tmpdir wrapper output decision
+    tmpdir="$(mktemp -d)"
+
+    for hook in pre-security.sh pre-code-no-emoji.sh; do
+        cat > "$tmpdir/$hook" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+        chmod +x "$tmpdir/$hook"
+
+        wrapper="$DOTFILES_DIR/codex/hooks/$hook"
+        output=$(DOTFILES_AGENT_HOOKS_DIR="$tmpdir" "$wrapper" <<< '{}')
+        decision=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecision')
+
+        if [[ "$decision" == "deny" ]]; then
+            test_pass "Codex wrapper fails closed: $hook"
+        else
+            test_fail "Codex wrapper did not fail closed for $hook"
+            test_info "Output: $output"
+        fi
+    done
+
+    rm -rf "$tmpdir"
 }
 
 # ============================================================================
@@ -297,6 +391,12 @@ main() {
 
     test_suite "Attribution Regex Patterns"
     test_attribution_regex_shared_vs_commit_msg
+
+    test_suite "Shared Agent Hook Wrappers"
+    test_agent_hook_wrappers_point_to_shared_dir
+    test_codex_wrappers_do_not_depend_on_claude_hooks
+    test_codex_wrappers_do_not_emit_ask_decisions
+    test_codex_wrappers_fail_closed_on_hook_errors
 
     test_suite "MCP Guidance"
     test_mcp_guidance_present
