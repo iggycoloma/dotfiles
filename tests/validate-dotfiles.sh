@@ -6,46 +6,23 @@
 set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+
+# Shared detection (is_devcontainer, has_tool, ...) and logging
+# (log_info/log_success/log_warn/log_error/log_section, plus the color vars).
+# shellcheck source=../bootstrap/detect.sh
+source "$DOTFILES_DIR/bootstrap/detect.sh"
+# shellcheck source=../bootstrap/logging.sh
+source "$DOTFILES_DIR/bootstrap/logging.sh"
+
 PASSED=0
 WARNINGS=0
 FAILED=0
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-# Logging functions
-log_pass() {
-    echo -e "${GREEN}✓${NC} $1"
-    ((PASSED++)) || true
-}
-
-log_warn() {
-    echo -e "${YELLOW}⚠${NC} $1"
-    ((WARNINGS++)) || true
-}
-
-log_fail() {
-    echo -e "${RED}✗${NC} $1"
-    ((FAILED++)) || true
-}
-
-log_info() {
-    echo -e "${BLUE}==>${NC} $1"
-}
-
-log_section() {
-    echo -e "\n${CYAN}==== $1 ====${NC}\n"
-}
-
-# Helper: Check if in devcontainer
-is_devcontainer() {
-    [[ -n "${REMOTE_CONTAINERS:-}" ]] || [[ -n "${CODESPACES:-}" ]]
-}
+# Counter-tracking wrappers over the shared loggers. log_warn is overridden
+# (rather than renamed) to keep the validation-script vocabulary stable.
+log_pass() { log_success "$1"; ((PASSED++))   || true; }
+log_fail() { log_error   "$1"; ((FAILED++))   || true; }
+log_warn() { echo -e "${YELLOW}!${NC} $1";    ((WARNINGS++)) || true; }
 
 # Helper: Check if symlink is correct
 check_symlink() {

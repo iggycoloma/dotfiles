@@ -58,15 +58,6 @@ has_tool() {
     command -v "$1" &> /dev/null
 }
 
-# Get sudo prefix if needed (legacy -- prefer run_sudo)
-get_sudo() {
-    if is_root; then
-        echo ""
-    else
-        echo "sudo"
-    fi
-}
-
 # Run a command with sudo if needed (safe replacement for unquoted $SUDO)
 run_sudo() {
     if is_root; then
@@ -76,18 +67,19 @@ run_sudo() {
     fi
 }
 
-# Determine if this is a minimal (container) install
-is_minimal_install() {
-    local env
-    env=$(detect_environment)
-    [[ "$env" == "codespaces" ]] || [[ "$env" == "devcontainer" ]]
-}
-
-# Check if running in a devcontainer specifically
+# True inside a devcontainer or Codespaces -- the two contexts where the
+# installer skips host-only steps (GUI apps, brew taps, etc).
 is_devcontainer() {
     local env
     env=$(detect_environment)
     [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]]
+}
+
+# Alias kept for caller intent: gate "should we do a minimal install" rather
+# than "are we in a container". Currently equivalent; if the policy ever
+# diverges (e.g. minimal on CI runners too), only this body changes.
+is_minimal_install() {
+    is_devcontainer
 }
 
 # Check if the dotfiles repo itself is the active workspace
@@ -130,7 +122,6 @@ export -f detect_os
 export -f detect_package_manager
 export -f is_root
 export -f has_tool
-export -f get_sudo
 export -f run_sudo
 export -f is_minimal_install
 export -f is_devcontainer
