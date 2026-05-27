@@ -92,6 +92,16 @@ test_suite "dc-audit: Detects forbidden credential mount (unattended)"
 output=$("$DC_AUDIT" --profile unattended --rubric "$RUBRIC" "$FIXTURES/unattended-bad-mount.json" 2>&1)
 assert_contains "$output" "no-host-creds-unattended" "flags ~/.ssh bind mount"
 
+test_suite "dc-audit: Detects attended-profile footguns"
+
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/attended-bad.json" 2>&1)
+assert_contains "$output" "host-creds-mount-attended" "flags ~/.ssh bind mount in attended profile"
+assert_contains "$output" "docker-sock-mount"          "flags docker.sock bind mount"
+assert_contains "$output" "broad-home-mount"           "flags unscoped \$HOME bind mount"
+assert_contains "$output" "runargs-privileged"         "flags --privileged"
+assert_contains "$output" "runargs-cap-sys-admin"      "flags --cap-add=SYS_ADMIN"
+assert_contains "$output" "runargs-seccomp-unconfined" "flags --security-opt=seccomp=unconfined"
+
 # =================================================================
 # Clean fixture
 # =================================================================

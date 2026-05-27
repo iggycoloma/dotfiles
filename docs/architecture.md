@@ -34,7 +34,6 @@ dotfiles/
 |   |-- packages.sh            # Tool installation (apt/apk/brew + GitHub releases)
 |   |-- symlinks.sh            # Symlink/copy management + state persistence wiring
 |   |-- completions.sh         # Shell completion setup (bash + zsh + zinit)
-|   |-- devcontainer-egress.sh # Opt-in iptables egress allowlist (in-container)
 |-- shell/
 |   |-- .bashrc, .bash_profile # Bash configuration
 |   |-- .zshrc, .zprofile      # Zsh configuration (compinit caching, zprof support)
@@ -176,9 +175,8 @@ The repo is meant to be forked and adapted:
    `.codex/config.local.toml`.
 4. **Per-devcontainer extensions** -- set environment variables in the
    `remoteEnv` block of the project's `devcontainer.json`:
-   `DOTFILES_DEVCONTAINER_EGRESS=1`, `DOTFILES_EGRESS_EXTRA_HOSTS=docker.io,...`,
-   `DOTFILES_NO_AI_TOOLS=1`, etc. See the [customization
-   doc](customization.md) for the full toggle list.
+   `DOTFILES_INSTALL_UNATTENDED=1`, `DOTFILES_NO_AI_TOOLS=1`, etc. See the
+   [customization doc](customization.md) for the full toggle list.
 5. **Adding a new tool** -- add the tool config to
    `bootstrap/packages.sh:_tool_config`, add the canonical alias/function to
    `shell/aliases.sh` or `shell/functions.sh`, and update
@@ -187,7 +185,7 @@ The repo is meant to be forked and adapted:
 
 ## Testing
 
-The test suite (389 tests across 9 suites) runs via `make test`:
+The test suite runs via `make test`:
 
 | Suite                          | Focus                                                            |
 |--------------------------------|------------------------------------------------------------------|
@@ -198,7 +196,6 @@ The test suite (389 tests across 9 suites) runs via `make test`:
 | `tests/test-gh-repo-policy.sh` | GitHub repo policy CLI                                           |
 | `tests/test-ralph.sh`          | Agentic ralph harness                                            |
 | `tests/test-dc-audit.sh`       | Devcontainer.json linter rubric                                  |
-| `tests/test-devcontainer-egress.sh` | Egress script gating + allowlist sanity                     |
 | `tests/test-settings-drift.sh` | Host vs container settings variant drift detection               |
 
 Auxiliary scripts in `tests/`:

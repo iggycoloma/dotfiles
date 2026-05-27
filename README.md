@@ -169,8 +169,6 @@ devcontainer's `remoteEnv`:
 | `DOTFILES_NO_SSH_SIGNING=1`             | Skip SSH commit signing auto-detection                                  |
 | `DOTFILES_OPINIONATED_ALIASES=1`        | Shadow `grep` with rg and `find` with fd                                |
 | `DOTFILES_INSTALL_UNATTENDED=1`         | Deploy the opt-in unattended coding harness to `~/.unattended/`                      |
-| `DOTFILES_DEVCONTAINER_EGRESS=1`        | Install the iptables egress allowlist in devcontainers (needs NET_ADMIN)|
-| `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`     | Comma-separated extra hosts for the egress allowlist                    |
 
 See [`docs/customization.md`](docs/customization.md) for opinionated-alias
 details, per-project Claude/Codex overrides via `settings.local.json`,
@@ -202,8 +200,10 @@ Sandbox is **tier-aware** (see [Sandbox posture](#sandbox-posture) below):
 - **Host**: full Claude Code Bash sandbox (Seatbelt on macOS, bwrap on
   Linux/WSL2), `allowedDomains` enforced kernel-level via a host proxy.
 - **Devcontainer / Codespaces**: container *is* the sandbox boundary;
-  OS-level sandbox disabled to avoid leaky abstractions; opt-in iptables
-  egress allowlist available behind `DOTFILES_DEVCONTAINER_EGRESS=1`.
+  OS-level sandbox disabled to avoid leaky abstractions. Validate the
+  container spec with `bin/dc-audit.sh`; the opt-in `unattended/` harness
+  ships a hardened profile with mitmproxy egress when you need a
+  per-hostname allowlist.
 
 WebFetch and WebSearch are **not** gated by `allowedDomains` -- only Bash
 subprocesses are -- so research is unaffected by a narrow allowlist.
@@ -250,8 +250,8 @@ implementation, and a "how to modify this for your own use" walkthrough.
 | Tier                          | Filesystem isolation       | Network egress                                         | Settings variant            | Persistence                         |
 |-------------------------------|----------------------------|--------------------------------------------------------|-----------------------------|-------------------------------------|
 | **Host** (macOS/Linux/WSL2)   | Seatbelt or bwrap          | Claude Code `allowedDomains` (kernel-enforced)         | `settings.json` (host)      | Native filesystem                   |
-| **Local devcontainer**        | Container is the boundary  | Opt-in iptables allowlist (NET_ADMIN, env-gated)       | `settings.container.json`   | Docker named volume (one mount line)|
-| **Codespaces / remote**       | Container is the boundary  | Same iptables script (auto-installs `iptables` binary) | `settings.container.json`   | Platform `/home/vscode` persistence |
+| **Local devcontainer**        | Container is the boundary  | Unrestricted by default; `bin/dc-audit.sh` lints the spec for risky mounts/caps | `settings.container.json`   | Docker named volume (one mount line)|
+| **Codespaces / remote**       | Container is the boundary  | Same as local devcontainer                             | `settings.container.json`   | Platform `/home/vscode` persistence |
 
 Why three tiers instead of one? Trying to run `bwrap` inside devcontainers
 produced friction at every step (WSL2 path detection, Docker seccomp,
@@ -262,8 +262,9 @@ works cleanly); containers drop it.
 
 See [`docs/sandbox.md`](docs/sandbox.md) for what's gated and what isn't
 (WebFetch / WebSearch are intentionally exempt), the SSH-signing nuance on
-Linux/WSL2 hosts, the iptables egress allowlist details, and the upstream
-Claude Code issues (#44180, #10767, #29274) that shape the design.
+Linux/WSL2 hosts, and the upstream Claude Code issues (#44180, #10767,
+#29274) that shape the design. Egress enforcement for unattended runs lives
+in `unattended/` (mitmproxy + hostname allowlist).
 
 ---
 
@@ -294,7 +295,7 @@ See [`docs/spinoffs.md`](docs/spinoffs.md) for the rationale on each.
 ```bash
 dotfiles-doctor                # Health check: symlinks, tools, git config, signing
 make lint                      # shellcheck + bin/settings-drift.sh drift check
-make test                      # Full suite (unit, packages, integration, drift, egress, ...)
+make test                      # Full suite (unit, packages, integration, drift, dc-audit, ...)
 make test-integration          # Just the install integration test
 ZSH_PROFILE=1 zsh -i -c exit   # Profile zsh startup (zprof output)
 ```

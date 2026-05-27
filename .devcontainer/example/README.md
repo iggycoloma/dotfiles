@@ -12,13 +12,12 @@ cp ~/.dotfiles/.devcontainer/example/devcontainer.json .devcontainer/
 Then:
 
 1. Replace `"repository": "yourusername/.dotfiles"` with your fork.
-2. (Optional) uncomment `--cap-add=NET_ADMIN` in `runArgs` and set
-   `DOTFILES_DEVCONTAINER_EGRESS=1` in `remoteEnv` to enable the iptables
-   egress allowlist. See [`../../docs/sandbox.md`](../../docs/sandbox.md)
-   for what it does.
-3. (Recommended) configure dotfiles repo + install command in VS Code User
+2. (Recommended) configure dotfiles repo + install command in VS Code User
    Settings instead of inside `devcontainer.json` -- the in-file `dotfiles`
    property is a VS Code-only extension, not part of the spec.
+3. (Recommended) run `bin/dc-audit.sh --strict` against your final
+   `devcontainer.json` to catch risky mounts, capabilities, and
+   security-opt entries.
 
 ## What this gives you
 
@@ -32,8 +31,11 @@ The example template includes:
   you can flip on as needed. See
   [`../../docs/customization.md#installation-toggles`](../../docs/customization.md#installation-toggles)
   for the full list.
-- **Egress allowlist opt-in** -- see the comments in the example for the
-  one-line opt-in pattern.
+- **Baseline hardening** -- `--security-opt=no-new-privileges` in
+  `runArgs` so the container can't acquire new capabilities via setuid
+  binaries. Run `bin/dc-audit.sh` to lint the rest of the spec.
+
+See `docs/sandbox.md` for the full security model.
 
 ## Updating dotfiles in a running container
 

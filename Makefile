@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-egress test-drift lint-devcontainers lint-settings-drift
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift lint-devcontainers lint-settings-drift
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
@@ -12,7 +12,7 @@ lint: lint-settings-drift
 lint-settings-drift:
 	@bin/settings-drift.sh --quiet
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-egress test-drift
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -34,9 +34,6 @@ test-ralph:
 
 test-dc-audit:
 	bash tests/test-dc-audit.sh
-
-test-egress:
-	bash tests/test-devcontainer-egress.sh
 
 test-drift:
 	bash tests/test-settings-drift.sh

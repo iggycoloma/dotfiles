@@ -33,8 +33,6 @@ in your devcontainer's `remoteEnv`:
 | `DOTFILES_NO_SSH_SIGNING=1`           | off     | Skip SSH commit signing auto-detection                                  |
 | `DOTFILES_OPINIONATED_ALIASES=1`      | off     | Shadow `grep` with `rg` and `find` with `fd`                            |
 | `DOTFILES_INSTALL_UNATTENDED=1`       | off     | Deploy the opt-in unattended coding harness to `~/.unattended/`         |
-| `DOTFILES_DEVCONTAINER_EGRESS=1`      | off     | Install iptables egress allowlist in devcontainers (needs `NET_ADMIN`)  |
-| `DOTFILES_EGRESS_EXTRA_HOSTS=a,b,c`   | (empty) | Comma-separated hosts to add to the egress allowlist                    |
 
 AI tools (Claude Code + Codex CLI) install as native binaries in devcontainer
 environments only. On hosts, users manage their own AI installs.
@@ -97,13 +95,9 @@ project's `devcontainer.json`:
 ```jsonc
 {
   "remoteEnv": {
-    "DOTFILES_DEVCONTAINER_EGRESS": "1",
-    "DOTFILES_EGRESS_EXTRA_HOSTS": "docker.io,registry-1.docker.io,my-internal.example.com",
-    "DOTFILES_NO_AI_TOOLS": "0"
-  },
-  "runArgs": [
-    "--cap-add=NET_ADMIN"
-  ]
+    "DOTFILES_NO_AI_TOOLS": "0",
+    "DOTFILES_INSTALL_UNATTENDED": "1"
+  }
 }
 ```
 

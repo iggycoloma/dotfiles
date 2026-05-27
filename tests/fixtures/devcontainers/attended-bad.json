@@ -1,0 +1,14 @@
+{
+  "name": "Attended fixture with high-impact footguns",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=${localEnv:HOME},target=/home/vscode/host-home,type=bind"
+  ],
+  "runArgs": [
+    "--privileged",
+    "--cap-add=SYS_ADMIN",
+    "--security-opt=seccomp=unconfined"
+  ]
+}

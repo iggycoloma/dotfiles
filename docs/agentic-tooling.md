@@ -138,9 +138,13 @@ on `is_devcontainer()`. `bin/settings-drift.sh` (wired into `make lint`)
 verifies that the host and container variants stay in sync on every key
 outside the per-tier sandbox block.
 
-In **devcontainers and Codespaces**, an opt-in iptables egress allowlist is
-available via `DOTFILES_DEVCONTAINER_EGRESS=1` + `--cap-add=NET_ADMIN` in
-`runArgs`. See [sandbox.md](sandbox.md#egress-allowlist-opt-in).
+In **devcontainers and Codespaces**, egress is unrestricted by default;
+the container boundary plus a `bin/dc-audit.sh`-linted spec is the
+security model. For unattended runs that need a hostname allowlist
+enforced inside the container, start from
+[`.devcontainer/unattended/`](../.devcontainer/unattended/devcontainer.json)
+(mitmproxy + `unattended/egress-allowlist.txt`). See
+[sandbox.md](sandbox.md#host-vs-container-scope-difference).
 
 ## MCP servers
 

@@ -191,15 +191,6 @@ else
     log_success "SSH commit signing already configured"
 fi
 
-# Optional in-container egress allowlist. The script has its own gates
-# (DOTFILES_DEVCONTAINER_EGRESS, NET_ADMIN, etc.) and exits 0 cleanly if any
-# fail, but on a host there is nothing it can possibly do -- skip the call
-# entirely so we don't print a noisy "skipping" line for every host install.
-if is_devcontainer && [[ -x "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" ]]; then
-    "$DOTFILES_DIR/bootstrap/devcontainer-egress.sh" || \
-        log_warn "devcontainer-egress.sh exited non-zero (continuing)"
-fi
-
 # Final message
 log_section "Installation Complete"
 log_success "Dotfiles installed successfully!"

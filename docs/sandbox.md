@@ -11,12 +11,18 @@ incompatibility after another. The tiered model is the simpler answer.
 Three-tier posture
 ==================
 
-| Tier                | Filesystem isolation | Network egress                                  | Sandbox config file        |
-|---------------------|----------------------|--------------------------------------------------|----------------------------|
-| Host (macOS)        | Seatbelt             | `allowedDomains` (Claude Code) + macOS Seatbelt | `claude-code/settings.json` |
-| Host (Linux/WSL2)   | bwrap                | `allowedDomains` (kernel-enforced via netns)    | `claude-code/settings.json` |
-| Local devcontainer  | container boundary   | iptables (opt-in, `NET_ADMIN` required)         | `claude-code/settings.container.json` |
-| Codespaces          | container boundary   | iptables (opt-in, same as devcontainers; binary install required) | `claude-code/settings.container.json` |
+| Tier                | Filesystem isolation | Network egress                                                  | Sandbox config file        |
+|---------------------|----------------------|------------------------------------------------------------------|----------------------------|
+| Host (macOS)        | Seatbelt             | `allowedDomains` (Claude Code) + macOS Seatbelt                  | `claude-code/settings.json` |
+| Host (Linux/WSL2)   | bwrap                | `allowedDomains` (kernel-enforced via netns)                     | `claude-code/settings.json` |
+| Local devcontainer  | container boundary   | Unrestricted by default; lint the spec via `bin/dc-audit.sh`     | `claude-code/settings.container.json` |
+| Codespaces          | container boundary   | Same as local devcontainer                                       | `claude-code/settings.container.json` |
+
+For hardened, unattended runs that need a hostname allowlist enforced
+inside the container, see [`unattended/`](../unattended/README.md) --
+the profile under [`.devcontainer/unattended/`](../.devcontainer/unattended/devcontainer.json)
+ships a mitmproxy with an explicit hostname allowlist and per-request
+audit log.
 
 `install.sh` chooses which settings file to deploy to `~/.claude/settings.json`
 based on `is_devcontainer()`: container variants in devcontainers and Codespaces,
@@ -47,38 +53,36 @@ The allowlist therefore only matters for operations that ask the *shell* to
 reach out: package install, git clone/push, container pulls, toolchain
 installers, `curl` for API testing.
 
-### Host vs container: a critical scope difference
+### Host vs container scope difference
 
 The "WebFetch is not gated" property above is specific to **hosts**. The
 host sandbox enforces `allowedDomains` via a proxy that bwrap (Linux) or
 Seatbelt (macOS) only attaches to bash subprocesses; Claude Code's own
 process sits outside that boundary and reaches the network directly.
 
-The opt-in **devcontainer egress allowlist** ([below](#egress-allowlist-opt-in))
-is a fundamentally different mechanism: iptables OUTPUT rules in the
-container's network namespace filter *packets*, not processes. Every
-process in the container -- including Claude Code itself -- sends through
-that stack. WebFetch's HTTP request originates from Claude Code's process,
-hits the container's OUTPUT chain, and gets REJECTed if the destination
-isn't on the allowlist.
+The hardened unattended profile takes a different approach: a mitmproxy
+runs in the container with an explicit hostname allowlist, and
+`HTTPS_PROXY` / `HTTP_PROXY` route all in-container traffic (including
+Claude Code's own process, and therefore WebFetch and WebSearch) through
+it. That gates the model's research too, which is intentional for the
+unattended threat model. See [`unattended/`](../unattended/README.md).
 
 | Layer / tier                                              | Gates bash?   | Gates WebFetch?           | Gates WebSearch?                                          |
 |-----------------------------------------------------------|:-------------:|:-------------------------:|:---------------------------------------------------------:|
 | Host `sandbox.network.allowedDomains` (bwrap/Seatbelt)    | yes           | **no** (out of bwrap)     | no                                                        |
-| Devcontainer iptables egress allowlist (`DOTFILES_DEVCONTAINER_EGRESS=1`) | yes | **yes** (container-wide)  | yes -- but `api.anthropic.com` is on the default allowlist, so it works |
+| Unattended profile mitmproxy (`unattended/egress-allowlist.txt`) | yes    | **yes** (container-wide)  | yes -- but `api.anthropic.com` is on the default allowlist, so it works |
 | `permissions.deny[Read|Write|Edit]` (Claude Code layer)   | n/a           | no                        | no                                                        |
 | `permissions` allow/deny for `WebFetch(domain:X)`         | no            | yes (Claude Code layer)   | n/a                                                       |
 
-So when you opt into the devcontainer egress allowlist, research *is*
-affected: a WebFetch to a domain not on the allowlist fails at iptables
-the same way a `curl` from bash would. Add research domains via
-`DOTFILES_EGRESS_EXTRA_HOSTS=mdn.example.com,stackoverflow.com,...` in
-the devcontainer's `remoteEnv`. (Project-level `settings.local.json`
-won't help here -- iptables operates below Claude Code's permission
-system.)
+So in the unattended profile, research *is* affected: a WebFetch to a
+domain not on the allowlist fails at mitmproxy the same way a `curl`
+from bash would. Adjust `unattended/egress-allowlist.txt` to add
+research domains the agent should be allowed to reach. (Project-level
+`settings.local.json` won't help here -- the proxy operates below
+Claude Code's permission system.)
 
-Extending the allowlist
------------------------
+Extending the host allowlist
+----------------------------
 
 The default list covers the common agentic-coding bash surface:
 
@@ -95,24 +99,19 @@ The default list covers the common agentic-coding bash surface:
 What's intentionally **not** in the default global allowlist:
 
 - **Project-specific deploy targets**: Vercel, Fly.io, Heroku, Netlify, AWS,
-  GCP, Azure, your kubernetes API. These vary per project; keep host-only
-  Claude Code additions in `.claude/settings.local.json` (not tracked by
-  dotfiles). For the devcontainer iptables allowlist, add them through
-  `DOTFILES_EGRESS_EXTRA_HOSTS` in the devcontainer's `remoteEnv`.
+  GCP, Azure, your kubernetes API. These vary per project; keep additions
+  in `.claude/settings.local.json` (not tracked by dotfiles).
 - **Public Docker Hub** (`docker.io`, `registry-1.docker.io`): rarely needed
   by Claude itself; add per-project if testing pulls public images.
 - **Toolchain installers** (`sh.rustup.rs`, `dl.google.com`, etc.): rare
-  enough to handle case-by-case in the host or container-specific extension
-  point above.
+  enough to handle case-by-case via the project-local extension point above.
 
 To extend the host Claude Code sandbox in a project, copy the relevant
 `allowedDomains` block into `.claude/settings.local.json` and merge -- Claude
 Code settings precedence is managed > CLI > local > project > user, so a
 project-local entry strictly adds to (doesn't replace) the global allowlist.
-To extend the container egress sandbox, set
-`DOTFILES_EGRESS_EXTRA_HOSTS=host1.example.com,host2.example.com` in the
-devcontainer environment and rebuild or rerun `bootstrap/devcontainer-egress.sh`;
-Claude settings files do not update iptables rules.
+For unattended runs, edit `unattended/egress-allowlist.txt` to extend the
+mitmproxy hostname allowlist (the file is read at container start).
 
 Auto mode and the sandbox are independent layers
 ------------------------------------------------
@@ -187,9 +186,11 @@ the container should not need to know what host it is running on.
 
 The pivot: **the container is itself a kernel-enforced isolation primitive,
 and bwrap inside a container is defense-in-depth with high maintenance cost.**
-Drop bwrap inside containers, keep it on hosts where it has no leaky abstractions.
-Use iptables for in-container egress (opt-in), because iptables is host-OS-blind
-and operates in the container's own network namespace.
+Drop bwrap inside containers, keep it on hosts where it has no leaky
+abstractions. For attended use, the container boundary plus a linted
+`devcontainer.json` is the security model. For unattended use, the
+profile under `.devcontainer/unattended/` layers on mitmproxy for
+egress enforcement; both are host-OS-blind.
 
 Hosts
 =====
@@ -255,53 +256,20 @@ What that means in practice:
 - ssh-agent is reachable normally (no seccomp filter installed), so signed
   commits work in-session.
 - Network egress is unrestricted by default. The container itself has the
-  Docker bridge's view of the network. To restrict, opt into the iptables
-  egress allowlist (below).
+  Docker bridge's view of the network. The right place to constrain a
+  container's network reach is **the spec, not a runtime allowlist**:
+  pin the image, drop capabilities, refuse risky bind mounts. Run
+  `bin/dc-audit.sh` against every project's `devcontainer.json` (it has
+  rules for `--privileged`, `--cap-add=SYS_ADMIN`,
+  `--security-opt=seccomp=unconfined`, `docker.sock` mounts, and
+  credential-directory mounts).
 
-Egress allowlist (opt-in)
--------------------------
-
-`bootstrap/devcontainer-egress.sh` installs a custom `DOTFILES-EGRESS`
-iptables chain wired into the OUTPUT chain via a single jump. The chain
-allows loopback, established/related return traffic, DNS (UDP/TCP 53), and
-per-IP ACCEPT for a small set of agentic-tool + code-management endpoints
-(Anthropic API, GitHub, npm/pypi/crates/Go registries). The chain ends in
-`REJECT --reject-with icmp-host-prohibited`, so anything else gets a clean
-error (not a hang). Project-specific extras via `DOTFILES_EGRESS_EXTRA_HOSTS`
-(comma-separated hostnames).
-
-Using a custom chain rather than `-P OUTPUT DROP` lets the script coexist
-with other tools that install OUTPUT rules (e.g. the unattended profile's
-mitmproxy iptables rules) instead of flushing the whole chain.
-
-Hostnames are resolved to IPs at install time and pinned in the rules. Re-run
-the script to pick up DNS changes -- the unattended profile's mitmproxy
-approach is the alternative if you need name-based enforcement.
-
-**Scope note** (also see [Host vs container](#host-vs-container-a-critical-scope-difference)):
-unlike the host sandbox's `allowedDomains`, this allowlist filters
-*packets* at the kernel level, so it applies to **every** process in the
-container -- including Claude Code itself, and therefore WebFetch and
-WebSearch. If you enable this and find research broken, add the missing
-domains via `DOTFILES_EGRESS_EXTRA_HOSTS=...` in the devcontainer's
-`remoteEnv` (project `settings.local.json` won't help -- iptables
-operates below Claude Code's permission layer).
-
-Gating (all required):
-
-1. `DOTFILES_DEVCONTAINER_EGRESS=1` in the environment.
-2. `--cap-add=NET_ADMIN` in devcontainer.json runArgs.
-3. Running inside a devcontainer.
-4. `DOTFILES_NO_AI_TOOLS != 1`.
-
-The script is invoked at the end of `install.sh`. When the gates fail, it logs
-the reason and exits 0 -- safe to leave wired in the installer regardless of
-whether a particular container has the cap.
-
-This is *opt-in* by default because most users don't want a network policy
-imposed unconditionally, and because NET_ADMIN is a privileged capability that
-not all hosts allow. The `.devcontainer/example/devcontainer.json` template
-includes a comment explaining the opt-in pattern.
+For unattended runs that need a hostname-level egress allowlist
+enforced *inside* the container, use the hardened profile under
+[`.devcontainer/unattended/`](../.devcontainer/unattended/devcontainer.json) --
+it ships mitmproxy + `unattended/egress-allowlist.txt` with a
+per-request audit log. The mitmproxy approach is name-based (no DNS
+pinning brittleness) and does not require `NET_ADMIN`.
 
 Persistence model
 =================
@@ -442,22 +410,11 @@ startup -- but in Codespaces we use the *container* variant settings anyway
 (`is_devcontainer()` returns true for Codespaces), so the fallback path is not
 the primary concern. The container's process and filesystem isolation remain.
 
-Iptables in Codespaces is **supported**, verified empirically. NET_ADMIN is
-in the container's bounding set (`/proc/self/status` `CapBnd` includes
-`cap_net_admin`), `sudo` elevates to root, and both `iptables` and
-`ip6tables` rules can be added and removed against the OUTPUT chain.
-
-One caveat: the Codespaces base image
-(`mcr.microsoft.com/devcontainers/base:ubuntu`) does not ship the `iptables`
-userspace binary by default. `bootstrap/devcontainer-egress.sh` detects this
-and prints an install hint; users opting into egress restriction in
-Codespaces add `iptables` to their devcontainer's `apt-get install` step or
-let install.sh install it (gated on `DOTFILES_DEVCONTAINER_EGRESS=1`).
-
-For projects that want egress restriction by default in Codespaces, store
-`DOTFILES_DEVCONTAINER_EGRESS=1` as a [Codespaces secret](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces);
-Codespaces makes secrets available as environment variables inside the
-container automatically.
+Codespaces' container boundary is the security model. For projects that
+need per-hostname egress enforcement inside a Codespace, use the
+`.devcontainer/unattended/` profile as the starting point -- mitmproxy
+runs entirely in userspace and doesn't depend on the base image
+shipping iptables.
 
 Inside a devcontainer
 ======================
@@ -483,8 +440,6 @@ exporting the env var still resolve correctly). Then:
    `~/.dotfiles-state/` (when the volume mount is present), or as plain real
    directories (when it is not).
 5. Normalizes ownership of `~/.dotfiles-state/` if root-owned (first-mount fix).
-6. Optionally installs the iptables egress allowlist (gated on env var +
-   NET_ADMIN cap).
 
 The container does not install `bubblewrap` or `socat` -- those are skipped in
 `bootstrap/packages.sh` when `is_devcontainer()` is true.
@@ -498,18 +453,15 @@ Limitations and known gaps
   File-based SSH signing works in-sandbox (see "SSH agent and signed
   commits" above for how to switch); agent-based signing needs a separate
   terminal until upstream lands a Linux `allowUnixSockets` equivalent.
-- **Codespaces iptables base image**: the Microsoft Ubuntu base image does
-  not ship the `iptables` binary. Egress restriction in Codespaces requires
-  `apt-get install -y iptables` first; `bootstrap/devcontainer-egress.sh`
-  prints an install hint if the binary is missing.
 - **Host network proxy and TLS**: the built-in proxy enforces by hostname
   without TLS termination. Broad allowedDomains entries (e.g. `github.com`)
   can be domain-fronted by attacker code running inside the sandbox. Threat
   models requiring TLS-aware filtering need a custom proxy.
-- **Iptables and DNS-based exfil**: even with egress restricted to an
-  allowlist, attacker code can dial allowed destinations (e.g. push to a
-  controlled github.com repo). Iptables narrows the channel; it does not
-  close it entirely.
+- **Egress allowlists narrow, do not close, the exfil channel**: even with
+  the unattended mitmproxy enforcing a hostname allowlist, attacker code
+  can dial allowed destinations (e.g. push to a controlled github.com
+  repo). The allowlist narrows the channel; outer-ring controls
+  (credential scoping, deny-list) are what limit blast radius.
 - **Settings file drift**: `claude-code/settings.json` and
   `claude-code/settings.container.json` are two physical files maintained in
   parallel. The linter's drift check enforces sync on non-sandbox keys.
@@ -601,7 +553,7 @@ The four protective layers, outer to inner
 | **Hardened `devcontainer.json`** (run `bin/dc-audit.sh`)               | The worst exfil vectors before they exist                                 | If you skip dc-audit and leave `docker.sock` mounted, every layer below is moot                                                                                |
 | **Container boundary**                                                 | Compromise of the *host* from inside the container                        | Doesn't protect the container's *own* contents                                                                                                                  |
 | **Claude Code `permissions.deny[]` + `pre-security.sh` hook**          | Direct cred reads (`Read(~/.config/gh/**)`) and dangerous bash via Claude | Creative obfuscation (`xxd`, `base64`); indirect access via tools the model is allowed to use (`gh api`, `git push`)                                            |
-| **Egress allowlist** (iptables, opt-in via `DOTFILES_DEVCONTAINER_EGRESS=1`) | Exfil to *attacker-controlled* domains                                  | Allowed domains can be misused (see "residual exfil paths" below); also see existing [`Iptables and DNS-based exfil`](#limitations-and-known-gaps) limitation |
+| **Egress allowlist** (unattended profile mitmproxy + `unattended/egress-allowlist.txt`) | Exfil to *attacker-controlled* domains                  | Allowed domains can be misused (see "residual exfil paths" below); see also the egress-allowlist limitation in [Limitations and known gaps](#limitations-and-known-gaps) |
 
 Residual exfil paths even with all four layers tight
 ----------------------------------------------------
@@ -626,9 +578,9 @@ Opinionated recommendation by user profile
 
 | Profile                                  | Devcontainer.json   | Deny-list + hook | Egress allowlist                                                  | Notes                                                                                                                                                                                                                                                                |
 |------------------------------------------|---------------------|------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Hobbyist / personal projects**         | dc-audit clean      | on (default)     | **skip**                                                          | Container boundary + permissions + human-in-the-loop are enough. The allowlist breaks WebFetch research and the residual exfil paths survive it anyway. The friction isn't worth the marginal protection.                                                            |
-| **Sensitive code or production-grade tokens** | dc-audit `--strict` | on (default) | **on**                                                            | Enable `DOTFILES_DEVCONTAINER_EGRESS=1` + `--cap-add=NET_ADMIN`. Expect to add research domains via `DOTFILES_EGRESS_EXTRA_HOSTS=...` in `remoteEnv`. Consider scoping the GitHub token to specific repos.                                                            |
-| **Unattended / agentic loops**           | use `.devcontainer/unattended/` as reference | on (default) | replaced by mitmproxy in the unattended profile             | The unattended profile demonstrates all four layers done right: no `~/.ssh`, no `docker.sock`, pinned image, `--cap-drop=ALL`, `--security-opt=no-new-privileges`, short-lived `GH_TOKEN_UNATTENDED`, mitmproxy egress with audit log. Crib from it; don't rebuild. |
+| **Hobbyist / personal projects**         | dc-audit clean      | on (default)     | **skip**                                                          | Container boundary + linted spec + permissions + human-in-the-loop are enough. A runtime egress allowlist on top breaks WebFetch research and the residual exfil paths survive it anyway. The friction isn't worth the marginal protection.                          |
+| **Sensitive code or production-grade tokens** | dc-audit `--strict` | on (default) | **start from `.devcontainer/unattended/`**                        | If you want a network policy inside the container, copy the unattended profile -- it ships mitmproxy + `unattended/egress-allowlist.txt` and an audit log, with no `NET_ADMIN` or IP-pinning brittleness. Scope the GitHub token to specific repos.                  |
+| **Unattended / agentic loops**           | use `.devcontainer/unattended/` as reference | on (default) | mitmproxy + `unattended/egress-allowlist.txt`               | The unattended profile demonstrates all four layers done right: no `~/.ssh`, no `docker.sock`, pinned image, `--cap-drop=ALL`, `--security-opt=no-new-privileges`, short-lived `GH_TOKEN_UNATTENDED`, mitmproxy egress with audit log. Crib from it; don't rebuild. |
 
 Industry context
 ----------------
