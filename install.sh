@@ -154,7 +154,14 @@ elif ! git config user.signingkey >/dev/null 2>&1; then
         git config --global user.signingkey "key::$signing_key"
         git config --global commit.gpgsign true
         log_success "SSH commit signing configured (from agent)"
-    # Fall back to common local key files
+    elif is_devcontainer; then
+        # Devcontainers: agent-only. A file-based key inside the container is
+        # a long-lived credential that survives rebuilds in the persisted
+        # state volume and gives container-resident code (and any prompt-
+        # injected agent) a signing primitive without the user in the loop.
+        # Forward ssh-agent into the container instead.
+        log_warn "No SSH agent forwarded into container -- commit signing disabled"
+        log_info "Forward ssh-agent into the devcontainer to enable signing"
     elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
         git config --global user.signingkey "$HOME/.ssh/id_ed25519.pub"
         git config --global commit.gpgsign true

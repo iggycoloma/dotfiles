@@ -490,6 +490,58 @@ _managed_install_exists() {
     [[ -x "$install_dir/$tool" ]]
 }
 
+# Upgrade git via ppa:git-core/ppa when stock apt git < 2.35. Required for
+# `user.signingkey = key::<literal-pubkey>` -- the parser for that prefix
+# landed in git 2.35 (Ubuntu 22.04 jammy ships 2.34.1, where the value is
+# passed straight to ssh-keygen as a file path and signing fails). Ubuntu
+# only -- the PPA does not publish for Debian; bookworm has 2.39 in stock.
+# Idempotent: re-running with git >= 2.35 already installed is a no-op.
+_ensure_modern_git_apt() {
+    has_tool git || return 0
+
+    local current minimum="2.35"
+    current=$(git --version 2>/dev/null | awk '{print $3}')
+    [[ -n "$current" ]] || return 0
+    if dpkg --compare-versions "$current" ge "$minimum"; then
+        return 0
+    fi
+
+    local distro_id="" codename=""
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        distro_id="${ID:-}"
+        codename="${VERSION_CODENAME:-}"
+    fi
+    if [[ "$distro_id" != "ubuntu" && "$distro_id" != "pop" ]]; then
+        log_warn "git ${current} < ${minimum} (key:: signingkey needs >= ${minimum}); upgrade git manually on this distro"
+        return 0
+    fi
+
+    log_info "Upgrading git via ppa:git-core/ppa (stock ${current} < ${minimum})..."
+    local _sudo=""
+    is_root || _sudo="sudo"
+    local ppa_release_url="https://ppa.launchpadcontent.net/git-core/ppa/ubuntu/dists/${codename}/Release"
+    if ! curl -fsSLI "$ppa_release_url" >/dev/null 2>&1; then
+        log_warn "git-core PPA does not publish for '${codename}'; leaving git at ${current}"
+        return 0
+    fi
+    timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1 || true
+    if ! has_tool add-apt-repository; then
+        log_warn "add-apt-repository unavailable; cannot add git-core PPA"
+        return 0
+    fi
+    if ! timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:git-core/ppa >/dev/null 2>&1; then
+        log_warn "Failed to add git-core PPA"
+        return 0
+    fi
+    timeout 30 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -E "(Err|W:)" || true
+    if timeout 60 $_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y git >/dev/null 2>&1; then
+        log_success "Upgraded git to $(git --version | awk '{print $3}')"
+    else
+        log_warn "git-core PPA install failed; leaving git at ${current}"
+    fi
+}
+
 # Install via apt (Debian/Ubuntu)
 install_apt() {
     local minimal=$1
@@ -505,9 +557,14 @@ install_apt() {
         packages+=("fzf")
     fi
 
-    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
-        packages+=("bubblewrap")
+    # AI agent sandbox dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
+    # bwrap + socat back the Linux/WSL2 host sandbox for Claude Code: bwrap
+    # unshares the network namespace, socat bridges it to the egress proxy.
+    # Skip in devcontainers -- the container boundary is the sandbox there,
+    # and bwrap inside containers has known seccomp/userns incompatibilities
+    # (see docs/sandbox.md "Why three tiers").
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
+        packages+=("bubblewrap" "socat")
     fi
 
     # Add host-specific tools
@@ -538,6 +595,13 @@ install_apt() {
             return 1
         fi
     fi
+
+    # Upgrade git to >= 2.35 on Ubuntu when the stock package is older.
+    # Required for `user.signingkey = key::<literal-pubkey>` (ssh-agent-based
+    # signing); the parser landed in 2.35 (Ubuntu 22.04 ships 2.34.1). Skipped
+    # on Debian -- bookworm has 2.39, and bullseye users can opt into
+    # backports manually.
+    _ensure_modern_git_apt
 
     # Create bat symlink if needed (Ubuntu calls it batcat)
     if has_tool batcat && ! has_tool bat; then
@@ -622,9 +686,14 @@ install_apk() {
     # Note: Some tools may have different names or not be available
     packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
-    # AI tool dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
-        packages+=("bubblewrap")
+    # AI agent sandbox dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
+    # bwrap + socat back the Linux host sandbox for Claude Code: bwrap
+    # unshares the network namespace, socat bridges it to the egress proxy.
+    # Skip in devcontainers -- the container boundary is the sandbox there,
+    # and bwrap inside containers has known seccomp/userns incompatibilities
+    # (see docs/sandbox.md "Why three tiers").
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
+        packages+=("bubblewrap" "socat")
     fi
 
     # Add host-specific tools
