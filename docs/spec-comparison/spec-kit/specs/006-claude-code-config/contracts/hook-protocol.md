@@ -1,9 +1,15 @@
 # Contract: Claude Code Hook Protocol
 
-The dotfiles hooks (`pre-security.sh`, `pre-commit-validate.sh`,
-`pre-code-no-emoji.sh`, `notify.sh`, `session-start-banner.sh`) all
-conform to Claude Code's documented hook protocol. This contract
-documents the relevant subset.
+The dotfiles hooks (`pre-security.sh`, `pre-code-no-emoji.sh`,
+`post-scope-audit.sh`, `post-dep-audit.sh`, `notify.sh`,
+`session-start-banner.sh`) all conform to Claude Code's documented
+hook protocol. This contract documents the relevant subset.
+
+Note: an earlier `pre-commit-validate.sh` PreToolUse hook was
+deprecated and removed. Commit-message validation now lives only in
+the global git `commit-msg` hook (wired via `core.hooksPath`). The
+single source of truth is the git hook; the PreToolUse hook was a
+duplicate that drifted in practice.
 
 ## Hook event types
 
@@ -74,15 +80,6 @@ defaults to `deny` (fail closed).
   etc.); also returns `deny` for path traversal (`../`).
 - Emits `ask` for matches; framework default `allow` for
   non-matches.
-
-### `pre-commit-validate.sh`
-
-- Triggered conditionally via the settings.json `if: Bash(git commit*)`
-  filter -- runs only when the proposed Bash command starts with
-  `git commit`.
-- Parses the proposed `-m` argument, applies the same conv-commits /
-  AI attribution / emoji checks as the git `commit-msg` hook.
-- Emits `deny` on failure with the reason explaining the violation.
 
 ### `pre-code-no-emoji.sh`
 

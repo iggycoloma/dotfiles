@@ -18,10 +18,21 @@ Preserves any user-local `config.toml` (Codex trust state and preferences).
 - The installer MUST migrate from a legacy whole-directory symlink at
   `~/.codex` (older host installs) to managed individual files by
   removing the symlink first.
-- The installer MUST preserve any pre-existing `~/.codex/config.toml`
-  (Codex stores trust state and per-machine preferences there).
-- If `~/.codex/config.toml` does not exist, the installer MUST seed it
-  with the notify hook line.
+- The installer MUST deploy a `config.toml` chosen by environment via
+  `_deploy_variant_file`: `config.toml` (host variant, `sandbox_mode =
+  "workspace-write"`) is symlinked on hosts; `config.container.toml`
+  (container variant, `sandbox_mode = "danger-full-access"`) is copied
+  inside devcontainers. Both variants keep `approval_policy =
+  "on-request"` -- the human-in-the-loop gate is identical in both;
+  only the sandbox posture differs. Host: Codex sandboxes file writes
+  to the workspace. Container: the container itself is the trust
+  boundary; another sandbox would block legitimate work without adding
+  isolation.
+- The installer MUST preserve any pre-existing real `~/.codex/config.toml`
+  on hosts (Codex stores trust state and per-machine preferences there).
+- If neither variant is present at the target path, the installer MUST
+  seed `~/.codex/config.toml` with the notify hook line and the
+  environment-appropriate `approval_mode`.
 - The installer MUST migrate the legacy `notify = "bash ..."` string
   format to the array form `notify = ["bash", "..."]`.
 
@@ -91,6 +102,15 @@ AND the file is a real file (not a symlink)
 WHEN `./install.sh` runs
 THEN the installer logs `Skipping ~/.codex/config.toml (preserving local Codex settings)`
 AND does not overwrite the file.
+
+### Scenario: Devcontainer install picks the container Codex variant
+
+GIVEN a devcontainer (`REMOTE_CONTAINERS=true`) running `./install.sh`
+WHEN `_deploy_variant_file` runs for `config.toml`
+THEN `~/.codex/config.toml` is a copy of `<DOTFILES_DIR>/codex/config.container.toml`
+AND it sets `sandbox_mode = "danger-full-access"`
+AND `approval_policy = "on-request"` is unchanged from the host variant
+AND the trust boundary is the container itself.
 
 ## Non-Behavior
 

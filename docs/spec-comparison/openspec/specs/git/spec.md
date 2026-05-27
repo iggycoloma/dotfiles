@@ -57,6 +57,10 @@ writes without dirtying the dotfiles repo.
   flag is set per-host by `install.sh` only when an SSH key is detected.
 - The `allowed_signers` file MUST be created at
   `~/.config/git/allowed_signers` with the user's email and public key.
+- SSH commit signing requires `git >= 2.35` (the version that introduced
+  the `key::<literal>` parser for `user.signingkey`). The `packages`
+  capability MUST ensure a qualifying git is available; the `install`
+  capability handles the host/devcontainer split for key detection.
 
 ### Defaults
 

@@ -11,13 +11,26 @@ across 13+ platform configurations on every PR.
 
 ### Lint
 
-- `make lint` MUST run shellcheck on every `*.sh` file in the repo
+- `make lint` MUST run, in order: `lint-settings-drift`,
+  `lint-devcontainers`, then shellcheck on every `*.sh` file in the repo
   excluding `.git/` and `.devcontainer/` configs.
 - shellcheck MUST exit non-zero on any warning of severity warning or
   higher.
 - CI MUST block merge on `make lint` failure.
 - New `# shellcheck disable=` directives MUST be accompanied by an
   inline comment explaining why.
+
+### Settings drift
+
+- `bin/settings-drift.sh` MUST compare key-value pairs between the host
+  and container variants of every variant file (`claude-code/settings.json`
+  vs. `settings.container.json`; `codex/config.toml` vs.
+  `config.container.toml`) and report any mismatch outside the
+  documented sandbox-block exception.
+- A missing variant (only one side of the pair exists) MUST be reported
+  as drift, not skipped silently.
+- `make lint-settings-drift` MUST invoke the linter with `--quiet` and
+  fail the build on non-zero exit.
 
 ### Test suites
 
@@ -61,10 +74,13 @@ across 13+ platform configurations on every PR.
 
 - `make lint-devcontainers` MUST run `bin/dc-audit.sh` against every
   `.devcontainer/*/devcontainer.json` in this repo.
-- The unattended profile MUST be audited under `--profile unattended`;
-  others under `--profile attended`.
-- `lint-devcontainers` is advisory (not part of `make test`); failures
-  do not block merge.
+- The unattended profile (`.devcontainer/unattended/*`) MUST be audited
+  under `--profile unattended`; every other `.devcontainer/*` MUST be
+  audited under `--profile attended`. The profile-to-directory mapping
+  MUST be exercised by `tests/test-dc-audit.sh`.
+- `lint-devcontainers` MUST be a prerequisite of `make lint`. It fails
+  the build only on Error-severity findings; Info/Warn findings are
+  advisory hints that do NOT block merge.
 
 ## Scenarios
 
@@ -93,17 +109,36 @@ THEN the test compares the deny lists across the three files
 AND reports the missing pattern in Codex/Copilot
 AND exits non-zero.
 
-### Scenario: dc-audit advisory passes lint
+### Scenario: dc-audit warning is advisory under make lint
 
-GIVEN `.devcontainer/example/devcontainer.json` has a minor warning
-WHEN `make lint-devcontainers` runs
-THEN dc-audit reports the warning
-AND `make lint-devcontainers` exits non-zero (advisory)
-AND `make test` (which does not include lint-devcontainers) still passes.
+GIVEN `.devcontainer/example/devcontainer.json` has a Warn-severity finding
+WHEN `make lint` runs
+THEN `lint-devcontainers` reports the warning
+AND exits 0 (Warn does not fail the build)
+AND `make lint` continues to shellcheck.
+
+### Scenario: dc-audit Error fails make lint
+
+GIVEN `.devcontainer/unattended/devcontainer.json` is missing
+`--cap-drop=ALL` (rated Error under `--profile unattended`)
+WHEN `make lint` runs
+THEN `lint-devcontainers` reports the Error
+AND exits non-zero
+AND `make lint` blocks merge.
+
+### Scenario: settings-drift catches asymmetric edit
+
+GIVEN a developer adds `"allow": ["Bash(npm install:*)"]` to
+`claude-code/settings.json` but forgets `settings.container.json`
+WHEN `make lint-settings-drift` runs
+THEN the linter reports the missing key in the container variant
+AND exits non-zero
+AND `make lint` blocks merge.
 
 ## Non-Behavior
 
-- `make test` does NOT run `make lint-devcontainers` (advisory only).
+- `make test` does NOT run `make lint-devcontainers` (lives under
+  `make lint` instead; advisory at Warn, blocking at Error).
 - The test suites do NOT use bats or any other framework -- raw bash
   with explicit `[[ ... ]]` assertions.
 - The test suites do NOT mock external commands (no command stubs);

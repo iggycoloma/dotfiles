@@ -93,12 +93,30 @@ THEN no claude/codex/ast-grep/difftastic binary is installed
 - **FR-007** AI tool installation MUST be skipped under
   `DOTFILES_NO_AI_TOOLS=1`.
 - **FR-008** atuin installation MUST be skipped under `DOTFILES_NO_ATUIN=1`.
+- **FR-009** On Linux hosts (apt/apk), `bubblewrap` and `socat` MUST be
+  installed as a paired prerequisite for the Claude Code host sandbox:
+  `bwrap` unshares the network namespace, `socat` bridges it to the egress
+  proxy. Inside devcontainers both packages MUST be skipped -- the
+  container boundary is the sandbox there, and bwrap inside containers has
+  known seccomp/userns incompatibilities. Installing one without the other
+  is a bug; treat them as one unit.
+- **FR-010** On Ubuntu / Pop!_OS, if the apt-resolvable `git` is older than
+  2.35, `_ensure_modern_git_apt` MUST opportunistically add the official
+  `ppa:git-core/ppa` repository and upgrade. Rationale: SSH commit signing
+  requires the `key::<literal>` parser shipped in git 2.35 (Ubuntu 22.04
+  jammy stock is 2.34.1, where the value is passed straight to ssh-keygen
+  as a file path and signing fails). Debian bookworm and later already
+  ship git >= 2.35, so the gate is Ubuntu-only and a no-op when the stock
+  package already qualifies. PPA-add failures MUST warn and continue
+  (signing simply stays disabled).
 
 ### Key Entities
 
 - **Tool tier**: `core | agentic | optional | preferences-only`. Drives
   install gating per environment.
-- **Distribution channel**: `brew | github-release | apt | apk`.
+- **Distribution channel**: `brew | github-release | apt | apk | ppa`.
+- **Paired prerequisite**: `bubblewrap` + `socat` -- two packages that
+  together form one capability (the host sandbox); never installed alone.
 
 ## Success Criteria
 

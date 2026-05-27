@@ -3,7 +3,9 @@
 ## Phase 1: Setup
 
 - [X] T001 Create Makefile with `lint`, `test`, `test-<suite>`,
-       `lint-devcontainers` targets.
+       `lint-devcontainers`, `lint-settings-drift` targets. `lint`
+       declares `lint-settings-drift lint-devcontainers` as
+       prerequisites so they run before shellcheck.
 - [X] T002 [P] Create `.github/workflows/ci.yml` skeleton with matrix.
 
 ## Phase 2: Foundational
@@ -51,9 +53,36 @@
 - [X] T014 [US3] Implement `tests/test-consistency.sh`: parse deny
        lists from each file; diff; report missing entries.
 
+## Phase 5a: Settings drift + dc-audit promotion
+
+### Tests
+
+- [X] T014a [P] Test (`tests/test-settings-drift.sh`): edit
+       `claude-code/settings.json` to add a permission entry; assert
+       `bin/settings-drift.sh --quiet` exits non-zero with a drift
+       report. Add the equivalent entry to
+       `settings.container.json`; assert exit 0.
+- [X] T014b [P] Test: delete `codex/config.container.toml`; assert
+       `settings-drift.sh` reports the missing variant as drift, not
+       a clean skip.
+- [X] T014c [P] Test (`tests/test-dc-audit.sh`): seed an attended
+       `.devcontainer/foo/devcontainer.json` with `runArgs: ["--network=host"]`;
+       assert `make lint` exits non-zero. Downgrade to a Warn-severity
+       finding; assert `make lint` exits 0 with the warning surfaced.
+
+### Implementation
+
+- [X] T014d Author `bin/settings-drift.sh`: diff host vs container
+       variant pair, skip the sandbox-specific keys, report any other
+       asymmetric edit. Treat missing-variant as drift.
+- [X] T014e Promote `lint-devcontainers` to a `make lint` prerequisite
+       in the Makefile (sequence: `lint-settings-drift lint-devcontainers`
+       then `shellcheck`).
+
 ## Phase 6: Polish
 
-- [X] T015 Add lint-devcontainers Makefile target (advisory).
+- [X] T015 Add `lint-devcontainers` Makefile target as a `make lint`
+       prerequisite (Error severity fails build; Warn/Info advisory).
 - [X] T016 Add pr-title.yml workflow enforcing conventional-commits
        on PR titles.
 - [X] T017 Document the matrix in README.md "Supported Platforms"

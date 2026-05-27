@@ -85,7 +85,7 @@ checks.
 
 ### Scenario: Conventional commit accepted
 
-GIVEN the user runs `git commit -m "feat(install): support --with-agentic flag"`
+GIVEN the user runs `git commit -m "feat(install): support --with-unattended flag"`
 WHEN the global commit-msg hook runs
 THEN the subject matches the conventional-commits regex
 AND its length is >= 10

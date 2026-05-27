@@ -1,10 +1,10 @@
-# Checklist: Security - Agentic Harness
+# Checklist: Security - Unattended Harness
 
-**Purpose**: Pre-merge gate for any change touching `agentic/`,
+**Purpose**: Pre-merge gate for any change touching `unattended/`,
 `bin/dc-audit.sh`, or `.devcontainer/unattended/`. The harness is the
 high-risk surface the constitution specifically calls out.
 
-**Feature**: 010-agentic-harness
+**Feature**: 010-unattended-harness
 **Date created**: 2026-04-15
 **Links**: [spec.md](../spec.md), [plan.md](../plan.md),
           [tasks.md](../tasks.md), [research.md](../research.md),
@@ -13,12 +13,12 @@ high-risk surface the constitution specifically calls out.
 
 ## Category 1: Opt-in posture
 
-- [ ] CHK001 Change does NOT cause `~/.agentic/` to deploy by
-       default; opt-in gate (`DOTFILES_INSTALL_AGENTIC=1`) still
+- [ ] CHK001 Change does NOT cause `~/.unattended/` to deploy by
+       default; opt-in gate (`DOTFILES_INSTALL_UNATTENDED=1`) still
        holds.
 - [ ] CHK002 Change does NOT add a new opt-in path that bypasses
-       the existing flag (no `DOTFILES_INSTALL_AGENTIC_LEGACY=1`,
-       no `--agentic-yolo`).
+       the existing flag (no `DOTFILES_INSTALL_UNATTENDED_LEGACY=1`,
+       no `--unattended-yolo`).
 
 ## Category 2: Sandbox posture (unattended profile)
 
@@ -34,7 +34,7 @@ high-risk surface the constitution specifically calls out.
 ## Category 3: Egress allowlist
 
 - [ ] CHK008 If the change adds hosts to
-       `agentic/egress-allowlist.txt`, each new host has a comment
+       `unattended/egress-allowlist.txt`, each new host has a comment
        on the preceding line explaining why (which tool needs it).
 - [ ] CHK009 No wildcards or regex in the allowlist (allowlist is
        hostname-exact only).

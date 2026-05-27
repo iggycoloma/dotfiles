@@ -39,6 +39,11 @@ loop -- a user can self-diagnose without reading code.
 
 - `bootstrap/logging.sh` MUST define `log_section`, `log_info`,
   `log_success`, `log_warn`, `log_error` functions.
+- `tests/validate-dotfiles.sh` MUST source `bootstrap/detect.sh` and
+  `bootstrap/logging.sh` rather than redefining environment-detection
+  and logging helpers locally. Local redefinitions drift; the standalone
+  copy previously missed `/.dockerenv` detection, masking devcontainer
+  state.
 - Each function MUST emit color-coded output to stderr (or stdout where
   appropriate).
 - `log_section` MUST emit a visually distinct header for each major

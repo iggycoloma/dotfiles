@@ -53,27 +53,27 @@ THEN no duplicate [include] entry is appended to ~/.config/git/config
   AND the installer exits 0
 ```
 
-### User Story 3 - Opt-in to agentic harness (Priority: P2)
+### User Story 3 - Opt-in to unattended harness (Priority: P2)
 
-A developer who runs Claude Code autonomously wants the agentic harness
+A developer who runs Claude Code autonomously wants the unattended harness
 deployed.
 
 **Why this priority**: P2 because the harness is a separate product;
 mainstream users do not need it but the opt-in path must be clean.
 
-**Independent Test**: Run `./install.sh --with-agentic` on a fresh host;
-assert `~/.agentic/scripts/ralph.sh` is executable and
-`~/.agentic/devcontainer-rubric.json` exists.
+**Independent Test**: Run `./install.sh --with-unattended` on a fresh host;
+assert `~/.unattended/scripts/ralph.sh` is executable and
+`~/.unattended/devcontainer-rubric.json` exists.
 
 **Acceptance Scenarios**:
 
 ```
-GIVEN a host without DOTFILES_INSTALL_AGENTIC set
-WHEN the user runs ./install.sh --with-agentic
-THEN DOTFILES_INSTALL_AGENTIC=1 is exported
-  AND ~/.agentic/scripts/ralph.sh is deployed and executable
-  AND ~/.agentic/lib/logging.sh is vendored from bootstrap/logging.sh
-  AND the installer logs "Agentic harness deployed to ~/.agentic/"
+GIVEN a host without DOTFILES_INSTALL_UNATTENDED set
+WHEN the user runs ./install.sh --with-unattended
+THEN DOTFILES_INSTALL_UNATTENDED=1 is exported
+  AND ~/.unattended/scripts/ralph.sh is deployed and executable
+  AND ~/.unattended/lib/logging.sh is vendored from bootstrap/logging.sh
+  AND the installer logs "Unattended harness deployed to ~/.unattended/"
 ```
 
 ### User Story 4 - SSH signing auto-detection (Priority: P2)
@@ -120,7 +120,7 @@ THEN user.signingkey is set to "key::<the ed25519 key>"
 ### Functional Requirements
 
 - **FR-001** The installer MUST run with `bash` and MUST set `set -u` early.
-- **FR-002** The installer MUST accept `--with-agentic`, `--without-agentic`,
+- **FR-002** The installer MUST accept `--with-unattended`, `--without-unattended`,
   `-h`, `--help` and tolerate unknown args.
 - **FR-003** The installer MUST detect environment as `codespaces`,
   `devcontainer`, `remote`, or `local`.
@@ -144,6 +144,18 @@ THEN user.signingkey is set to "key::<the ed25519 key>"
   `DOTFILES_NO_SSH_SIGNING=1` is set.
 - **FR-013** When SSH signing detection runs and finds no key, signing MUST
   stay disabled (no error, warn only).
+- **FR-014** On hosts, signing-key detection order MUST be (1) `ssh-add -L`
+  preferring `ssh-ed25519`, (2) `~/.ssh/id_ed25519.pub`, (3)
+  `~/.ssh/id_rsa.pub`. Inside devcontainers, only the `ssh-add -L`
+  path MUST be used; the file-key fallback MUST be skipped because
+  devcontainers MUST NOT mount `~/.ssh` from the host. The container
+  relies on the ssh-agent socket forwarded from the host (allow-listed
+  under the host's Claude Code sandbox via `allowUnixSockets`).
+- **FR-015** Variant files (`claude-code/settings.json` vs.
+  `settings.container.json`; `codex/config.toml` vs.
+  `config.container.toml`) MUST be deployed via the
+  `_deploy_variant_file` helper: symlink the host variant on hosts,
+  copy the container variant inside devcontainers.
 
 ### Key Entities
 

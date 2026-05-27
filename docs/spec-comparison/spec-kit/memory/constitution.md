@@ -1,8 +1,8 @@
 # Dotfiles Constitution
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Ratification Date**: 2026-04-01
-**Last Amended Date**: 2026-05-08
+**Last Amended Date**: 2026-05-27
 
 The principles in this constitution are non-negotiable. The Constitution Check
 section in every `plan.md` validates the proposed implementation against these
@@ -29,25 +29,39 @@ dependent tools (gh, docker, kubectl, mise, uv, language runtimes).
 tool the author ever used on a project, bloating install time and confusing
 new users about what is essential.
 
-### Article II: Defense-in-Depth Security
+### Article II: Three-Tier Defense
 
-No single layer is the security boundary. All three layers must remain in
-place; weakening any of them requires constitutional amendment.
+Each risk is defended at exactly one tier; tiers do not duplicate each
+other's coverage. Weakening any tier requires constitutional amendment.
 
-**Layers**:
-1. `Read/Write/Edit` deny globs in `claude-code/settings.json` (file-content
-   risk -- the primary boundary for credential paths).
-2. `pre-security.sh` PreToolUse hook (scans Bash command strings for sensitive
-   path substrings; covers gaps in glob matching).
-3. Global git hooks: `commit-msg` (conventional commits, no AI attribution,
-   no emoji) + `pre-commit` (gitleaks secret scanning).
+**Tiers**:
+
+1. **Tier 1 -- file content**. `Read/Write/Edit` deny globs in
+   `claude-code/settings.json` and `claude-code/settings.container.json`,
+   plus the substring scan in `pre-security.sh`. This is the only layer
+   that defends credential exposure.
+2. **Tier 2 -- system state and network**. The OS-level Claude Code
+   sandbox (bwrap on Linux/WSL2, seatbelt on macOS) on hosts; the
+   container boundary inside devcontainers; the `Bash(sudo:*)` deny
+   as the upstream gate. The Bash deny list MUST NOT enumerate
+   sudo-gated commands -- they cannot do anything meaningful without
+   sudo, and sudo is already blocked.
+3. **Tier 3 -- remote and shared**. GitHub branch protection on the
+   server. The Bash deny list MUST NOT attempt to simulate trunk
+   protection with `git push * main*` glob-prefix tripwires; the
+   prefix matcher does not support inline wildcards reliably and the
+   server is the only authoritative defense.
 
 **Rules**:
-- New deny rules prefer `Read/Write/Edit` with a glob when the risk is file
-  content; `Bash(prefix:*)` only as a tripwire.
+- New deny rules prefer `Read/Write/Edit` with a glob when the risk is
+  file content; `Bash(prefix:*)` only as a tripwire for local-state
+  footguns where no other tier catches a typo.
 - Hooks must remain working on macOS bash 3.2.
 - No bypassing hooks with `--no-verify` or `git -c core.hooksPath=/dev/null`.
 - No MCP servers installed by default (they bypass settings deny rules).
+- `git push --force-with-lease` is allowed; plain `git push --force` and
+  `git push -f` are denied (the lease checks for upstream movement,
+  which is the actual safety property locally).
 
 ### Article III: Cross-Platform Parity
 
@@ -87,7 +101,13 @@ Capabilities with non-trivial security, performance, or behavior implications
 are opt-in, not default-on.
 
 **Currently opt-in**:
-- Agentic harness (`agentic/`): `--with-agentic` or `DOTFILES_INSTALL_AGENTIC=1`.
+- Unattended harness (`unattended/`): `--with-unattended` or
+  `DOTFILES_INSTALL_UNATTENDED=1`. Vocabulary note: "agentic" describes
+  the interactive AI tools (Claude Code, Codex CLI) that always
+  install. The unattended harness is the autonomous-loop stack
+  (ralph, dc-audit rubric, hardened devcontainer profile) that opts
+  in. The capability was renamed from "agentic harness" in PR #53
+  to make this distinction explicit.
 - Opinionated aliases (shadowing `grep`, `find`): `DOTFILES_OPINIONATED_ALIASES=1`.
 - MCP servers: explicit user request.
 - Workspace-local state persistence: rejected entirely (security analysis in
@@ -121,7 +141,14 @@ expect.
 - **No AI attribution** in commits. No `Co-Authored-By: Claude`, no "Generated
   by Claude Code" trailers. Enforced by `commit-msg` hook.
 - **No decorative emoji** in code, docs, or commits. Enforced by
-  `pre-code-no-emoji.sh` and `commit-msg` hook.
+  `pre-code-no-emoji.sh` (file content) and the `commit-msg` hook
+  (commit messages). The Claude plan and memory paths are exempt
+  from `pre-code-no-emoji.sh` because the harness writes Unicode
+  symbols into those locations.
+- **Host vs container settings variants** stay in lockstep (allow/deny
+  lists, hook registrations) except for the sandbox block. The
+  `bin/settings-drift.sh` lint (a `make lint` prerequisite) blocks
+  asymmetric edits and missing-variant drift.
 - **Feature branches and PRs only.** No direct pushes to `main`.
 - **No backwards-compat shims** when removing code. Clean removal; git history
   is the audit trail.

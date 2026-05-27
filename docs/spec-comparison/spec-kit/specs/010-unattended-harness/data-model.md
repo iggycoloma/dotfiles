@@ -1,6 +1,6 @@
-# Data Model: Agentic Harness
+# Data Model: Unattended Harness
 
-## Devcontainer rubric (`agentic/devcontainer-rubric.json`)
+## Devcontainer rubric (`unattended/devcontainer-rubric.json`)
 
 The rubric is the authoritative rule set consumed by `dc-audit.sh`. It
 is JSON; one top-level key per concern, each with a list of rules.
@@ -60,30 +60,56 @@ A profile lists which rules to apply:
     "attended": {
       "rules": [
         "image-pinned",
+        "image-required",
+        "features-pinned",
         "shutdown-action",
-        "wait-for-declared"
+        "wait-for-declared",
+        "update-remote-user-uid",
+        "no-new-privileges",
+        "runargs-privileged",
+        "runargs-cap-sys-admin",
+        "runargs-seccomp-unconfined",
+        "host-creds-mount-attended",
+        "docker-sock-mount",
+        "broad-home-mount",
+        "fixed-env-in-containerenv"
       ]
     },
     "unattended": {
       "rules": [
         "image-pinned",
+        "image-required",
+        "features-pinned",
         "shutdown-action",
         "wait-for-declared",
+        "update-remote-user-uid",
         "no-new-privileges",
-        "cap-drop-all",
-        "pids-limit",
-        "no-host-credential-mounts",
-        "resource-caps",
-        "update-remote-user-uid"
+        "runargs-privileged",
+        "runargs-cap-sys-admin",
+        "runargs-seccomp-unconfined",
+        "pids-limit-unattended",
+        "memory-cap-unattended",
+        "cpu-cap-unattended",
+        "cap-drop-unattended",
+        "no-host-creds-unattended",
+        "docker-sock-mount",
+        "broad-home-mount",
+        "fixed-env-in-containerenv"
       ]
     }
   }
 }
 ```
 
-The unattended profile is a strict superset of attended.
+The unattended profile is not a strict superset of attended: a few
+rules are profile-specific (`host-creds-mount-attended` warns when an
+attended profile mounts host credentials; `no-host-creds-unattended`
+errors when an unattended profile does the same; the resource-cap
+rules apply only to unattended). The shared rules cover image
+pinning, lifecycle, privilege flags, and the docker-socket / broad-
+home-mount footguns.
 
-## Egress allowlist (`agentic/egress-allowlist.txt`)
+## Egress allowlist (`unattended/egress-allowlist.txt`)
 
 Plain text; one hostname per line; `#` for comments. mitmproxy reads
 the file at startup.
@@ -151,7 +177,7 @@ iterations doesn't get lost.
 
 ## PRD frontmatter (`PRD.md` consumed by ralph)
 
-YAML frontmatter parsed by `agentic/scripts/ralph-spec.sh`:
+YAML frontmatter parsed by `unattended/scripts/ralph-spec.sh`:
 
 ```yaml
 ---

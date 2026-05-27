@@ -7,8 +7,10 @@
 Mirror Claude Code's guardrails in Codex CLI. Deploy AGENTS.md (deny
 lists, preferred tools, MCP posture), claude-parity skill set
 (equivalent workflows for commit / pr-create / review / debug /
-pipeline), and a Pushover idle-notify hook. Preserve any user-local
-config.toml.
+pipeline), and a Pushover idle-notify hook. Deploy a host vs container
+variant pair for `config.toml`: hosts symlink the `workspace-write`
+variant (and preserve user edits); devcontainers copy the
+`danger-full-access` variant fresh on every install.
 
 ## Technical Context
 
@@ -39,6 +41,8 @@ config.toml.
 ```
 codex/
 |-- AGENTS.md
+|-- config.toml                  # host variant (sandbox_mode = "workspace-write")
+|-- config.container.toml        # container variant (sandbox_mode = "danger-full-access")
 |-- hooks.json
 |-- hooks/notify.sh
 +-- skills/claude-parity/

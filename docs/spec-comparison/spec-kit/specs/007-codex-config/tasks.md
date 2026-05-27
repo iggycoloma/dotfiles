@@ -56,9 +56,29 @@
 
 ### Implementation
 
-- [X] T016 [US3] In `_setup_codex`, branch on `is_devcontainer`:
-       devcontainer copies config.toml only if missing; host preserves
-       existing real file (does not overwrite).
+- [X] T016 [US3] In `_setup_codex`, use `_deploy_variant_file` with
+       `preserve_existing=1` so the host variant is symlinked on first
+       install but a user-edited real file is preserved on re-install.
+       Devcontainers always re-stomp the container variant.
+
+## Phase 5a: User Story 4 - Host vs container sandbox mode (Priority: P1)
+
+### Tests
+
+- [X] T016a [P] [US4] Test: on a host, `~/.codex/config.toml` is a
+       symlink to `codex/config.toml` and contains
+       `sandbox_mode = "workspace-write"`.
+- [X] T016b [P] [US4] Test: inside a devcontainer, `~/.codex/config.toml`
+       is a regular file (copy) and contains
+       `sandbox_mode = "danger-full-access"`. The dotfiles repo can be
+       absent at runtime without breaking Codex.
+
+### Implementation
+
+- [X] T016c [US4] Author `codex/config.container.toml` mirroring the
+       host `config.toml` but with `sandbox_mode = "danger-full-access"`.
+- [X] T016d [US4] In `_setup_codex`, call
+       `_deploy_variant_file "$DOTFILES_DIR/codex" config.toml config.container.toml "$HOME/.codex/config.toml" 1`.
 
 ## Phase 6: Polish
 

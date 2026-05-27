@@ -1,10 +1,10 @@
-# agentic-harness -- Change Delta (add-tier-2-trust-model)
+# unattended-harness -- Change Delta (add-tier-2-trust-model)
 
 ## ADDED Requirements
 
 ### Pre-flight estimation
 
-- The harness MUST ship `agentic/scripts/ralph-estimate.sh`, a
+- The harness MUST ship `unattended/scripts/ralph-estimate.sh`, a
   standalone tool that reads a PRD and prints a 5-line summary
   including suggested `--max-iterations`, `--session-budget`, and
   `--max-wall-clock` flags.
@@ -20,7 +20,7 @@
   in the repo), and unverifiable tasks (no `verify` field).
 - `ralph-estimate.sh` MUST exit 0 on success, 1 on missing PRD file,
   2 on malformed PRD.
-- `agentic/scripts/ralph-spec.sh` MUST expose helpers:
+- `unattended/scripts/ralph-spec.sh` MUST expose helpers:
   `spec_task_count`, `spec_done_count`, `spec_verify_commands`.
 
 ### Cross-loop discoveries
@@ -64,7 +64,7 @@
 ### Stack maturity targets
 
 The previous spec referenced these target maturity scores
-(implicitly via `agentic/planning/2026-04-19-unattended-stack-maturity.md`):
+(implicitly via `unattended/planning/2026-04-19-unattended-stack-maturity.md`):
 
 - Task Selection: 20% (current); no defined target.
 - Context: 50% (current); no defined target.
@@ -72,7 +72,7 @@ The previous spec referenced these target maturity scores
 - Overall: ~72% (current); no defined target.
 
 After this change, the spec MUST commit to the following post-Tier-2
-targets in `agentic/planning/2026-04-19-unattended-stack-maturity.md`
+targets in `unattended/planning/2026-04-19-unattended-stack-maturity.md`
 (updated as part of this change):
 
 - Task Selection: 50% (after 2A).

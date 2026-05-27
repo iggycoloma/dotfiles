@@ -16,7 +16,7 @@ rejects (too short, no conv-commit prefix). `git commit -m "feat: add x"`
 
 **Acceptance Scenarios**:
 ```
-GIVEN a developer runs `git commit -m "feat(install): support --with-agentic flag"` in any repo
+GIVEN a developer runs `git commit -m "feat(install): support --with-unattended flag"` in any repo
 WHEN the global commit-msg hook runs
 THEN the regex matches conventional commits
   AND length >= 10 chars passes

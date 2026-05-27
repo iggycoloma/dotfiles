@@ -14,7 +14,7 @@ idempotently and migrates legacy whole-file symlinks. Delta integration,
 
 | Field             | Value                                          |
 |-------------------|------------------------------------------------|
-| Language/Version  | Bash; git 2.34+ (for `[push] autoSetupRemote`) |
+| Language/Version  | Bash; git >= 2.35 (for `[push] autoSetupRemote` and SSH commit signing's `key::<literal>` parser; the installer opportunistically upgrades Ubuntu via `ppa:git-core/ppa` -- see spec 002-packages) |
 | Dependencies      | git, delta (for diffs), ssh (for signing)      |
 | Storage           | `~/.gitconfig`, `~/.config/git/config`         |
 | Testing           | `tests/test-install.sh` (post-install assertions) |

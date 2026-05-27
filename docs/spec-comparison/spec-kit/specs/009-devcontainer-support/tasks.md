@@ -72,6 +72,33 @@
        its native install script (no npm).
 - [X] T018 [US4] Same for Codex CLI.
 
+## Phase 6a: Variant deployment and egress pivot
+
+### Tests
+
+- [X] T018a [P] Test: in a devcontainer, `~/.claude/settings.json`
+       and `~/.codex/config.toml` are regular files (copies), not
+       symlinks; deleting `/workspaces/.dotfiles` does not break Claude
+       or Codex launch.
+- [X] T018b [P] Test: `bootstrap/devcontainer-egress.sh` MUST NOT
+       exist in the working tree (`fd devcontainer-egress.sh` returns
+       nothing).
+- [X] T018c [P] Test: `is_minimal_install` and `is_devcontainer`
+       return the same value across every detection case in
+       `tests/unit-tests.sh`.
+
+### Implementation
+
+- [X] T018d Confirm `is_minimal_install` body is just
+       `is_devcontainer`; both stay exported.
+- [X] T018e Use `_deploy_variant_file` in `_setup_claude_code` and
+       `_setup_codex` so the container variants are copied, not
+       symlinked.
+- [X] T018f Remove `bootstrap/devcontainer-egress.sh` and the
+       `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS`
+       env-var handling from `install.sh`. The attended-profile
+       defense is now dc-audit spec-linting under `make lint`.
+
 ## Phase 7: Polish
 
 - [X] T019 Document state-persistence section in README.md.
