@@ -280,6 +280,9 @@ test_codex_wrappers_do_not_emit_ask_decisions() {
     local tmpdir wrapper output decision
     tmpdir="$(mktemp -d)"
 
+    # Currently only pre-security.sh does the ask->deny mapping. Keep the
+    # loop form so adding a second wrapper is a one-line change.
+    # shellcheck disable=SC2043
     for hook in pre-security.sh; do
         cat > "$tmpdir/$hook" <<'SH'
 #!/usr/bin/env bash
