@@ -8,8 +8,12 @@ Auto-detect devcontainer / Codespaces; install AI tools as native
 binaries (no Node.js); pick one of three state-persistence tiers
 (volume > Codespaces persistedshare > ephemeral); wire AI tool config
 dirs to volume-backed paths; force-refresh dotfiles config on every
-container start. Workspace-local state was evaluated and rejected
-(see research.md).
+container start. Container variant files are deployed as copies so the
+dotfiles repo need not be present at runtime. Attended devcontainers
+do not enforce network-layer egress -- dc-audit spec-linting is the
+attended-profile defense; the prior `bootstrap/devcontainer-egress.sh`
+script and its env vars have been removed. Workspace-local state was
+evaluated and rejected (see research.md).
 
 ## Technical Context
 
@@ -39,12 +43,17 @@ container start. Workspace-local state was evaluated and rejected
 
 ```
 bootstrap/
-|-- detect.sh           (detect_state_tier)
-+-- symlinks.sh         (setup_state_persistence, setup_volume_dir)
+|-- detect.sh           (detect_state_tier, is_devcontainer, is_minimal_install alias)
++-- symlinks.sh         (setup_state_persistence, setup_volume_dir,
+                         _deploy_variant_file for host vs container pairs)
 .devcontainer/
 |-- example/            (reference devcontainer.json with volume mount)
-+-- unattended/         (delegated to 010-agentic-harness)
++-- unattended/         (delegated to 010-unattended-harness)
 ```
+
+Notably absent: `bootstrap/devcontainer-egress.sh`. The attended
+devcontainer egress script was removed (see PR #53); dc-audit
+spec-linting under `make lint` is the new attended-profile defense.
 
 ### Structure Decision
 

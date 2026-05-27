@@ -93,6 +93,13 @@ THEN section headers contain no ANSI escape sequences
   steps.
 - **FR-012** SSH-signing failure message MUST tell the user how to
   add a key and re-run.
+- **FR-013** `tests/validate-dotfiles.sh` MUST source
+  `bootstrap/detect.sh` and `bootstrap/logging.sh` rather than
+  redefining detection or logging helpers locally. Rationale: the
+  prior local copies drifted from the shared library and missed
+  `/.dockerenv` detection, causing devcontainer-only doctor checks
+  to silently skip. The diagnostic and the installer MUST agree on
+  what counts as a devcontainer.
 
 ### Key Entities
 

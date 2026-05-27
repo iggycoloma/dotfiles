@@ -1,13 +1,20 @@
-# Feature Specification: Agentic Harness
+# Feature Specification: Unattended Harness
 
-**Branch**: `010-agentic-harness` | **Date**: 2026-04-15 | **Status**: Implemented (Tier 1); Tier 2 in flight (see plan.md Complexity Tracking and the pending `tier-2-trust-model` checklist)
+**Branch**: `010-unattended-harness` | **Date**: 2026-04-22 (renamed from `010-agentic-harness`) | **Status**: Implemented (Tier 1); Tier 2 in flight (see plan.md Complexity Tracking and the pending `tier-2-trust-model` checklist)
+
+Naming note: this capability was previously called "agentic harness." The
+repo subdirectory `agentic/` renamed to `unattended/` and the deploy path
+`~/.agentic/` renamed to `~/.unattended/` in PR #53. The feature folder
+follows. "Agentic" remains the broad vocabulary for the interactive AI
+tools (Claude Code, Codex CLI); "unattended harness" specifically means
+the opt-in autonomous-loop stack.
 
 ## User Scenarios & Testing
 
 ### User Story 1 - Opt-in deploy via flag (Priority: P1)
 
 A developer who runs Claude Code autonomously wants the harness
-deployed to `~/.agentic/` without polluting installs for users who
+deployed to `~/.unattended/` without polluting installs for users who
 just want terminal QoL.
 
 **Why this priority**: Default-on would deploy the autonomous loop
@@ -15,23 +22,23 @@ runner to every developer machine, which is both confusing and
 risky. The opt-in is the only acceptable default behavior.
 
 **Independent Test**: Run `./install.sh` (no flag); assert
-`~/.agentic/` does not exist. Run `./install.sh --with-agentic`;
-assert `~/.agentic/scripts/ralph.sh` is executable.
+`~/.unattended/` does not exist. Run `./install.sh --with-unattended`;
+assert `~/.unattended/scripts/ralph.sh` is executable.
 
 **Acceptance Scenarios**:
 ```
-GIVEN a host without DOTFILES_INSTALL_AGENTIC set
-WHEN ./install.sh runs without --with-agentic
-THEN ~/.agentic/ is not created
-  AND the installer logs "Agentic Harness: disabled"
+GIVEN a host without DOTFILES_INSTALL_UNATTENDED set
+WHEN ./install.sh runs without --with-unattended
+THEN ~/.unattended/ is not created
+  AND the installer logs "Unattended Harness: disabled"
 ```
 
 ```
 GIVEN a host install
-WHEN ./install.sh --with-agentic runs
-THEN ~/.agentic/scripts/ralph.sh is deployed and executable
-  AND ~/.agentic/devcontainer-rubric.json is deployed
-  AND ~/.agentic/lib/logging.sh is vendored from bootstrap/logging.sh
+WHEN ./install.sh --with-unattended runs
+THEN ~/.unattended/scripts/ralph.sh is deployed and executable
+  AND ~/.unattended/devcontainer-rubric.json is deployed
+  AND ~/.unattended/lib/logging.sh is vendored from bootstrap/logging.sh
 ```
 
 ### User Story 2 - Autonomous loop with safety gates (Priority: P1)
@@ -70,15 +77,21 @@ THEN ralph halts with exit code 5
 
 A developer can audit any `devcontainer.json` against best practices
 (image pinning, security flags, resource caps, no host credential
-mounts in unattended profile) and apply additive auto-fixes.
+mounts in unattended profile) and apply additive auto-fixes. The
+profile is selected automatically by directory:
+`.devcontainer/unattended/*` uses `--profile unattended`; every other
+`.devcontainer/*` uses `--profile attended`.
 
 **Why this priority**: Misconfigured devcontainers are the most
 likely path to autonomous-Claude exfiltration. Catching issues
-before deploy is critical.
+before deploy is critical. With PR #53's pivot, dc-audit is the
+primary defense for attended profiles (no network-layer egress
+enforcement); the unattended profile adds mitmproxy on top.
 
 **Independent Test**: Run `dc-audit.sh --profile unattended` against
 a profile missing `--security-opt=no-new-privileges`; assert
-non-zero exit with `--strict`.
+non-zero exit with `--strict`. Run `make lint-devcontainers` and
+assert it audits every `.devcontainer/*` with the correct profile.
 
 **Acceptance Scenarios**:
 ```
@@ -96,15 +109,25 @@ THEN shutdownAction is added to the JSON (top-level key)
   AND no key is removed
 ```
 
+```
+GIVEN .devcontainer/attended/devcontainer.json mounts $HOME from the host
+WHEN bin/dc-audit.sh --profile attended runs
+THEN the host-creds-mount-attended rule reports a Warn finding
+  AND make lint runs through (Warn does not block)
+```
+
 ### User Story 4 - Hardened unattended profile with mitmproxy (Priority: P1)
 
 A developer can spin up a devcontainer that drops capabilities,
 enforces resource caps, mounts no host credentials, and routes all
-egress through mitmproxy with a documented allowlist.
+egress through mitmproxy with a documented allowlist. Attended
+devcontainers explicitly do NOT enforce egress at the network layer;
+the trust posture there is dc-audit spec-linting plus the container
+boundary.
 
 **Why this priority**: Without sandboxing, autonomous Claude has
 unbounded outbound access. The unattended profile is the trust
-boundary.
+boundary for unattended runs.
 
 **Independent Test**: Spin up `.devcontainer/unattended/`, attempt
 `curl https://evil.example.com/` from inside; assert mitmproxy blocks
@@ -113,7 +136,7 @@ and logs.
 **Acceptance Scenarios**:
 ```
 GIVEN the unattended devcontainer is running
-  AND mitmproxy is running with agentic/egress-allowlist.txt
+  AND mitmproxy is running with unattended/egress-allowlist.txt
   AND evil.example.com is not in the allowlist
 WHEN code in the container runs `curl https://evil.example.com/`
 THEN mitmproxy blocks the connection
@@ -148,7 +171,7 @@ THEN scope validation rejects the token
   exits.
 - **dc-audit on a profile that already passes**: report all
   `OK`, exit 0.
-- **`--with-agentic` on a host without git**: harness still deploys;
+- **`--with-unattended` on a host without git**: harness still deploys;
   ralph won't run without git but the install completes.
 
 ## Requirements
@@ -157,15 +180,17 @@ THEN scope validation rejects the token
 
 #### Deployment
 
-- **FR-001** Installer MUST NOT deploy `~/.agentic/` unless
-  `DOTFILES_INSTALL_AGENTIC=1` is set.
-- **FR-002** `--with-agentic` flag MUST set `DOTFILES_INSTALL_AGENTIC=1`.
-- **FR-003** `--without-agentic` MUST set `DOTFILES_INSTALL_AGENTIC=0`.
-- **FR-004** Unattended profile MUST set `DOTFILES_INSTALL_AGENTIC=1`
-  in `containerEnv`.
-- **FR-005** Deployed `~/.agentic/` MUST contain scripts/, templates/,
-  bootstrap/, hooks/, devcontainer-rubric.json, egress-allowlist.txt,
-  lib/logging.sh.
+- **FR-001** Installer MUST NOT deploy `~/.unattended/` unless
+  `DOTFILES_INSTALL_UNATTENDED=1` is set.
+- **FR-002** `--with-unattended` flag MUST set
+  `DOTFILES_INSTALL_UNATTENDED=1`.
+- **FR-003** `--without-unattended` MUST set
+  `DOTFILES_INSTALL_UNATTENDED=0`.
+- **FR-004** Unattended profile MUST set
+  `DOTFILES_INSTALL_UNATTENDED=1` in `containerEnv`.
+- **FR-005** Deployed `~/.unattended/` MUST contain scripts/,
+  templates/, bootstrap/, devcontainer-rubric.json,
+  egress-allowlist.txt, lib/logging.sh.
 - **FR-006** All scripts in scripts/ and bootstrap/ MUST be executable.
 
 #### ralph.sh
@@ -185,43 +210,67 @@ THEN scope validation rejects the token
 
 #### dc-audit.sh
 
-- **FR-012** dc-audit MUST consume rules from `agentic/devcontainer-rubric.json`.
+- **FR-012** dc-audit MUST consume rules from
+  `unattended/devcontainer-rubric.json`. The rubric MUST include 20+
+  rules covering: image/feature pinning (`image-pinned`,
+  `image-required`, `features-pinned`); lifecycle (`shutdown-action`,
+  `update-remote-user-uid`, `wait-for-declared`); privilege
+  (`no-new-privileges`, `runargs-privileged`, `runargs-cap-sys-admin`,
+  `runargs-seccomp-unconfined`); resource caps
+  (`pids-limit-attended`, `pids-limit-unattended`,
+  `memory-cap-unattended`, `cpu-cap-unattended`, `cap-drop-unattended`);
+  credential and mount hygiene (`no-host-creds-unattended`,
+  `host-creds-mount-attended`, `docker-sock-mount`, `broad-home-mount`);
+  env hygiene (`fixed-env-in-containerenv`).
 - **FR-013** dc-audit MUST support `--profile attended | unattended`
   (default attended).
 - **FR-014** Unattended profile MUST add: cap drops, no host credential
-  mounts, mitmproxy expectation.
+  mounts, mitmproxy expectation, resource caps.
 - **FR-015** dc-audit MUST support `--fix` (additive only; never
   overwrite or remove).
 - **FR-016** dc-audit MUST support `--strict --json` (non-zero on
   warn; JSONL output).
 - **FR-017** dc-audit MUST work standalone (does not require
   full dotfiles install).
+- **FR-018** `make lint-devcontainers` MUST audit every
+  `.devcontainer/*/devcontainer.json`, picking `--profile unattended`
+  for `.devcontainer/unattended/*` and `--profile attended` otherwise.
+  The profile-to-directory mapping MUST be exercised by
+  `tests/test-dc-audit.sh`. `make lint-devcontainers` is a
+  prerequisite of `make lint`; Error severity fails the build,
+  Warn/Info are advisory hints.
 
 #### Unattended profile
 
-- **FR-018** runArgs MUST include `--cap-drop=ALL`,
+- **FR-019** runArgs MUST include `--cap-drop=ALL`,
   `--security-opt=no-new-privileges`, `--pids-limit=1024`, resource
   caps.
-- **FR-019** containerEnv MUST set `CLAUDE_UNATTENDED=1` and
-  `DOTFILES_INSTALL_AGENTIC=1`.
-- **FR-020** postCreateCommand MUST run install.sh --with-agentic ->
+- **FR-020** containerEnv MUST set `CLAUDE_UNATTENDED=1` and
+  `DOTFILES_INSTALL_UNATTENDED=1`.
+- **FR-021** postCreateCommand MUST run install.sh --with-unattended ->
   unattended-deps.sh -> unattended-proxy.sh.
-- **FR-021** No mounts of `~/.ssh`, `~/.config/gh`, `~/.aws` from
+- **FR-022** No mounts of `~/.ssh`, `~/.config/gh`, `~/.aws` from
   host.
-- **FR-022** GH_TOKEN MUST come from `localEnv.GH_TOKEN_UNATTENDED`.
+- **FR-023** GH_TOKEN MUST come from `localEnv.GH_TOKEN_UNATTENDED`.
 
 #### mitmproxy egress
 
-- **FR-023** unattended-proxy.sh MUST install mitmproxy + CA into
-  container trust store + start mitmproxy with allowlist.
-- **FR-024** Every HTTP/HTTPS request MUST be logged.
-- **FR-025** Hosts not in allowlist MUST be blocked.
+- **FR-024** unattended-proxy.sh MUST install mitmproxy + CA into
+  container trust store + start mitmproxy with allowlist
+  (`unattended/egress-allowlist.txt`).
+- **FR-025** Every HTTP/HTTPS request MUST be logged.
+- **FR-026** Hosts not in allowlist MUST be blocked.
+- **FR-027** Attended profiles MUST NOT enforce network-layer egress.
+  The prior `bootstrap/devcontainer-egress.sh` iptables script and its
+  `DOTFILES_DEVCONTAINER_EGRESS`/`DOTFILES_EGRESS_EXTRA_HOSTS` env vars
+  MUST NOT exist; they were removed in PR #53 in favor of dc-audit
+  spec-linting.
 
 #### Unattended deps
 
-- **FR-026** unattended-deps.sh MUST install pip-audit, cargo-audit,
+- **FR-028** unattended-deps.sh MUST install pip-audit, cargo-audit,
   govulncheck, osv-scanner.
-- **FR-027** unattended-entrypoint.sh MUST validate GH_TOKEN scope
+- **FR-029** unattended-entrypoint.sh MUST validate GH_TOKEN scope
   before ralph; fail closed on unexpected scope.
 
 ### Key Entities
@@ -234,17 +283,21 @@ THEN scope validation rejects the token
   -- see contracts/dc-audit-rule.md.
 - **Egress allowlist entry**: a hostname (no port; no path); mitmproxy
   permits any HTTP/HTTPS request to a listed host.
+- **Profile**: `attended` (default; spec-linting only) or `unattended`
+  (stricter rules + mitmproxy egress + entrypoint scope check).
 
 ## Success Criteria
 
-- **SC-001** Default install does NOT deploy `~/.agentic/` (verified
+- **SC-001** Default install does NOT deploy `~/.unattended/` (verified
   in CI on every matrix cell).
 - **SC-002** ralph completes a 3-task PRD with verify-passing in <10
   iterations on the smoke test.
 - **SC-003** Each of the 7 safety gates triggers correctly in
   `tests/test-ralph.sh` (mocked Claude responses).
 - **SC-004** dc-audit catches every rule violation in
-  `tests/test-dc-audit.sh` fixture set.
+  `tests/test-dc-audit.sh` fixture set (including the attended-bad.json
+  fixture for `host-creds-mount-attended`, `docker-sock-mount`,
+  `broad-home-mount`).
 - **SC-005** Unattended profile blocks egress to a non-allowlisted
   host within 1s in the integration test.
 - **SC-006** GH_TOKEN scope validation rejects org-wide tokens in
@@ -252,6 +305,9 @@ THEN scope validation rejects the token
 - **SC-007** dc-audit `--fix` is purely additive (test: no existing
   values modified, no keys removed) -- verified with `jq` diff
   comparison.
+- **SC-008** Profile-to-directory mapping
+  (`.devcontainer/unattended/*` -> unattended; others -> attended) is
+  asserted by `tests/test-dc-audit.sh`.
 
 ## Assumptions
 
@@ -263,5 +319,6 @@ THEN scope validation rejects the token
 - The user has docker available locally to run the unattended profile.
 - The fine-grained-PAT model continues to be supported by GitHub.
 - Network egress is the primary autonomous-Claude exfiltration vector
-  (other vectors -- volume mounts, env vars -- are addressed by
-  FR-021 and FR-022).
+  for unattended runs. For attended runs the container boundary plus
+  dc-audit spec-linting is the trust posture; the user accepts that
+  attended containers see whatever the host network sees.

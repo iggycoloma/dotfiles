@@ -25,15 +25,18 @@ documents in their native shape.
 1. `COMPARISON.md` -- the punchline; pick this up first
 2. `openspec/project.md` and `spec-kit/memory/constitution.md` -- the
    project-level docs side by side
-3. `openspec/specs/agentic-harness/spec.md` and
-   `spec-kit/specs/010-agentic-harness/spec.md` -- the same capability written in
-   each format
+3. `openspec/specs/unattended-harness/spec.md` and
+   `spec-kit/specs/010-unattended-harness/spec.md` -- the same capability
+   written in each format. The capability was renamed from `agentic-harness`
+   in PR #53; see `archive/2026-04-22-rename-agentic-to-unattended/` for the
+   paired-delta rename pattern.
 4. `openspec/changes/add-tier-2-trust-model/` and the corresponding pending
-   plan revision in `spec-kit/specs/010-agentic-harness/` -- how each format
-   handles in-flight change tracking
-5. `openspec/changes/archive/2026-04-15-extract-agentic-harness/` -- how
-   OpenSpec handles a refactor that removes capability (no SpecKit equivalent;
-   this asymmetry is itself a finding)
+   plan revision in `spec-kit/specs/010-unattended-harness/` -- how each
+   format handles in-flight change tracking
+5. `openspec/changes/archive/2026-04-15-extract-agentic-harness/` and
+   `openspec/changes/archive/2026-04-22-rename-agentic-to-unattended/` --
+   how OpenSpec handles refactor + rename (no SpecKit equivalent for
+   either; the asymmetry is itself a finding)
 
 ## Layout
 
@@ -48,7 +51,9 @@ docs/spec-comparison/
 |   |-- specs/<capability>/spec.md      (12 capability specs)
 |   `-- changes/                        (in-flight + archived examples)
 |       |-- add-tier-2-trust-model/
-|       `-- archive/2026-04-15-extract-agentic-harness/
+|       `-- archive/
+|           |-- 2026-04-15-extract-agentic-harness/
+|           `-- 2026-04-22-rename-agentic-to-unattended/
 `-- spec-kit/                 (SpecKit format)
     |-- memory/constitution.md
     |-- templates/commands/   (7 slash-command templates)
@@ -72,7 +77,7 @@ differences. This is the only way the comparison lands.
 | 7  | codex-config             | global ~/.codex/ payload                                                            |
 | 8  | copilot-config           | global ~/.copilot/ payload                                                          |
 | 9  | devcontainer-support     | env detection, native AI-tool install, tiered state persistence                     |
-| 10 | agentic-harness          | opt-in: ralph.sh, dc-audit, unattended profile, mitmproxy egress allowlist          |
+| 10 | unattended-harness       | opt-in: ralph.sh, dc-audit, unattended devcontainer profile, mitmproxy egress allowlist (renamed from `agentic-harness` in PR #53) |
 | 11 | quality-gates            | `make lint`, 7 test suites, GitHub Actions matrix                                   |
 | 12 | diagnostics              | `dotfiles-doctor`, shell profiling, install logging                                 |
 
@@ -83,9 +88,10 @@ differences. This is the only way the comparison lands.
   documents are reproductions of each tool's file shapes for comparison.
 - Not exhaustive. Three SpecKit capabilities (#6, #9, #10) get the deep-dive
   treatment with `research.md`, `contracts/`, `data-model.md`, and
-  `checklists/`. The other nine get the core spec/plan/tasks trio. OpenSpec gets
-  one in-flight change folder and one archived change folder -- enough to
-  exercise ADDED / MODIFIED / REMOVED deltas without rewriting history for every
-  PR.
+  `checklists/`. The other nine get the core spec/plan/tasks trio. OpenSpec
+  gets one in-flight change folder and two archived change folders
+  (the original extraction and the agentic -> unattended rename) -- enough
+  to exercise ADDED / MODIFIED / REMOVED deltas across both refactors and
+  renames without rewriting history for every PR.
 - Not authoritative. This is a research artifact for evaluating the formats.
   The actual repo state is the code itself; if the two diverge, the code wins.

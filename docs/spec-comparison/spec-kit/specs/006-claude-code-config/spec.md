@@ -73,7 +73,44 @@ THEN session-start-banner.sh emits a system reminder
   AND the reminder mentions preferred CLI tools (sg, difft, sd, scc, yq)
 ```
 
-### User Story 4 - Idle Pushover notification (Priority: P3)
+### User Story 4 - Sandbox posture by environment (Priority: P1)
+
+A developer running Claude Code on a host gets the OS-level Claude
+Code sandbox (bwrap on Linux/WSL2, seatbelt on macOS) with explicit
+egress allowlist. The same developer in a devcontainer gets the
+sandbox turned off, because the container itself is the trust
+boundary; doubling sandboxes there blocks legitimate work without
+adding isolation.
+
+**Why this priority**: Without environment-aware sandbox posture, the
+choice is between (a) a strict host-sandbox that breaks inside
+containers (cannot reach the container filesystem outside the
+workspace), or (b) no sandbox at all, which leaves hosts exposed.
+Variant files solve this.
+
+**Independent Test**: On a host, assert `~/.claude/settings.json` has
+`sandbox.enabled: true` and the ssh-agent socket is in
+`allowUnixSockets`. In a devcontainer, assert
+`~/.claude/settings.json` has `sandbox.enabled: false`.
+
+**Acceptance Scenarios**:
+```
+GIVEN a macOS or Linux host running ./install.sh
+WHEN _deploy_variant_file runs for settings.json
+THEN ~/.claude/settings.json symlinks to claude-code/settings.json
+  AND that file sets sandbox.enabled: true
+  AND lists the ssh-agent socket under allowUnixSockets
+```
+
+```
+GIVEN a devcontainer (REMOTE_CONTAINERS=true) running ./install.sh
+WHEN _deploy_variant_file runs for settings.json
+THEN ~/.claude/settings.json is a copy of claude-code/settings.container.json
+  AND that file sets sandbox.enabled: false
+  AND the container boundary remains the trust root
+```
+
+### User Story 5 - Idle Pushover notification (Priority: P3)
 
 A developer running Claude Code on a long task wants a phone
 notification when Claude finishes a step and is waiting for input.
@@ -106,38 +143,63 @@ THEN notify.sh sends a Pushover notification
 
 ### Functional Requirements
 
-- **FR-001** Installer MUST deploy `settings.json`, `CLAUDE.md`,
-  `statusline.sh`, `hooks/`, `agents/`, `commands/` from
-  `claude-code/` to `~/.claude/`.
-- **FR-002** In devcontainers, deployment MUST be force-copy (stomp)
+- **FR-001** Installer MUST deploy `CLAUDE.md`, `statusline.sh`,
+  `hooks/`, `agents/`, `commands/` from `claude-code/` to `~/.claude/`,
+  plus a `settings.json` chosen by environment (host variant vs.
+  container variant).
+- **FR-002** Installer MUST deploy `settings.json` via
+  `_deploy_variant_file`: symlink `claude-code/settings.json` on hosts,
+  copy `claude-code/settings.container.json` inside devcontainers.
+  The container variant is copied so the dotfiles repo need not be
+  present at runtime.
+- **FR-003** Host variant (`settings.json`) MUST set
+  `sandbox.enabled: true`, declare `sandbox.network.allowedDomains`,
+  and include the ssh-agent socket in
+  `sandbox.network.allowUnixSockets`.
+- **FR-004** Container variant (`settings.container.json`) MUST set
+  `sandbox.enabled: false`. The two variants MUST otherwise carry
+  the same allow/deny lists and hook registrations; any other drift
+  is a bug (caught by `bin/settings-drift.sh`).
+- **FR-005** In devcontainers, deployment MUST be force-copy (stomp)
   every boot.
-- **FR-003** On hosts, directories MUST be symlinked, individual files
+- **FR-006** On hosts, directories MUST be symlinked, individual files
   MUST be copied.
-- **FR-004** Installer MUST migrate `~/.claude.json` to
+- **FR-007** Installer MUST migrate `~/.claude.json` to
   `~/.claude/config.json` if the legacy file exists and the new path
   does not.
-- **FR-005** Deployed `settings.json` MUST contain ~70 Bash allow
+- **FR-008** Deployed `settings.json` MUST contain ~70 Bash allow
   entries and ~35 credential deny globs (Read/Write/Edit) plus
-  destructive Bash deny patterns.
-- **FR-006** Deployed `settings.json` MUST register PreToolUse hooks:
-  `pre-security.sh` for Read/Write/Edit and Bash;
-  `pre-commit-validate.sh` for Bash with `if: Bash(git commit*)`;
-  `pre-code-no-emoji.sh` for Write/Edit.
-- **FR-007** Deployed `settings.json` MUST register PostToolUse hooks:
-  `post-scope-audit.sh` for Write/Edit; `post-dep-audit.sh` for Bash
-  (60s timeout).
-- **FR-008** Deployed `settings.json` MUST register Notification hook
-  on `idle_prompt` -> `notify.sh`.
-- **FR-009** Deployed `settings.json` MUST register SessionStart hook
-  -> `session-start-banner.sh`.
-- **FR-010** `pre-security.sh` MUST scan file_path (Read/Write/Edit)
+  ~20 Bash deny patterns covering local-state footguns. The Bash
+  deny list MUST NOT enumerate sudo-gated commands (iptables,
+  systemctl, mkfs, dd, shutdown, etc.); those are blocked at a
+  single upstream point by `sudo:*`. The Bash deny list MUST NOT
+  attempt to enforce trunk protection (`git push * main*`); the
+  glob-prefix matcher does not support inline wildcards reliably
+  and GitHub branch protection is the authoritative defense.
+- **FR-009** `git push --force-with-lease` MUST be allowed (safe
+  for stacked-PR rebases; refuses to overwrite a ref that has moved
+  since fetch). Plain `git push --force` and `git push -f` MUST be
+  denied.
+- **FR-010** Deployed `settings.json` MUST register 5 hooks:
+  PreToolUse `pre-security.sh` for Read/Write/Edit and Bash;
+  PreToolUse `pre-code-no-emoji.sh` for Write/Edit;
+  PostToolUse `post-scope-audit.sh` for Write/Edit;
+  PostToolUse `post-dep-audit.sh` for Bash (60s timeout);
+  Notification `notify.sh` on `idle_prompt`;
+  SessionStart `session-start-banner.sh`. (PreToolUse `pre-security.sh`
+  on Bash and on Read/Write/Edit is one hook with two trigger sets,
+  not two.) Commit-message validation MUST NOT be a PreToolUse hook;
+  the prior `pre-commit-validate.sh` is deprecated. Conventional-
+  commit enforcement lives in the global git `commit-msg` hook wired
+  via `core.hooksPath`.
+- **FR-011** `pre-security.sh` MUST scan file_path (Read/Write/Edit)
   and command string (Bash) against sensitive paths/dirs/files; MUST
   return `ask` for matches and `deny` for path traversal.
-- **FR-011** `pre-commit-validate.sh` MUST mirror commit-msg hook
-  rules (conv-commits, no AI attribution, no emoji) at the Claude
-  proposal layer.
 - **FR-012** `pre-code-no-emoji.sh` MUST detect Unicode emoji ranges
-  in proposed Write/Edit content and block.
+  in proposed Write/Edit content and block. The Claude plan and memory
+  paths MUST be exempt
+  (`~/.claude/projects/**/plan*.md`,
+  `~/.claude/projects/**/memory/**`).
 - **FR-013** Installer MUST ship 5 sub-agents under `claude-code/agents/`:
   pm-spec, architect-review, implementer-tester, qa-reviewer,
   code-reviewer.
@@ -146,6 +208,16 @@ THEN notify.sh sends a Pushover notification
   user checkpoints.
 - **FR-016** `statusline.sh` MUST display git branch, working tree
   status, context-usage bar, and active model.
+
+### Three-tier responsibility model
+
+- **FR-017** The Bash deny list MUST defend Tier 1 only -- local-state
+  footguns where no other layer catches a typo. System-state defense
+  (Tier 2) MUST defer to the OS sandbox (bwrap / seatbelt) on hosts
+  and the container boundary in devcontainers, with `sudo:*` as the
+  upstream gate. Remote / shared defense (Tier 3) MUST defer to
+  GitHub branch protection on the server. The deny list MUST NOT
+  duplicate Tier 2 or Tier 3 coverage.
 
 ### Key Entities
 

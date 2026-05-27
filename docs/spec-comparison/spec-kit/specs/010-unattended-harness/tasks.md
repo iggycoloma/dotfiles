@@ -1,10 +1,10 @@
-# Tasks: Agentic Harness
+# Tasks: Unattended Harness
 
 ## Phase 1: Setup
 
-- [X] T001 Create `agentic/` directory structure (scripts/, templates/,
+- [X] T001 Create `unattended/` directory structure (scripts/, templates/,
        bootstrap/, hooks/).
-- [X] T002 [P] Create `agentic/README.md` documenting the three
+- [X] T002 [P] Create `unattended/README.md` documenting the three
        sub-products.
 - [X] T003 [P] Create `bin/dc-audit.sh` skeleton (standalone-runnable).
 - [X] T004 [P] Create `tests/test-ralph.sh` and `tests/test-dc-audit.sh`
@@ -12,31 +12,31 @@
 
 ## Phase 2: Foundational
 
-- [X] T005 Implement `bootstrap/symlinks.sh::_setup_agentic` (deploys
-       `~/.agentic/`, vendors logging.sh, chmod +x).
-- [X] T006 Wire opt-in gate: `[[ "${DOTFILES_INSTALL_AGENTIC:-0}" == "1" ]]`
+- [X] T005 Implement `bootstrap/symlinks.sh::_setup_unattended` (deploys
+       `~/.unattended/`, vendors logging.sh, chmod +x).
+- [X] T006 Wire opt-in gate: `[[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]]`
        guard in create_symlinks.
 - [X] T007 [P] Implement install.sh CLI flag parsing
-       (`--with-agentic` / `--without-agentic`).
+       (`--with-unattended` / `--without-unattended`).
 
 ## Phase 3: User Story 1 - Opt-in deploy (Priority: P1)
 
 ### Tests for User Story 1
 
-- [X] T008 [P] [US1] Test: `./install.sh` (no flag) -> ~/.agentic does
+- [X] T008 [P] [US1] Test: `./install.sh` (no flag) -> ~/.unattended does
        not exist.
-- [X] T009 [P] [US1] Test: `./install.sh --with-agentic` -> ralph.sh
+- [X] T009 [P] [US1] Test: `./install.sh --with-unattended` -> ralph.sh
        deployed and executable.
 - [X] T010 [P] [US1] Test: lib/logging.sh present and identical to
        bootstrap/logging.sh.
 
 ### Implementation for User Story 1
 
-- [X] T011 [US1] In _setup_agentic, deploy_configs from `agentic/`
+- [X] T011 [US1] In _setup_unattended, deploy_configs from `unattended/`
        (rubric, allowlist as files; scripts/templates/bootstrap/hooks
        as dirs).
 - [X] T012 [US1] Vendor logging.sh: `cp -f bootstrap/logging.sh
-       ~/.agentic/lib/logging.sh`.
+       ~/.unattended/lib/logging.sh`.
 - [X] T013 [US1] chmod +x scripts/* and bootstrap/*.
 
 ## Phase 4: User Story 2 - ralph.sh (Priority: P1)
@@ -80,7 +80,7 @@
 ### Implementation for User Story 3
 
 - [X] T031 [US3] Implement rubric loader (jq-based) consuming
-       `agentic/devcontainer-rubric.json`.
+       `unattended/devcontainer-rubric.json`.
 - [X] T032 [US3] Implement per-rule check functions.
 - [X] T033 [US3] Implement --fix engine: additive only (use jq to
        merge missing keys; never delete or overwrite).
@@ -103,11 +103,11 @@
 
 - [X] T039 [US4] Author `.devcontainer/unattended/devcontainer.json`
        with runArgs + containerEnv + postCreateCommand sequence.
-- [X] T040 [US4] Implement `agentic/bootstrap/unattended-deps.sh`
+- [X] T040 [US4] Implement `unattended/bootstrap/unattended-deps.sh`
        (pip-audit, cargo-audit, govulncheck, osv-scanner).
-- [X] T041 [US4] Implement `agentic/bootstrap/unattended-proxy.sh`
+- [X] T041 [US4] Implement `unattended/bootstrap/unattended-proxy.sh`
        (install mitmproxy, install CA, start with allowlist).
-- [X] T042 [US4] Maintain `agentic/egress-allowlist.txt` with at
+- [X] T042 [US4] Maintain `unattended/egress-allowlist.txt` with at
        minimum: github.com, api.github.com, claude.ai
        endpoints, npm/pip/cargo/go module mirrors.
 
@@ -122,7 +122,7 @@
 
 ### Implementation for User Story 5
 
-- [X] T045 [US5] Implement `agentic/bootstrap/unattended-entrypoint.sh`
+- [X] T045 [US5] Implement `unattended/bootstrap/unattended-entrypoint.sh`
        that calls `gh api /user` and inspects scope headers before
        invoking ralph.
 - [X] T046 [US5] Wire the entrypoint as the unattended profile's
@@ -131,12 +131,20 @@
 ## Phase 8: Polish
 
 - [X] T047 Document harness in repo README.md "Two products" section.
-- [X] T048 Document Tier 2 in `agentic/planning/2026-04-19-unattended-stack-maturity.md`.
+- [X] T048 Document Tier 2 in `unattended/planning/2026-04-19-unattended-stack-maturity.md`.
 - [X] T049 Run `make lint`; expect 0 warnings.
 - [X] T050 Run `make test` (test-ralph and test-dc-audit included);
        expect green.
-- [X] T051 Run `make lint-devcontainers` advisory; address warnings on
+- [X] T051 Run `make lint-devcontainers` (now a prerequisite of `make lint`;
+       Error severity blocks, Warn/Info advise); address findings on
        attended/unattended profiles.
+- [X] T052 Add `attended-bad.json` fixture and assertions covering the
+       six new dc-audit rules (`runargs-privileged`,
+       `runargs-cap-sys-admin`, `runargs-seccomp-unconfined`,
+       `host-creds-mount-attended`, `docker-sock-mount`, `broad-home-mount`).
+- [X] T053 Add `tests/test-dc-audit.sh` assertion: profile-to-directory
+       mapping (`.devcontainer/unattended/*` -> unattended; other
+       `.devcontainer/*` -> attended).
 
 ## Dependencies & Execution Order
 

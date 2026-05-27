@@ -6,8 +6,16 @@
        Guardrails, Deny-list semantics, Skill trigger precedence, MCP
        Servers, Tool Use Discipline, Preferred CLI Tools, Structural Code
        Search, File Watching.
-- [X] T002 [P] Create `claude-code/settings.json` skeleton with
-       `permissions`, `hooks`, `statusLine`, `attribution`,
+- [X] T002 [P] Create both settings variants:
+       `claude-code/settings.json` (host: `sandbox.enabled: true`,
+       `allowedDomains`, `allowUnixSockets` for ssh-agent) and
+       `claude-code/settings.container.json` (container:
+       `sandbox.enabled: false`). Same `permissions`, `hooks`,
+       `statusLine`, `attribution` in both.
+- [X] T002b Add `bin/settings-drift.sh` lint comparing key-value
+       pairs across the two variants; fails on asymmetric edits and
+       on missing variants. Wire into `make lint` via
+       `lint-settings-drift`.
        `alwaysThinkingEnabled` keys.
 - [X] T003 [P] Create `claude-code/statusline.sh` skeleton.
 
@@ -19,8 +27,13 @@
 - [X] T005 Create `claude-code/hooks/pre-security.sh` skeleton with
        SENSITIVE_PATHS, SENSITIVE_EXTENSIONS, SENSITIVE_DIRS,
        SENSITIVE_FILES, SENSITIVE_GLOB_PATTERNS arrays.
-- [X] T006 [P] Create `claude-code/hooks/pre-commit-validate.sh`
-       skeleton (mirrors commit-msg checks).
+- [X] T006 [P] (deprecated) `pre-commit-validate.sh` was originally
+       added here as a Claude-proposal-time mirror of the git
+       `commit-msg` hook. It has since been removed: commit-message
+       validation now lives only in the global git `commit-msg` hook
+       wired via `core.hooksPath`. The duplicate hook drifted in
+       practice; single source of truth is cleaner. Left as a marker
+       so downstream task numbering stays stable.
 - [X] T007 [P] Create `claude-code/hooks/pre-code-no-emoji.sh`
        skeleton (Write/Edit emoji block).
 

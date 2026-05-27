@@ -2,8 +2,16 @@
 
 This is the punchline doc. It assumes you have skimmed `README.md` for
 orientation and that you have at least one example artifact open from
-each side (e.g. `openspec/specs/agentic-harness/spec.md` next to
-`spec-kit/specs/010-agentic-harness/spec.md`).
+each side (e.g. `openspec/specs/unattended-harness/spec.md` next to
+`spec-kit/specs/010-unattended-harness/spec.md`).
+
+A note on naming: the capability now called `unattended-harness` was
+originally `agentic-harness`. The repo subdirectory and capability
+folder were renamed when PR #53 landed; this doc uses the new name
+throughout except when referring to the historical archive entry
+`archive/2026-04-15-extract-agentic-harness/`, which is intentionally
+frozen at its original name. See section 6 -- the rename itself
+becomes another OpenSpec refactor example.
 
 The two formats both call themselves "spec-driven development"
 toolkits. They diverge sharply on what a spec *is*, how it changes
@@ -31,19 +39,22 @@ constitution is amended through its own ceremony. Strong fit for
 **greenfield** -- when there is no code yet and the spec drives the
 build.
 
-For this dotfiles repo (a brownfield with 50+ commits, multiple
-incremental refactors, recent capability extractions, and an in-flight
-Tier 2 expansion), **OpenSpec was the more natural fit**. The delta
-spec mechanism handled the agentic-harness extraction and back-compat
-symlink removal cleanly; the change-folder model mirrored the repo's
-existing PR cadence; the proposal -> design -> tasks -> delta sequence
-maps neatly to how the work actually happened. SpecKit's
-constitution + Constitution Check would have caught a couple of
-constitution violations earlier, and its T###/[P]/[USN] task structure
-is genuinely better for AI agents to drive -- but the lack of a delta-
-spec primitive made the recent "remove back-compat symlinks" PR awkward
-to express (you re-author spec.md and bump constitution version, with
-no obvious place for "what got removed" as a first-class artifact).
+For this dotfiles repo (a brownfield with 60+ commits, multiple
+incremental refactors, capability extractions, a sandbox-posture
+pivot, and an in-flight Tier 2 expansion), **OpenSpec was the more
+natural fit**. The delta spec mechanism handled the agentic-harness
+extraction, the back-compat symlink removal, the egress-script
+removal (PR #53), and the capability rename cleanly; the change-
+folder model mirrored the repo's existing PR cadence; the proposal
+-> design -> tasks -> delta sequence maps neatly to how the work
+actually happened. SpecKit's constitution + Constitution Check would
+have caught a couple of constitution violations earlier, and its
+T###/[P]/[USN] task structure is genuinely better for AI agents to
+drive -- but the lack of a delta-spec primitive made the recent
+"remove back-compat symlinks" PR and the "remove iptables egress"
+pivot awkward to express (you re-author spec.md and bump constitution
+version, with no obvious place for "what got removed" as a
+first-class artifact).
 
 The full case is in sections 6 and 11. Sections 2-5 set up the
 vocabulary, then 6-10 walk through the actual artifacts, then 11-13
@@ -127,7 +138,7 @@ reports constitution violations as CRITICAL severity.
 
 **Strength**: gated. You cannot ship a plan without confronting the
 constitution. The Tier 2 plan in this repo (see
-`spec-kit/specs/010-agentic-harness/plan.md` Complexity Tracking)
+`spec-kit/specs/010-unattended-harness/plan.md` Complexity Tracking)
 explicitly justifies the cross-loop coordinator weakening of
 isolation -- a discipline that would have been informal in OpenSpec.
 
@@ -156,21 +167,21 @@ every plan feels like over-formalization.
 
 ## 4. Capability spec side by side
 
-Open `openspec/specs/agentic-harness/spec.md` and
-`spec-kit/specs/010-agentic-harness/spec.md` next to each other.
+Open `openspec/specs/unattended-harness/spec.md` and
+`spec-kit/specs/010-unattended-harness/spec.md` next to each other.
 Same source material, same ~30 requirements, different doc shapes.
 
 ### OpenSpec spec.md
 
 ```
-# agentic-harness
+# unattended-harness
 ## Overview
 ## Requirements
 ### Opt-in deployment
-- The agentic harness MUST NOT deploy by default.
-- The installer MUST deploy `~/.agentic/` only when ...
-### Layout under ~/.agentic/
-- The deployed `~/.agentic/` MUST contain ...
+- The unattended harness MUST NOT deploy by default.
+- The installer MUST deploy `~/.unattended/` only when ...
+### Layout under ~/.unattended/
+- The deployed `~/.unattended/` MUST contain ...
 ### ralph.sh: autonomous loop
 - ralph.sh MUST run Claude Code in a loop driven by ...
 ### dc-audit.sh: devcontainer linter
@@ -228,7 +239,7 @@ instances on separate worktrees."
 - Iteration: orient -> plan -> implement -> verify -> commit -> learn cycle.
 - Safety gate: a halt condition.
 ## Success Criteria
-- SC-001 Default install does NOT deploy ~/.agentic/ ...
+- SC-001 Default install does NOT deploy ~/.unattended/ ...
 ## Assumptions
 ```
 
@@ -269,7 +280,7 @@ criteria is more actionable.
 The asymmetry shows up most starkly in the Non-Behavior section --
 SpecKit has no equivalent. Edge Cases captures *exceptional inputs*,
 but there is no first-class section for "intentional non-behavior."
-For a security-sensitive capability like agentic-harness ("ralph does
+For a security-sensitive capability like unattended-harness ("ralph does
 NOT auto-push", "the harness does NOT yet share context"), the
 Non-Behavior section was load-bearing in OpenSpec.
 
@@ -279,11 +290,11 @@ Non-Behavior section was load-bearing in OpenSpec.
 
 Open the in-flight Tier 2 work in both formats:
 
-- OpenSpec: `openspec/changes/add-tier-2-trust-model/{proposal,design,tasks,specs/agentic-harness/spec}.md`
+- OpenSpec: `openspec/changes/add-tier-2-trust-model/{proposal,design,tasks,specs/unattended-harness/spec}.md`
 - SpecKit: there is no first-class equivalent. The closest is
-  `spec-kit/specs/010-agentic-harness/plan.md` Complexity Tracking
+  `spec-kit/specs/010-unattended-harness/plan.md` Complexity Tracking
   pointing at `tier-2-trust-model` as a future checklist (see also
-  `spec-kit/specs/010-agentic-harness/checklists/security.md` Category 7).
+  `spec-kit/specs/010-unattended-harness/checklists/security.md` Category 7).
 
 This asymmetry is the most consequential one. Walk through it.
 
@@ -294,7 +305,7 @@ openspec/changes/add-tier-2-trust-model/
 |-- proposal.md          # Why now, scope (in/out), approach, impact, acceptance
 |-- design.md            # Architecture, key decisions w/ reason+trade-off, alternatives
 |-- tasks.md             # Numbered checklist by phase
-+-- specs/agentic-harness/spec.md   # ADDED requirements (delta)
++-- specs/unattended-harness/spec.md   # ADDED requirements (delta)
 ```
 
 The change folder *is* the unit. It lives outside the canonical
@@ -306,7 +317,7 @@ canonical spec.
 The Tier 2 ADDED Requirements include explicit new functional
 requirements ("ralph MUST support a `--with-discoveries` flag"). They
 do NOT yet appear in the canonical
-`openspec/specs/agentic-harness/spec.md`. After archive, they will
+`openspec/specs/unattended-harness/spec.md`. After archive, they will
 appear there and the change folder moves to
 `openspec/changes/archive/2026-MM-DD-add-tier-2-trust-model/`.
 
@@ -410,6 +421,23 @@ captured cleanly: two REMOVED entries, one for the agentic payload
 that moved permanently, one for the transitional symlinks that were
 short-lived.
 
+Two further refactors after that archive exercise the same primitives:
+
+- **PR #53 (sandbox pivot)**: `bootstrap/devcontainer-egress.sh` and
+  its `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS`
+  env vars were deleted. The attended-profile defense moved from
+  iptables-at-runtime to dc-audit-at-spec-time. In OpenSpec this is
+  a single REMOVED entry in `devcontainer-support/spec.md` plus a
+  MODIFIED entry in `unattended-harness/spec.md` clarifying the
+  attended/unattended posture split.
+- **The agentic -> unattended rename** (modeled in
+  `archive/2026-04-22-rename-agentic-to-unattended/`): a textbook
+  paired-delta rename, with REMOVED in
+  `specs/agentic-harness/spec.md` (every requirement gone) and ADDED
+  in `specs/unattended-harness/spec.md` (every requirement restated
+  under the new name). A reviewer sees the rename as a *behavior
+  contract change*: same contract, new name, no scope shift.
+
 ### SpecKit: removals are implicit in spec.md edits
 
 To express PR #47 in SpecKit, you would:
@@ -426,11 +454,19 @@ The git diff captures the deletion, but there's no first-class
 artifact saying "we deleted X for reason Y." Reviewers have to read
 the diff and infer intent from the commit message.
 
-For a refactor PR like PR #47 ("remove back-compat symlinks now that
-deprecation window passed"), this is awkward. The PR is about
-removal, but SpecKit's primary spec-level artifact is the
-positive statement. You end up writing the explanation in the
-commit message and hoping it survives `git log` archaeology.
+The PR #53 egress-script removal makes this gap concrete. In SpecKit:
+the `devcontainer-support` spec gets edited (delete FRs for
+`DOTFILES_DEVCONTAINER_EGRESS`); the `unattended-harness` spec gets
+edited (add language about attended-vs-unattended posture); plan.md
+gets a new Complexity Tracking row. None of these say "we deleted the
+iptables script" as a first-class statement -- the deletion is
+inferable from a diff but not visible in any spec artifact.
+
+The capability rename (agentic -> unattended) is the same shape: a
+SpecKit reviewer sees `mv specs/010-agentic-harness/
+specs/010-unattended-harness/` in git and has to read commit messages
+to know whether anything beyond the rename changed. In OpenSpec the
+paired REMOVED + ADDED delta is the audit trail.
 
 ### Verdict
 
@@ -448,7 +484,7 @@ refactors or removals, this matters a lot.
 ## 7. Tracking execution
 
 Open `openspec/changes/add-tier-2-trust-model/tasks.md` next to
-`spec-kit/specs/010-agentic-harness/tasks.md`.
+`spec-kit/specs/010-unattended-harness/tasks.md`.
 
 ### OpenSpec tasks.md
 
@@ -457,7 +493,7 @@ Open `openspec/changes/add-tier-2-trust-model/tasks.md` next to
 - [ ] 1.1 Add `spec_task_count(file)` ...
 - [ ] 1.2 Add `spec_done_count(file)` ...
 ## 2. ralph-estimate.sh
-- [ ] 2.1 Create `agentic/scripts/ralph-estimate.sh` (~150 lines).
+- [ ] 2.1 Create `unattended/scripts/ralph-estimate.sh` (~150 lines).
 - [ ] 2.2 Source `ralph-spec.sh` for helpers.
 - [ ] 2.3 Implement heuristics: ...
 ## 3. discoveries.md plumbing
@@ -550,8 +586,8 @@ intentional design choices (no MCP servers by default, no workspace-
 local state, no `--dry-run`).
 
 The change folders (in-flight Tier 2, archived agentic-harness
-extraction) were authored by reading PR descriptions + commit
-messages + the actual diff. The proposal/design/tasks/delta separation
+extraction, the agentic -> unattended rename) were authored by
+reading PR descriptions + commit messages + the actual diff. The proposal/design/tasks/delta separation
 mapped cleanly to how the work was actually framed:
 - proposal -> "what are we doing and why now?" (PR description)
 - design -> "what's the technical approach?" (architecture decisions
@@ -562,9 +598,21 @@ mapped cleanly to how the work was actually framed:
 
 For PR #47 specifically (back-compat symlink removal), the
 `## REMOVED Requirements` section was load-bearing. The PR exists
-*to remove* something; OpenSpec lets the spec doc say so.
+*to remove* something; OpenSpec lets the spec doc say so. Same for
+PR #53 (egress-script removal) and the agentic -> unattended rename
+that landed alongside it.
 
-**Authoring time**: ~6 hours for 12 specs + 2 change folders.
+PR #52 (host vs container settings variants) and the subsequent
+`bin/settings-drift.sh` lint were also straightforward in OpenSpec:
+add MODIFIED requirements to `claude-code-config/spec.md` and
+`codex-config/spec.md` for the variant deployment contract; add a
+new `## Requirements ### Settings drift` block to
+`quality-gates/spec.md` for the lint. The "two files that must stay
+in lockstep except for the sandbox block" shape is awkward in any
+format -- OpenSpec at least lets you state it as a contract.
+
+**Authoring time**: ~6 hours for 12 specs + 3 change folders
+(extraction, Tier 2, rename).
 
 ### SpecKit retrofit experience
 
@@ -772,8 +820,8 @@ multiple in-flight changes simultaneously.
    OpenSpec's spec.md has no obvious place for quantitative
    thresholds.
 3. **Better validation of cross-spec dependencies.** If the
-   `agentic-harness` spec references the `install` spec's
-   `--with-agentic` flag, `openspec validate` should know that and
+   `unattended-harness` spec references the `install` spec's
+   `--with-unattended` flag, `openspec validate` should know that and
    flag a dangling reference if `install` removes the flag.
 
 ### What I'd change about SpecKit

@@ -61,7 +61,23 @@
 - [X] T017 [US3] Wrap AI tool installers with `[[ "${DOTFILES_NO_AI_TOOLS:-}"
        != "1" ]]` guard.
 
-## Phase 6: Polish
+## Phase 6: Host sandbox prerequisites and modern git
+
+- [X] T017a [P] Test: on a Linux host (apt or apk), `bubblewrap` and
+       `socat` are both installed after `install_packages`; neither is
+       installed inside a devcontainer.
+- [X] T017b [P] Test: on Ubuntu 22.04 (stock git 2.34.1), `install_packages`
+       upgrades git to >= 2.35 via `ppa:git-core/ppa`. On Debian bookworm
+       (stock 2.39), `_ensure_modern_git_apt` is a no-op.
+- [X] T017c `bootstrap/packages.sh::install_apt` / `install_apk` -- add
+       `bubblewrap` and `socat` to the package list as a pair when the
+       host is not a devcontainer (gated also on `DOTFILES_NO_AI_TOOLS`).
+- [X] T017d `bootstrap/packages.sh::_ensure_modern_git_apt` -- on Ubuntu/Pop,
+       if `git --version` < 2.35, probe the PPA Release URL for the codename,
+       `add-apt-repository -y ppa:git-core/ppa`, then `apt-get install -y
+       git`. Warn-and-continue on any failure.
+
+## Phase 7: Polish
 
 - [X] T018 Add `_check_already_installed` short-circuit at the top of each
        per-tool function for idempotency.

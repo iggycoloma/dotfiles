@@ -90,6 +90,16 @@ THEN the symlink is removed
 - **FR-009** Dotfiles `git/.gitconfig` MUST set `[push]` `default = current`
   and `autoSetupRemote = true`; `[pull] rebase = false`; `[fetch] prune =
   true`; `[rebase] autoStash = true`; `[init] defaultBranch = main`.
+- **FR-010** SSH commit signing MUST require git >= 2.35. The
+  `user.signingkey = key::<literal>` form was added in git 2.35; on
+  earlier versions git passes the value to ssh-keygen as a file path
+  and signing fails silently. On Ubuntu where the stock apt git is
+  older (e.g. jammy ships 2.34.1), the packages spec's
+  `_ensure_modern_git_apt` opportunistically upgrades via
+  `ppa:git-core/ppa` (see spec 002-packages, FR-010). Debian bookworm
+  and later already qualify; macOS Homebrew git is current. If a
+  modern git cannot be obtained, the installer warns and leaves
+  signing disabled.
 
 ### Key Entities
 

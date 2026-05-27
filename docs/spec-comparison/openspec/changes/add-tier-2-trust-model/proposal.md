@@ -2,9 +2,10 @@
 
 ## Intent
 
-The Tier 1 agentic harness (PRs #43-47) ships a working autonomous loop
+The Tier 1 unattended harness (PRs #43-47, renamed from "agentic harness"
+in #53) ships a working autonomous loop
 runner, devcontainer linter, and hardened unattended profile. It does
-not yet handle three real-world gaps surfaced by `agentic/planning/2026-04-19-unattended-stack-maturity.md`:
+not yet handle three real-world gaps surfaced by `unattended/planning/2026-04-19-unattended-stack-maturity.md`:
 
 1. **Task selection (20%)** -- ralph has no pre-flight estimation. An
    operator pointing ralph at a 30-task PRD discovers cost only after
@@ -24,13 +25,13 @@ Tier 2 closes these gaps without weakening Tier 1's safety posture.
 
 In scope:
 
-- New `agentic/scripts/ralph-estimate.sh` -- pre-flight cost / iteration
+- New `unattended/scripts/ralph-estimate.sh` -- pre-flight cost / iteration
   estimate from a PRD.
 - New `discoveries.md` cross-loop context file at
   `${XDG_STATE_HOME:-$HOME/.local/state}/ralph/discoveries/<project-sig>.md`.
 - New `--phased` mode for ralph -- separate plan / implement / review
   prompts per iteration.
-- Helpers in `agentic/scripts/ralph-spec.sh` for spec task counting and
+- Helpers in `unattended/scripts/ralph-spec.sh` for spec task counting and
   done-state inspection.
 - Test coverage in `tests/test-ralph.sh` for all three additions.
 

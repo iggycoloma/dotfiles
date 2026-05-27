@@ -21,6 +21,22 @@ exclusively. Falls back to `apt`/`apk` packages where they meet quality bars.
 - **Optional tools** SHOULD install on hosts and SHOULD be skipped in
   CI/lightweight environments: lazygit, bottom, mise.
 
+### Host sandbox prerequisites
+
+- On Linux hosts, the installer MUST install both `bubblewrap` and
+  `socat` as a pair. Claude Code's bash sandbox uses bubblewrap for the
+  sandbox itself and socat to forward the ssh-agent socket through the
+  sandbox; installing one without the other leaves a broken posture
+  where signing fails or the sandbox refuses to start.
+- The installer MUST skip both `bubblewrap` and `socat` inside
+  devcontainers and Codespaces. The container is the trust boundary
+  there and `sandbox.enabled: false` in `settings.container.json`.
+- On Ubuntu, if the apt-resolvable `git` is < 2.35, the installer
+  MUST opportunistically install git >= 2.35 from the official PPA
+  (`_ensure_modern_git_apt`). Rationale: signing requires the
+  `user.signingkey = key::<literal>` parser that landed in git 2.35.
+  Debian bookworm and later already ship qualifying git.
+
 ### Distribution channels
 
 - On macOS, every install MUST go through Homebrew. No raw GitHub-release

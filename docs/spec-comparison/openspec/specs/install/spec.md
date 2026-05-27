@@ -5,8 +5,8 @@
 Single-entrypoint installer that detects the host environment, installs CLI
 tools and configuration, and is safe to re-run any number of times. The
 canonical entrypoint is `./install.sh` at the repo root. It accepts only one
-flag (`--with-agentic`/`--without-agentic`) and a small set of `DOTFILES_*`
-opt-out environment variables.
+flag (`--with-unattended`/`--without-unattended`) and a small set of
+`DOTFILES_*` opt-out environment variables.
 
 ## Requirements
 
@@ -14,11 +14,11 @@ opt-out environment variables.
 
 - `install.sh` MUST run with `bash` (POSIX-compatible) and MUST set `set -u`
   early so undefined variables fail fast.
-- `install.sh` MUST accept `--with-agentic` (alias for
-  `DOTFILES_INSTALL_AGENTIC=1`) and `--without-agentic` (alias for
-  `DOTFILES_INSTALL_AGENTIC=0`).
+- `install.sh` MUST accept `--with-unattended` (alias for
+  `DOTFILES_INSTALL_UNATTENDED=1`) and `--without-unattended` (alias for
+  `DOTFILES_INSTALL_UNATTENDED=0`).
 - `install.sh` MUST accept `-h` and `--help` and print usage including the
-  agentic flags.
+  `--with-unattended` flag.
 - `install.sh` MUST tolerate unknown positional arguments without failing
   (older CI callers may pass env vars positionally).
 
@@ -32,7 +32,9 @@ opt-out environment variables.
 - The installer MUST detect the package manager as one of `brew`, `apt`,
   `apk`, or `none`.
 - `is_minimal_install` MUST return true for `codespaces` and `devcontainer`,
-  false otherwise.
+  false otherwise. It MUST be a thin alias for `is_devcontainer` -- the
+  installer keeps both names for caller intent (deployment scope vs.
+  environment shape) but they MUST not diverge in behavior.
 
 ### Symlink and config deployment
 
@@ -46,6 +48,12 @@ opt-out environment variables.
 - For devcontainer / Codespaces installs, the installer MUST force-copy
   config files into target dirs (`stomp_configs`) so that every container
   rebuild gets a fresh copy.
+- For files with host/container variants (`claude-code/settings.json` vs.
+  `settings.container.json`; `codex/config.toml` vs. `config.container.toml`),
+  the `_deploy_variant_file` helper MUST pick the source by
+  `is_devcontainer()`, symlink the host variant on hosts, and copy the
+  container variant inside devcontainers. The container variant is copied
+  (not symlinked) so the dotfiles repo need not be present at runtime.
 - The installer MUST NOT touch `~/.gitconfig` (user identity); it MUST only
   prepend an `[include]` directive to `~/.config/git/config`.
 
@@ -73,13 +81,20 @@ opt-out environment variables.
 ### SSH commit signing
 
 - When `DOTFILES_NO_SSH_SIGNING` is unset and `user.signingkey` is not
-  already configured, the installer MUST attempt detection in this order:
-  (1) `ssh-add -L` preferring an `ssh-ed25519` key,
-  (2) `~/.ssh/id_ed25519.pub`,
-  (3) `~/.ssh/id_rsa.pub`.
+  already configured, the installer MUST attempt detection.
+- On hosts, detection order is: (1) `ssh-add -L` preferring an
+  `ssh-ed25519` key, (2) `~/.ssh/id_ed25519.pub`, (3) `~/.ssh/id_rsa.pub`.
+  The file-key fallback supports fresh-install bootstrap before the agent
+  is set up.
+- Inside devcontainers, only the `ssh-add -L` agent-forwarding path MUST
+  be used. The file-key fallback MUST be skipped because devcontainers
+  MUST NOT mount `~/.ssh` from the host. The container relies on the
+  ssh-agent socket forwarded from the host (made allow-listed under the
+  host's Claude Code sandbox via `allowUnixSockets`).
 - On success, the installer MUST set `user.signingkey` and
   `commit.gpgsign=true` globally and create
-  `~/.config/git/allowed_signers`.
+  `~/.config/git/allowed_signers`. Signing requires git >= 2.35 (for the
+  `key::<literal>` parser); see `packages` spec.
 - On failure (no key found), signing MUST stay disabled and the installer
   MUST NOT block.
 
@@ -107,14 +122,14 @@ AND replaces existing symlinks (no backup needed)
 AND does NOT create a new `~/.dotfiles_backup_<timestamp>/` directory
 AND exits 0.
 
-### Scenario: Opt-in to agentic harness
+### Scenario: Opt-in to unattended harness
 
 GIVEN a host install
-WHEN the user runs `./install.sh --with-agentic`
-THEN the installer sets `DOTFILES_INSTALL_AGENTIC=1`
-AND deploys `~/.agentic/` (ralph.sh, dc-audit rubric, templates,
+WHEN the user runs `./install.sh --with-unattended`
+THEN the installer sets `DOTFILES_INSTALL_UNATTENDED=1`
+AND deploys `~/.unattended/` (ralph.sh, dc-audit rubric, templates,
 unattended bootstrap scripts)
-AND vendors `bootstrap/logging.sh` to `~/.agentic/lib/logging.sh`.
+AND vendors `bootstrap/logging.sh` to `~/.unattended/lib/logging.sh`.
 
 ### Scenario: Workspace dotfiles auto-skip
 

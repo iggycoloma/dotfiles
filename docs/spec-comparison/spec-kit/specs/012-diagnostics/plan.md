@@ -38,7 +38,9 @@ graceful when their dependencies are missing.
 ```
 shell/functions.sh           # dotfiles-doctor function
 shell/.zshrc                 # ZSH_PROFILE wiring
-bootstrap/logging.sh         # log_* functions
+bootstrap/logging.sh         # log_* functions (sourced by both installer and validator)
+bootstrap/detect.sh          # is_devcontainer / detect_environment (sourced by validator)
+tests/validate-dotfiles.sh   # sources bootstrap/{detect,logging}.sh -- no local copies
 ```
 
 ### Structure Decision

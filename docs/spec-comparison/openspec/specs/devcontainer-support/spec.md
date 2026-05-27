@@ -26,6 +26,23 @@ tiers: volume mount > Codespaces persisted-share > ephemeral fallback.
   or Node.js).
 - The installer MUST work without Node.js being present in the
   container.
+- The installer MUST deploy the container variant of each AI-tool
+  settings file (`settings.container.json`, `config.container.toml`)
+  as a copy rather than a symlink so the dotfiles repo need not be
+  present in the container at runtime. See `claude-code-config` and
+  `codex-config` specs for the variant contract.
+
+### Egress posture
+
+- Attended devcontainers MUST NOT enforce network egress at the
+  network layer. The trust posture for attended profiles is dc-audit
+  spec-linting plus the container boundary (the user trusts the host
+  the container runs on).
+- The prior `bootstrap/devcontainer-egress.sh` iptables script and its
+  `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS` env
+  vars MUST NOT exist; they were removed in favor of dc-audit rules.
+- Unattended devcontainers (`.devcontainer/unattended/`) DO enforce
+  egress via mitmproxy; see `unattended-harness` spec.
 
 ### State persistence: tier detection
 
@@ -118,8 +135,9 @@ AND `~/.claude/.credentials.json` (state) is untouched (lives on the volume).
 
 - Workspace-local state persistence (`<project>/.dotfiles-state/`) is
   explicitly NOT supported. The security analysis in
-  `docs/future-workspace-local-state.md` (deleted; design decision
-  recorded in `extract-agentic-harness` archive) documents why.
+  `docs/future-workspace-local-state.md` documents the rejection
+  (credential exposure via backups, archive uploads, Dockerfile COPY,
+  scanners, or accidental `git add -A`).
 - The installer does NOT auto-add the volume mount to `devcontainer.json`
   -- it only logs the line for the user to add.
 - The installer does NOT support encrypted state volumes (out of scope;

@@ -89,6 +89,65 @@ prompts.
 **Trade-off**: The allow-list grows over time; periodic audit needed
 to ensure no entry has become risky.
 
+## Q3.5: Why two settings variants instead of one file with conditionals?
+
+**Decision**: `claude-code/settings.json` (host: `sandbox.enabled:
+true`) and `claude-code/settings.container.json` (container:
+`sandbox.enabled: false`). The installer's `_deploy_variant_file`
+helper picks by environment.
+
+**Options considered**:
+
+1. **One file with environment-conditional values**. Claude Code's
+   settings loader does not evaluate conditionals at read time, so
+   this is not actually expressible.
+2. **Two files, both deployed; loader picks at runtime**. Cleaner in
+   theory, but requires Claude Code to support file selection by
+   environment, which it doesn't.
+3. **Two files; installer picks at install time (chosen)**. Symlink
+   the host variant on hosts (live edits propagate), copy the
+   container variant inside devcontainers (dotfiles repo not required
+   at runtime). `_deploy_variant_file` decides via
+   `is_devcontainer()`.
+
+**Rationale**: The host sandbox (bwrap on Linux/WSL2, seatbelt on
+macOS) and the container boundary are different trust roots.
+Doubling sandboxes inside a container blocks legitimate work (the
+container sandbox cannot reach files outside `/workspaces/` even when
+the user needs to) without adding isolation. Disabling the sandbox
+on hosts gives up an entire defense layer. Variant files let each
+environment have the right posture.
+
+**Trade-off**: Two files can drift. Mitigated by `bin/settings-drift.sh`
+running as part of `make lint`.
+
+## Q3.6: Why the three-tier responsibility model?
+
+**Decision**: Each risk is defended at exactly one tier. Tier 1 (file
+content) lives in Read/Write/Edit deny globs plus `pre-security.sh`.
+Tier 2 (system/network) lives in the sandbox + container boundary +
+`sudo:*` upstream gate. Tier 3 (remote/shared) lives in GitHub branch
+protection.
+
+**Rationale**: Earlier versions of the Bash deny list duplicated
+defenses across tiers -- `iptables`, `systemctl`, `mkfs`, `dd`,
+`shutdown` were all enumerated even though they all need sudo (already
+blocked). The result was permission-prompt noise: every `sudo systemctl
+restart foo` produced two prompts (one for `sudo`, one for
+`systemctl`). PR #57 trimmed the deny list to local-state footguns
+only, on the theory that:
+
+- File-content risk needs Tier 1 (we have it).
+- System-state risk needs Tier 2 (sandbox + sudo gate, we have it).
+- Trunk-push risk needs Tier 3 (branch protection on the server, we
+  have it).
+
+Per-binary Bash denies for Tier-2 risks were redundant and noisy. The
+trimmed list keeps `rm -rf`, `git reset --hard`, `git push --force`
+(without lease), `chmod -R 777`, `sudo:*`, destructive docker ops,
+and `git filter-*` -- the local-state footguns where no other layer
+catches a typo.
+
 ## Q4: Why MCP servers explicitly NOT installed by default?
 
 **Decision**: No MCP servers ship with the dotfiles. Users must opt in

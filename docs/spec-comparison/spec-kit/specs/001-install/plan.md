@@ -6,9 +6,10 @@
 ## Summary
 
 Single-entrypoint installer driven by environment detection. POSIX-compatible
-bash, `set -u` for early failure, a tiny CLI surface (`--with-agentic` only),
+bash, `set -u` for early failure, a tiny CLI surface (`--with-unattended` only),
 and `DOTFILES_NO_*` opt-out toggles. On hosts: symlinks to the repo. In
-devcontainers: stomp-copies for per-boot freshness. Strict idempotency.
+devcontainers: stomp-copies for per-boot freshness. Variant files
+(host vs container) are deployed via `_deploy_variant_file`. Strict idempotency.
 
 ## Technical Context
 
@@ -21,7 +22,7 @@ devcontainers: stomp-copies for per-boot freshness. Strict idempotency.
 | **Target Platform**      | macOS 15+/26, Ubuntu 20.04/22.04/24.04, Debian 11/12, Alpine, Codespaces             |
 | **Project Type**         | Single project (CLI installer)                                                       |
 | **Performance Goals**    | Cold install <90s; re-run <20s; self-edit auto-skip <1s                              |
-| **Constraints**          | Must run in CI without TTY; must work without `git` or `curl` on PATH for early-exit detection; macOS bash 3.2 |
+| **Constraints**          | Must run in CI without TTY; must work without `git` or `curl` on PATH for early-exit detection; macOS bash 3.2; Linux hosts need `bubblewrap` + `socat` (paired) for the Claude Code sandbox |
 | **Scale/Scope**          | One developer, three deployment targets, ~30 tools                                  |
 
 ## Constitution Check
@@ -32,7 +33,7 @@ devcontainers: stomp-copies for per-boot freshness. Strict idempotency.
 | II. Defense-in-Depth Security                 | PASS    | Installer never reads credentials; SSH signing setup uses public keys only.            |
 | III. Cross-Platform Parity                    | PASS    | Tested on every matrix cell; bash 3.2 floor respected (no associative arrays, etc.).   |
 | IV. Idempotent and Reversible Installs        | PASS    | Backups created on replacement; re-run is no-op; all changes reversible from backup.   |
-| V. Opt-In for High-Risk Surface               | PASS    | `--with-agentic` is opt-in; SSH signing auto-detect is opt-out (`DOTFILES_NO_SSH_SIGNING`). |
+| V. Opt-In for High-Risk Surface               | PASS    | `--with-unattended` is opt-in; SSH signing auto-detect is opt-out (`DOTFILES_NO_SSH_SIGNING`). |
 
 **Result**: All articles pass. No Complexity Tracking entries required.
 

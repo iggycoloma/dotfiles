@@ -2,7 +2,7 @@
 
 ## Authoritative location
 
-`agentic/devcontainer-rubric.json` -- one entry per rule under
+`unattended/devcontainer-rubric.json` -- one entry per rule under
 `rules.<rule-id>`.
 
 ## Rule schema
@@ -95,12 +95,12 @@ the jq expression failed.
 ## Adding a new rule
 
 1. Add the rule entry under `rules.<rule-id>` in
-   `agentic/devcontainer-rubric.json`.
+   `unattended/devcontainer-rubric.json`.
 2. Add the rule's `id` to one or both profiles under `profiles`.
 3. Add a positive and a negative test case to `tests/test-dc-audit.sh`.
 4. If the rule has a `fix_expression`, add a test verifying the fix
    is purely additive.
-5. Document the rule's intent in `agentic/README.md` or a sub-doc if
+5. Document the rule's intent in `unattended/README.md` or a sub-doc if
    the rationale is non-obvious.
 
 ## Compatibility commitment

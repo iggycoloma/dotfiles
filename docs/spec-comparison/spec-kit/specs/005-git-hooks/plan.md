@@ -44,12 +44,14 @@ claude-code/hooks/shared-patterns.sh    # Shared regex patterns (deduplication)
 
 ### Structure Decision
 
-Single Project. Two hook scripts share regex patterns via
-`claude-code/hooks/shared-patterns.sh` to avoid drift between
-git's commit-msg hook and Claude Code's `pre-commit-validate.sh` hook.
+Single Project. Two hook scripts share regex patterns via a shared
+sourced utility to avoid drift across the global git `commit-msg`
+hook and Claude Code's content hooks. (Historically a third consumer
+existed -- the now-removed `pre-commit-validate.sh` PreToolUse hook --
+which is what motivated the extraction in the first place.)
 
 ## Complexity Tracking
 
 | Violation                                     | Why Needed                                                                  | Simpler Alternative Rejected Because                                                  |
 |-----------------------------------------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| Pattern sharing across hooks vs constitution recommendation of file-per-concern | The regex catalog (AI attribution, emoji ranges) needs to stay in sync between git's `commit-msg` and Claude Code's `pre-commit-validate.sh`. Extracting them to `shared-patterns.sh` is the only way to guarantee parity. | Inline duplication in both files would inevitably drift; we'd discover divergence only when one path passed something the other rejected. |
+| Pattern sharing across hooks vs constitution recommendation of file-per-concern | The regex catalog (AI attribution, emoji ranges) needs to stay consistent across multiple hook scripts. Extracting them to a shared sourced utility was the only way to guarantee parity; the catalog originally fed three hooks (`commit-msg`, `pre-commit-validate.sh`, `pre-code-no-emoji.sh`) and now feeds two -- the shared utility outlived the deprecated `pre-commit-validate.sh`. | Inline duplication in each file would inevitably drift; we discovered exactly this drift before extracting. |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three additions to the agentic harness, all opt-in and independently
+Three additions to the unattended harness, all opt-in and independently
 shippable. Tier 1 (PRs #43-47) remains unchanged for users who do not
 opt into Tier 2.
 
@@ -179,8 +179,8 @@ process, IPC layer) is not justified by the current scale.
 
 ### Phase 4: Integration -- 2 days
 
-1. Update `agentic/README.md` documenting the three new flags.
-2. Update `agentic/planning/2026-04-19-unattended-stack-maturity.md`
+1. Update `unattended/README.md` documenting the three new flags.
+2. Update `unattended/planning/2026-04-19-unattended-stack-maturity.md`
    with the post-Tier-2 score targets.
 3. Run full `make test` matrix; expect green.
 4. Run `bin/dc-audit.sh --strict` on the unattended profile; expect
@@ -198,8 +198,8 @@ process, IPC layer) is not justified by the current scale.
 
 ## Files
 
-- Create: `agentic/scripts/ralph-estimate.sh`
-- Modify: `agentic/scripts/ralph.sh`, `agentic/scripts/ralph-spec.sh`,
-  `agentic/templates/PROMPT.md`, `agentic/README.md`,
-  `agentic/planning/2026-04-19-unattended-stack-maturity.md`
+- Create: `unattended/scripts/ralph-estimate.sh`
+- Modify: `unattended/scripts/ralph.sh`, `unattended/scripts/ralph-spec.sh`,
+  `unattended/templates/PROMPT.md`, `unattended/README.md`,
+  `unattended/planning/2026-04-19-unattended-stack-maturity.md`
 - Modify: `tests/test-ralph.sh` (add Tier 2 suite)

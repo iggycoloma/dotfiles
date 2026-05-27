@@ -4,10 +4,12 @@
 
 ## Summary
 
-Lint = shellcheck on every `*.sh`. Tests = 7 hand-rolled bash suites
-under `tests/`. CI = GitHub Actions matrix across 13+ platform
-combinations. All required for merge except `lint-devcontainers`
-(advisory).
+Lint = `lint-settings-drift` + `lint-devcontainers` + shellcheck on
+every `*.sh`, run in that order as prerequisites of the `lint` target.
+Tests = 8 hand-rolled bash suites under `tests/` (the 7 originals plus
+`test-drift`). CI = GitHub Actions matrix across 13+ platform
+combinations. `lint-devcontainers` is no longer advisory: Error-severity
+findings fail `make lint`; Warn / Info remain advisory hints.
 
 ## Technical Context
 
@@ -31,15 +33,19 @@ combinations. All required for merge except `lint-devcontainers`
 | II. Defense-in-Depth Security      | PASS   | Tests verify the security model (security-hook test, consistency test).      |
 | III. Cross-Platform Parity         | PASS   | This capability IS the parity guarantee.                                     |
 | IV. Idempotent and Reversible      | PASS   | Tests are idempotent; fixtures restored after each run.                      |
-| V. Opt-In for High-Risk Surface    | PASS   | `lint-devcontainers` is advisory (opt-in for CI).                            |
+| V. Opt-In for High-Risk Surface    | PASS   | `lint-devcontainers` Warn/Info severities are advisory; only Error severity blocks merge. |
 
 ## Project Structure
 
 ```
 Makefile
+bin/
+|-- dc-audit.sh             devcontainer profile linter (Error fails build)
++-- settings-drift.sh       host vs container variant pair linter
 tests/
 |-- unit-tests.sh, test-packages.sh, test-install.sh, test-consistency.sh,
 |-- test-policy.sh, test-ralph.sh, test-dc-audit.sh, test-security-hook.sh,
+|-- test-settings-drift.sh,
 +-- test-functions.sh, validate-dotfiles.sh
 .github/workflows/
 |-- ci.yml          Main matrix

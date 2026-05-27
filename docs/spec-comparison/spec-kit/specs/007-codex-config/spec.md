@@ -37,7 +37,10 @@ THEN ~/.codex/hooks/notify.sh fires
 ### User Story 3 - Local config.toml preserved (Priority: P2)
 
 Codex stores per-machine trust state in `~/.codex/config.toml`. The
-installer must never clobber this on host re-installs.
+installer must never clobber this on host re-installs. This applies to
+the host variant only; inside devcontainers the container variant is
+re-stomped on every install so the in-container Codex always reflects
+the dotfiles repo.
 
 **Acceptance Scenarios**:
 ```
@@ -45,6 +48,32 @@ GIVEN the user has manually edited ~/.codex/config.toml on a host
 WHEN ./install.sh runs
 THEN the installer logs "Skipping ~/.codex/config.toml (preserving local Codex settings)"
   AND the file is byte-for-byte unchanged
+```
+
+### User Story 4 - Host vs container sandbox mode (Priority: P1)
+
+A developer running Codex on a host wants OS-level sandboxing
+(`workspace-write`); inside a devcontainer the container is already the
+isolation boundary, so the in-container variant runs with
+`danger-full-access` to avoid redundant friction.
+
+**Independent Test**: Inspect `~/.codex/config.toml` after `./install.sh`
+on each platform: host MUST contain `sandbox_mode = "workspace-write"`;
+devcontainer MUST contain `sandbox_mode = "danger-full-access"`.
+`approval_policy = "on-request"` MUST be identical in both.
+
+**Acceptance Scenarios**:
+```
+GIVEN the installer runs on a host (macOS or Linux, not a devcontainer)
+WHEN _setup_codex deploys the variant pair
+THEN ~/.codex/config.toml is a symlink to codex/config.toml
+  AND it contains sandbox_mode = "workspace-write"
+
+GIVEN the installer runs inside a devcontainer
+WHEN _setup_codex deploys the variant pair
+THEN ~/.codex/config.toml is a real file (copy) of codex/config.container.toml
+  AND it contains sandbox_mode = "danger-full-access"
+  AND the dotfiles repo need not be present at runtime
 ```
 
 ### Edge Cases
@@ -64,8 +93,12 @@ THEN the installer logs "Skipping ~/.codex/config.toml (preserving local Codex s
   per-skill subdirs of `skills/` from `codex/` to `~/.codex/`.
 - **FR-002** Installer MUST migrate from a legacy whole-directory
   symlink at `~/.codex` (host installs only).
-- **FR-003** Installer MUST preserve `~/.codex/config.toml` on hosts
-  (real file, not symlink).
+- **FR-003** Installer MUST preserve a user-edited `~/.codex/config.toml`
+  on hosts. The host variant is deployed via `_deploy_variant_file` with
+  `preserve_existing=1`: the first install symlinks `codex/config.toml`,
+  but if a real file is already present (because the user edited it) the
+  installer leaves it untouched. Inside devcontainers the container
+  variant is always re-stomped (no preservation).
 - **FR-004** Installer MUST seed `config.toml` with notify hook if
   missing.
 - **FR-005** Installer MUST migrate legacy `notify = "bash ..."` string
@@ -84,6 +117,11 @@ THEN the installer logs "Skipping ~/.codex/config.toml (preserving local Codex s
 - **FR-011** `~/.codex/hooks/notify.sh` MUST silently no-op without
   PUSHOVER_TOKEN/USER.
 - **FR-012** Shell aliases `cx`, `cxe`, `cxr` MUST be defined.
+- **FR-013** `codex/config.toml` (host) MUST set
+  `sandbox_mode = "workspace-write"`; `codex/config.container.toml`
+  (container) MUST set `sandbox_mode = "danger-full-access"`. Both MUST
+  set `approval_policy = "on-request"`. The variant pair is deployed via
+  `_deploy_variant_file` (host: symlink; container: copy).
 
 ### Key Entities
 

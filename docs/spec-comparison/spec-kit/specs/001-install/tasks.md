@@ -77,22 +77,31 @@
 - [X] T027 [US2] `backup_if_exists` -- create backup directory only when
        actually backing something up (lazy mkdir).
 
-## Phase 5: User Story 3 - Opt-in to agentic harness (Priority: P2)
+## Phase 5: User Story 3 - Opt-in to unattended harness (Priority: P2)
 
 ### Tests for User Story 3
 
 - [X] T028 [P] [US3] `tests/test-ralph.sh` -- after
-       `./install.sh --with-agentic`, assert `~/.agentic/scripts/ralph.sh`
+       `./install.sh --with-unattended`, assert `~/.unattended/scripts/ralph.sh`
        exists and is executable.
-- [X] T029 [P] [US3] Assert `~/.agentic/lib/logging.sh` is a copy of
+- [X] T029 [P] [US3] Assert `~/.unattended/lib/logging.sh` is a copy of
        `bootstrap/logging.sh`.
 
 ### Implementation for User Story 3
 
-- [X] T030 [US3] `install.sh` flag parser: handle `--with-agentic` /
-       `--without-agentic` / `-h`, tolerate unknown args.
-- [X] T031 [US3] `bootstrap/symlinks.sh::_setup_agentic` -- deploy
-       `~/.agentic/`, vendor logging.sh, chmod scripts/bootstrap.
+- [X] T030 [US3] `install.sh` flag parser: handle `--with-unattended` /
+       `--without-unattended` / `-h`, tolerate unknown args.
+- [X] T031 [US3] `bootstrap/symlinks.sh::_setup_unattended` -- deploy
+       `~/.unattended/`, vendor logging.sh, chmod scripts/bootstrap.
+- [X] T031a [US3] `bootstrap/symlinks.sh::_deploy_variant_file` -- deploy
+       host vs container variant pairs (`settings.json` vs `settings.container.json`;
+       `config.toml` vs `config.container.toml`). Symlinks the host variant on
+       hosts; copies the container variant in devcontainers so the dotfiles
+       repo need not be present at runtime.
+- [X] T031b [US3] `bootstrap/packages.sh` -- on Linux hosts, install
+       `bubblewrap` and `socat` as a paired prerequisite (skipped inside
+       devcontainers). The Claude Code host sandbox needs both: `bwrap`
+       unshares the network namespace, `socat` bridges it to the egress proxy.
 
 ## Phase 6: User Story 4 - SSH signing auto-detection (Priority: P2)
 

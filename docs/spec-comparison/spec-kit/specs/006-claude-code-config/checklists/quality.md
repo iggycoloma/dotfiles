@@ -37,9 +37,11 @@ asking for review.
 - [ ] CHK010 New agent declares its tool allowlist in frontmatter; no
        broader than necessary.
 - [ ] CHK011 New command documents its arguments and side effects.
-- [ ] CHK012 New command does not invoke `--no-verify`, `git push
-       --force`, `git reset --hard`, or other destructive operations
-       without explicit user confirmation.
+- [ ] CHK012 New command does not invoke `--no-verify`,
+       `git push --force` / `git push -f`, `git reset --hard`, or other
+       destructive operations without explicit user confirmation.
+       `git push --force-with-lease` is permitted (it refuses to
+       overwrite a ref that has moved since fetch).
 - [ ] CHK013 New command, if it spawns sub-agents, includes user
        checkpoints between stages where state-changing work happens.
 

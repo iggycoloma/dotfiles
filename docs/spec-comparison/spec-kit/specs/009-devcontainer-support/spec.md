@@ -93,6 +93,14 @@ THEN claude is installed as a native binary in ~/.local/bin/
   config still deploys.
 - **Volume + Codespaces both apparent**: volume tier wins
   (real-directory check).
+- **Dotfiles repo missing at runtime**: in-container variant files
+  (`settings.container.json`, `config.container.toml`) are deployed
+  as copies, not symlinks, so the in-container AI tools keep working
+  even if the `~/.dotfiles` checkout is deleted.
+- **Legacy `bootstrap/devcontainer-egress.sh` or
+  `DOTFILES_DEVCONTAINER_EGRESS` env var present**: must not exist
+  in the current tree. Network-layer egress for attended devcontainers
+  was removed; dc-audit spec-linting is the attended-profile defense.
 
 ## Requirements
 
@@ -100,7 +108,11 @@ THEN claude is installed as a native binary in ~/.local/bin/
 
 - **FR-001** Installer MUST treat `CODESPACES=true` as Codespaces and
   `REMOTE_CONTAINERS=true` as devcontainer.
-- **FR-002** `is_minimal_install` MUST return true for both.
+- **FR-002** `is_minimal_install` MUST be a thin alias for
+  `is_devcontainer` -- both names exist to preserve caller intent
+  ("are we in a container" vs "should we do a minimal install"), and
+  both MUST stay equivalent. If the policy ever diverges (e.g. minimal
+  installs on CI runners too) only `is_minimal_install`'s body changes.
 - **FR-003** In devcontainers/Codespaces, Claude Code and Codex MUST
   install as native binaries (no Node.js dependency).
 - **FR-004** `detect_state_tier` MUST be pure (no side effects).
@@ -120,6 +132,20 @@ THEN claude is installed as a native binary in ~/.local/bin/
   agents, commands) MUST be force-copied on every container start.
 - **FR-012** Persistent state (auth tokens, session data, history)
   MUST NOT be touched by the per-boot config refresh.
+- **FR-013** Container variant files (`claude-code/settings.container.json`,
+  `codex/config.container.toml`) MUST be deployed as copies (not symlinks)
+  by `_deploy_variant_file`. Rationale: the dotfiles repo need not be
+  present at runtime for the in-container AI tools to keep working --
+  e.g. if `/workspaces/.dotfiles` is deleted or replaced by a different
+  branch, the deployed config keeps the last-known-good state.
+- **FR-014** Attended devcontainers MUST NOT enforce network-layer
+  egress. The prior `bootstrap/devcontainer-egress.sh` (and its
+  `DOTFILES_DEVCONTAINER_EGRESS` / `DOTFILES_EGRESS_EXTRA_HOSTS` env
+  vars) MUST NOT exist in the current tree. The attended-profile
+  defense is dc-audit spec-linting of `.devcontainer/devcontainer.json`
+  for risky options (host network, privileged, sensitive bind mounts).
+  Unattended-profile egress enforcement (mitmproxy) is described in
+  spec 010-unattended-harness and is unaffected by this removal.
 
 ### Key Entities
 

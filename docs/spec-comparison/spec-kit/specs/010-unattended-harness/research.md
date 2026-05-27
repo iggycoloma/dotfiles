@@ -1,8 +1,8 @@
-# Research: Agentic Harness
+# Research: Unattended Harness
 
 ## Q1: Why opt-in instead of default-on?
 
-**Decision**: `--with-agentic` opt-in. Mainstream installs do NOT
+**Decision**: `--with-unattended` opt-in. Mainstream installs do NOT
 deploy the harness.
 
 **Rationale**:
@@ -13,10 +13,10 @@ deploy the harness.
   step.
 - The harness deploys an autonomous loop runner (`ralph.sh`). On a
   shared workstation, an unprivileged process being able to invoke
-  `~/.agentic/scripts/ralph.sh` is a non-trivial security surface.
+  `~/.unattended/scripts/ralph.sh` is a non-trivial security surface.
   Default-off keeps that surface dormant.
 - Users who do want it have a clean opt-in path:
-  `--with-agentic` flag, or `DOTFILES_INSTALL_AGENTIC=1` in
+  `--with-unattended` flag, or `DOTFILES_INSTALL_UNATTENDED=1` in
   `containerEnv` for unattended profiles.
 - The constitution's Article V mandates opt-in for high-risk surface;
   this capability is the exemplar.
@@ -31,7 +31,7 @@ preamble naming the harness explicitly.
 
 **Rationale**:
 
-- They share a deployment path (`~/.agentic/`).
+- They share a deployment path (`~/.unattended/`).
 - They share a threat model: autonomous Claude Code execution where
   no human is reviewing.
 - The unattended profile consumes the rubric (via dc-audit) and
@@ -44,29 +44,54 @@ preamble naming the harness explicitly.
 others; spec.md has 5 user stories instead of the typical 3-4.
 Acceptable given the shared semantics.
 
-## Q3: Why does dc-audit live in `bin/` instead of `agentic/`?
+## Q2.5: Why was the capability renamed from agentic-harness?
+
+**Decision**: PR #53 renamed `agentic/` -> `unattended/` and the
+capability followed.
+
+**Rationale**:
+
+- The repo distinguishes two senses of "agentic": (a) the broad
+  vocabulary covering Claude Code and Codex CLI (which are always
+  installed and used interactively), and (b) the autonomous-loop
+  stack (ralph + dc-audit + hardened devcontainer profile) that is
+  opt-in.
+- Calling the capability `agentic-harness` conflated the two. A
+  reader skimming `specs/` saw "agentic" and assumed they were
+  looking at the broader AI-tool config; in fact the spec is
+  narrowly about the unattended autonomous loop and its safety
+  perimeter.
+- After PR #53, "agentic" refers to (a) and "unattended" refers to
+  (b). The capability rename follows the repo rename.
+
+**Trade-off**: A small amount of search churn. The historical change
+folder `archive/2026-04-15-extract-agentic-harness/` (in the OpenSpec
+sibling tree) preserves the old name as an accurate snapshot.
+SpecKit's branch-based history captures the rename in `git log`.
+
+## Q3: Why does dc-audit live in `bin/` instead of `unattended/`?
 
 **Decision**: `bin/dc-audit.sh` is at the repo root, not under
-`agentic/`.
+`unattended/`.
 
 **Rationale**:
 
 - dc-audit is useful for auditing devcontainer.json files in any
   repo, by any developer, regardless of whether they opt into the
   agentic harness.
-- Putting it under `agentic/` would force every developer who wants
+- Putting it under `unattended/` would force every developer who wants
   to lint a devcontainer.json to first opt into the autonomous loop
   runner. That's a bad UX.
-- The rubric (`devcontainer-rubric.json`) lives in `agentic/`
+- The rubric (`devcontainer-rubric.json`) lives in `unattended/`
   because the most demanding rubric profile is the unattended one --
   the rubric and the unattended profile are designed together.
 - dc-audit reads the rubric from a few candidate locations:
-  `agentic/devcontainer-rubric.json` (when run from a checkout),
-  `~/.agentic/devcontainer-rubric.json` (when the harness is
+  `unattended/devcontainer-rubric.json` (when run from a checkout),
+  `~/.unattended/devcontainer-rubric.json` (when the harness is
   deployed). It works standalone in either case.
 
 **Trade-off**: Discoverability split. dc-audit is in `bin/` but the
-rubric it consumes lives in `agentic/`. Users who pull dc-audit out
+rubric it consumes lives in `unattended/`. Users who pull dc-audit out
 to use elsewhere need to copy the rubric too. Acceptable given the
 mainstream-developer benefit of dc-audit being available without
 opting into the harness.
@@ -81,13 +106,20 @@ opting into the harness.
    Claude Code calls Anthropic's API; ralph clones repos and pushes
    to GitHub; dependency installers fetch from PyPI/npm/cargo. None
    of this works.
-2. **Allowlist via iptables / nftables in container**. Lower
-   overhead but requires `--cap-add=NET_ADMIN`, which weakens the
-   cap-drop posture.
-3. **mitmproxy with allowlist (chosen)**. Standard Linux network +
-   mitmproxy intercepts all HTTP/HTTPS, applies allowlist, logs
-   everything. No container capabilities needed beyond the default
-   minimal set.
+2. **Allowlist via iptables / nftables in container** (shipped for
+   attended devcontainers as `bootstrap/devcontainer-egress.sh` and
+   then removed in PR #53). Lower overhead than mitmproxy but
+   required user-side opt-in via `DOTFILES_DEVCONTAINER_EGRESS=1`,
+   which most users never enabled -- so the attended-profile defense
+   was off-by-default for nearly everyone. Removed in favor of
+   dc-audit spec-linting (which always runs) plus the container
+   boundary itself. For *unattended* runs, the constraint flipped:
+   mitmproxy is the right answer because we need both allowlist
+   enforcement and full per-request logging.
+3. **mitmproxy with allowlist (chosen for unattended)**. Standard
+   Linux network + mitmproxy intercepts all HTTP/HTTPS, applies
+   allowlist, logs everything. No container capabilities needed
+   beyond the default minimal set.
 
 **Rationale**:
 

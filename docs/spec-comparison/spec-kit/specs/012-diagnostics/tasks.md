@@ -61,6 +61,26 @@
 - [X] T020 [US3] log_section emits a recognizable separator (e.g.
        `==> Section Name`) in both modes.
 
+## Phase 5a: Shared detect/logging libs in validate-dotfiles
+
+### Tests
+
+- [X] T020a Test: `tests/validate-dotfiles.sh` sources
+       `bootstrap/detect.sh` and `bootstrap/logging.sh`; grep the
+       file for inline redefinitions of `log_info` / `is_devcontainer`
+       and assert none are present.
+- [X] T020b Test: inside a devcontainer (or with `/.dockerenv`
+       present), `validate-dotfiles.sh` correctly reports
+       `Environment: devcontainer`; the previous local copy missed
+       this because it did not check `/.dockerenv`.
+
+### Implementation
+
+- [X] T020c Refactor `tests/validate-dotfiles.sh` to
+       `source "$DOTFILES_DIR/bootstrap/detect.sh"` and
+       `source "$DOTFILES_DIR/bootstrap/logging.sh"`. Drop the
+       in-file copies of `log_*` / detection helpers.
+
 ## Phase 6: Polish
 
 - [X] T021 Add actionable next-step messages on common install
