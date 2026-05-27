@@ -145,3 +145,18 @@ prefer `sg` over `rg`. Examples:
 
 - Use `watchexec` for auto-test/rebuild loops when iterating on changes
 - Example: `watchexec -e py -- pytest tests/`
+
+## Markdown formatting (semantic line breaks)
+
+Default for `.md` and other long-form prose files (CHANGELOG, ADRs, design docs): use **semantic line breaks** — one sentence per line, with breaks at major clause boundaries (after a comma before a long phrase, after a colon before a list, before each `AND`/`WHEN`/`THEN` in scenario blocks). Do NOT hard-wrap to a fixed column.
+
+Why: renderers reflow anyway, so column wrapping serves no display purpose. Sentence-per-line gives clean diffs (one edit changes one line, not three) and is more pleasant to author than counting columns.
+
+Apply this to new content and to sections you are substantively rewriting. Do NOT reflow files that are otherwise untouched — that produces large no-op diffs that bury real changes.
+
+Exceptions, in priority order:
+1. **Project tooling wins.** If a repo has `.editorconfig`, `.prettierrc`, `.markdownlint*.json`, or similar configured with a different policy (e.g. `proseWrap: "always"` and `printWidth: 80`), follow that. Prettier `proseWrap: "preserve"` and markdownlint `MD013: false` are the configurations compatible with semantic line breaks; their absence does not block this default but their presence with a stricter policy does.
+2. **Code blocks, tables, and frontmatter are mechanical.** Don't reformat them as prose.
+3. **Commit messages and PR descriptions** follow their own conventions (subject < 72 chars, body wrapped to ~72) — semantic breaks do not apply there.
+
+When in doubt, match the surrounding file's existing style rather than introducing a third pattern.
