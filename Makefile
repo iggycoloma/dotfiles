@@ -3,7 +3,7 @@
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
 
-lint: lint-settings-drift
+lint: lint-settings-drift lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)
 
 # Verify host vs container settings variants (claude-code, codex) stay in sync
@@ -38,7 +38,9 @@ test-dc-audit:
 test-drift:
 	bash tests/test-settings-drift.sh
 
-# Audit the repo's own devcontainer.json files (advisory only, not fatal).
+# Audit the repo's own devcontainer.json files. Exits non-zero on Error-severity
+# findings (Info/Warn are surfaced but do not fail the build). The profile-per-
+# directory mapping below is locked by a test in tests/test-dc-audit.sh.
 lint-devcontainers:
 	@for f in .devcontainer/*/devcontainer.json; do \
 		[ -f "$$f" ] || continue; \

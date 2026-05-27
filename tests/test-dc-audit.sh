@@ -182,6 +182,41 @@ if [[ -n "$first_json" ]]; then
     fi
 fi
 
+# =================================================================
+# Makefile lint-devcontainers profile mapping
+# =================================================================
+# Locks the contract: a devcontainer subdir whose basename is "unattended"
+# is audited under --profile unattended; every other subdir under
+# .devcontainer/ is audited under --profile attended. If someone swaps the
+# case statement in the Makefile, or moves the unattended config elsewhere
+# without updating the recipe, this test fires.
+
+test_suite "dc-audit: Makefile lint-devcontainers profile mapping"
+
+make_out=$(cd "$DOTFILES_DIR" && make -s lint-devcontainers 2>&1)
+actual=$(printf '%s\n' "$make_out" \
+    | sed 's/\x1b\[[0-9;]*m//g' \
+    | grep -oE 'profile=[a-z]+' \
+    | sed 's/profile=//' \
+    | tr '\n' ' ')
+
+expected=""
+for d in "$DOTFILES_DIR"/.devcontainer/*/; do
+    [[ -f "$d/devcontainer.json" ]] || continue
+    name=$(basename "$d")
+    if [[ "$name" == "unattended" ]]; then
+        expected+="unattended "
+    else
+        expected+="attended "
+    fi
+done
+
+if [[ "$actual" == "$expected" ]]; then
+    test_pass "make lint-devcontainers profile sequence: $actual"
+else
+    test_fail "make lint-devcontainers profile sequence diverged. expected: '$expected' got: '$actual'"
+fi
+
 # --- Summary ---
 
 print_test_summary
