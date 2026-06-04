@@ -1,14 +1,21 @@
 " Basic Vim Configuration
 " Minimal, modern vim config for editing in terminals
+"
+" `silent!` is sprinkled on every command that depends on +eval, +syntax,
+" or +autocmd so this config loads cleanly under vim-tiny (the default
+" `vi` on Debian/Ubuntu minimal images and many devcontainers). Tiny
+" vim parses but errors on `syntax`, `colorscheme`, `let`, `has()`,
+" `autocmd`, `<leader>`, etc.; `silent!` suppresses those errors while
+" full vim sees them as no-op modifiers.
 
 " Use Vim settings, rather than Vi settings
 set nocompatible
 
-" Enable filetype detection and plugins
-filetype plugin indent on
+" Enable filetype detection and plugins (no-op under -filetype)
+silent! filetype plugin indent on
 
-" Syntax highlighting
-syntax on
+" Syntax highlighting (no-op under -syntax)
+silent! syntax on
 
 " General settings
 set encoding=utf-8
@@ -49,9 +56,9 @@ set showmatch                  " Show matching brackets
 set matchtime=2
 
 " Colors
-set termguicolors              " Enable true colors
+silent! set termguicolors      " Enable true colors (no-op without +termguicolors)
 set background=dark
-colorscheme desert             " Default colorscheme
+silent! colorscheme desert     " Default colorscheme (no-op under -eval / missing scheme)
 
 " Status line
 set laststatus=2               " Always show status line
@@ -73,52 +80,52 @@ set noswapfile
 set nobackup
 set nowritebackup
 
-" Undo
-if has('persistent_undo')
-    set undofile
-    set undodir=~/.vim/undo
-    if !isdirectory(&undodir)
-        call mkdir(&undodir, 'p', 0700)
-    endif
-endif
+" Undo (entire block needs +eval; silent! suppresses if-condition errors)
+silent! if has('persistent_undo')
+    silent! set undofile
+    silent! set undodir=~/.vim/undo
+    silent! if !isdirectory(&undodir)
+        silent! call mkdir(&undodir, 'p', 0700)
+    silent! endif
+silent! endif
 
-" Key mappings
-let mapleader=","
+" Key mappings (need +eval for <leader> resolution)
+silent! let mapleader=","
 
 " Quick save
-nnoremap <leader>w :w<CR>
+silent! nnoremap <leader>w :w<CR>
 
 " Quick quit
-nnoremap <leader>q :q<CR>
+silent! nnoremap <leader>q :q<CR>
 
 " Clear search highlight
-nnoremap <leader><space> :nohlsearch<CR>
+silent! nnoremap <leader><space> :nohlsearch<CR>
 
 " Easy window navigation
-nnoremap <C-h> <C-w>h
-nnoremap <C-j> <C-w>j
-nnoremap <C-k> <C-w>k
-nnoremap <C-l> <C-w>l
+silent! nnoremap <C-h> <C-w>h
+silent! nnoremap <C-j> <C-w>j
+silent! nnoremap <C-k> <C-w>k
+silent! nnoremap <C-l> <C-w>l
 
 " Move lines up/down
-nnoremap <A-j> :m .+1<CR>==
-nnoremap <A-k> :m .-2<CR>==
-vnoremap <A-j> :m '>+1<CR>gv=gv
-vnoremap <A-k> :m '<-2<CR>gv=gv
+silent! nnoremap <A-j> :m .+1<CR>==
+silent! nnoremap <A-k> :m .-2<CR>==
+silent! vnoremap <A-j> :m '>+1<CR>gv=gv
+silent! vnoremap <A-k> :m '<-2<CR>gv=gv
 
 " Better indenting in visual mode
-vnoremap < <gv
-vnoremap > >gv
+silent! vnoremap < <gv
+silent! vnoremap > >gv
 
-" File type specific settings
-autocmd FileType yaml,yml setlocal ts=2 sts=2 sw=2 expandtab
-autocmd FileType javascript,typescript,json setlocal ts=2 sts=2 sw=2 expandtab
-autocmd FileType html,css,scss setlocal ts=2 sts=2 sw=2 expandtab
-autocmd FileType python setlocal ts=4 sts=4 sw=4 expandtab
-autocmd FileType go setlocal ts=4 sts=4 sw=4 noexpandtab
-autocmd FileType markdown setlocal wrap linebreak
+" File type specific settings (need +autocmd)
+silent! autocmd FileType yaml,yml setlocal ts=2 sts=2 sw=2 expandtab
+silent! autocmd FileType javascript,typescript,json setlocal ts=2 sts=2 sw=2 expandtab
+silent! autocmd FileType html,css,scss setlocal ts=2 sts=2 sw=2 expandtab
+silent! autocmd FileType python setlocal ts=4 sts=4 sw=4 expandtab
+silent! autocmd FileType go setlocal ts=4 sts=4 sw=4 noexpandtab
+silent! autocmd FileType markdown setlocal wrap linebreak
 
-" Load local vimrc if it exists
-if filereadable(expand("~/.vimrc.local"))
-    source ~/.vimrc.local
-endif
+" Load local vimrc if it exists (needs +eval for filereadable())
+silent! if filereadable(expand("~/.vimrc.local"))
+    silent! source ~/.vimrc.local
+silent! endif
