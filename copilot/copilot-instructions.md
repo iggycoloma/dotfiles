@@ -29,6 +29,15 @@ Use these tools when available instead of standard Unix alternatives:
 | `ps` | `procs` | Process viewer with color and search |
 | `time` | `hyperfine` | Benchmarking commands with statistical analysis |
 
+## Command legibility (permissions, security, observability)
+
+Your tool's permission checks, the `pre-security.sh` path scan, and the session/audit log all read the literal command string -- the realtime gate and the audit trail share the same blind spot, so keep that string an honest record of what runs.
+
+- Prefer built-in file-search and edit tools over shelling out for reading, searching, and editing files -- no permission prompt, structured output, and a typed log event instead of a raw shell string.
+- Keep commands literal: do not hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). These defeat the scan at runtime and make the log unsearchable and non-reproducible afterward.
+- Complexity is fine; indirection is not. A long but literal pipeline is fully analyzable and is a single clean log line -- prefer it over many opaque micro-calls.
+- Reserve dynamic or indirect syntax for when the operation is genuinely impossible otherwise; when you must, keep any sensitive path or credential literal and note in one line why the wrapper is necessary.
+
 ## MCP Servers
 
 MCP servers are not installed by dotfiles. If one is configured, use it. Do not install

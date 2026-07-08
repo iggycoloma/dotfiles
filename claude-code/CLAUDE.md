@@ -111,6 +111,8 @@ Security notes:
 - NEVER use Bash to run `rg`, `grep`, or `find` — use the built-in Grep and Glob tools instead. They require no permission prompts and produce cleaner output.
 - Only use Bash for CLI tools that have no built-in equivalent (e.g., `sg`, `scc`, `yq`, `shellcheck`).
 - Avoid wrapping tool calls in Bash `for`/`while` loops. Use glob patterns to search across multiple files in a single Grep or Glob call. If a loop is truly needed, the command starts with `for`, not the inner tool — so `bash(rg:*)` rules won't match.
+- The built-in Grep tool IS ripgrep — same engine, same speed as `rg`, plus no permission prompt, structured output, and a typed log event instead of a raw shell string. There is nothing to "redirect for speed"; do not shell out to `rg`/`grep`/`find` to go faster. Steer it via its parameters (`glob`, `type`, `-i`, `-A`/`-B`/`-C`, `output_mode`), not config — it does not read your shell's ripgrep aliases or rc file.
+- Keep Bash commands literal so the permission matcher, `pre-security.sh`, and the session log all see what actually runs. Do NOT hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). Length is fine; indirection is not. See `AGENTS.md` "Command legibility" for the full rationale — the realtime gate and the audit trail share the same blind spot.
 
 ## Preferred CLI Tools
 
