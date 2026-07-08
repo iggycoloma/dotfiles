@@ -56,6 +56,33 @@ Use these tools when available instead of standard Unix alternatives:
 | `ps` | `procs` | Process viewer with color and search |
 | `time` | `hyperfine` | Benchmarking commands with statistical analysis |
 
+## Command legibility (permissions, security, observability)
+
+Permission matching, the `pre-security.sh` path scan, and the session/audit log all
+operate on the literal command string.
+Keep that string an honest record of what runs:
+it is both the realtime gate and the after-the-fact audit trail,
+and both go blind to the same thing -- indirection.
+
+- Prefer built-in file-search and edit tools over shelling out when reading,
+  searching, or editing files.
+  They need no permission prompt, produce structured output, and emit a typed log
+  event instead of a raw shell string.
+- Keep commands literal.
+  Do NOT hide a path, filename, or credential behind a variable, `base64`/`xxd`,
+  glob-indirection, `eval`, command substitution `$(...)`, or a pipe into a shell
+  (`... | sh`).
+  These defeat the scan at runtime AND make the log unsearchable and
+  non-reproducible afterward.
+- Complexity is fine; indirection is not.
+  A long but literal pipeline (`git log --format=%an | sort | uniq -c | sort -rn`)
+  is fully analyzable and is a single clean log line -- prefer it over many opaque
+  micro-calls.
+- Only reach for dynamic or indirect syntax when the operation is genuinely
+  impossible otherwise (a real pipeline, a loop over discovered items).
+  When you must, keep any sensitive path or credential literal, and note in one
+  line why the wrapper is necessary.
+
 ## Security Model
 
 Defense-in-depth across multiple layers:
