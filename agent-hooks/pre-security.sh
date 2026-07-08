@@ -65,6 +65,7 @@ SENSITIVE_DIRS=(
     ".azure"
     ".config/gcloud"
     ".config/gh"
+    ".config/glab-cli"
     ".config/hub"
     ".docker"
     ".kube"
@@ -117,6 +118,7 @@ SENSITIVE_ASSIGNED_VARS=(
     'GNUPGHOME'
     'GH_TOKEN'
     'GITHUB_TOKEN'
+    'GITLAB_TOKEN'
     'NPM_TOKEN'
     'NPM_CONFIG_USERCONFIG'
     'PIP_CONFIG_FILE'
