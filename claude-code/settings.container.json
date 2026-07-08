@@ -332,5 +332,6 @@
   "alwaysThinkingEnabled": true,
   "sandbox": {
     "enabled": false
-  }
+  },
+  "tui": "fullscreen"
 }

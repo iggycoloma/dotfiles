@@ -377,5 +377,6 @@
         "/private/tmp/com.apple.launchd.*/Listeners"
       ]
     }
-  }
+  },
+  "tui": "fullscreen"
 }
