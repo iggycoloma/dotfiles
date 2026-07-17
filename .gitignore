@@ -47,3 +47,9 @@ config/bottom/bottom
 config/lazygit/lazygit
 config/ripgrep/ripgrep
 git/hooks/hooks
+
+# git-lfs hooks (if using git-lfs, these are generated and should not be committed)
+git/hooks/post-checkout
+git/hooks/post-commit
+git/hooks/post-merge
+git/hooks/pre-push
