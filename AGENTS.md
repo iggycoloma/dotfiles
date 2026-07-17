@@ -93,7 +93,7 @@ Defense-in-depth across multiple layers:
 - **SSH commit signing**: auto-detected from SSH agent (prefers ed25519)
 - **Path traversal**: blocked unless explicitly approved
 - **MCP posture**: No MCP servers installed by default. MCP servers run as child processes with full filesystem/network access and bypass credential deny lists. Do not install MCPs without explicit user request. MCP auth tokens belong in tool-specific local config (e.g., settings.local.json), never in dotfiles-tracked files.
-- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `claude-code/CLAUDE.md` "Deny-list semantics" for the full rationale and what stays in vs out of the Bash deny list.
+- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `CLAUDE.md` "Deny-list semantics" for the full rationale and what stays in vs out of the Bash deny list.
 
 ## Installation Toggles
 
