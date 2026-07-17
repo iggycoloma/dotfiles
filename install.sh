@@ -145,7 +145,10 @@ if [[ "${DOTFILES_NO_SSH_SIGNING:-}" == "1" ]]; then
 elif ! git config user.signingkey >/dev/null 2>&1; then
     signing_key=""
     # Try SSH agent first (works with devcontainer forwarding), prefer ed25519
-    agent_keys=$(ssh-add -L 2>/dev/null || true)
+    # ssh-add -L prints "The agent has no identities." to stdout and exits 1
+    # when the agent is empty, so filter to real key lines to avoid capturing
+    # that sentence as the signing key.
+    agent_keys=$(ssh-add -L 2>/dev/null | grep -E '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-|sk-ssh-ed25519@|sk-ecdsa-sha2-) ' || true)
     if [[ -n "$agent_keys" ]]; then
         signing_key=$(echo "$agent_keys" | grep -m1 'ssh-ed25519' || echo "$agent_keys" | head -1)
     fi
