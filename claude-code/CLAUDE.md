@@ -162,3 +162,20 @@ Exceptions, in priority order:
 3. **Commit messages and PR descriptions** follow their own conventions (subject < 72 chars, body wrapped to ~72) — semantic breaks do not apply there.
 
 When in doubt, match the surrounding file's existing style rather than introducing a third pattern.
+
+## Comments: prefer self-explanatory code
+
+Reach for a comment only when the code cannot explain itself.
+Before writing or keeping one, try in order:
+
+1. **Fold it into a name.** Rename the symbol, or extract a named helper or constant, until the comment is redundant (`codeOf` -> `mappedErrorCodeFor`).
+2. **Fold it into the type.** A precise type, enum, or narrowed signature often says what the comment was compensating for.
+3. **Delete it** if the name, signature, or body already carries the content.
+
+Keep a comment only when it explains *why*, not *what*: non-obvious rationale or a rejected alternative; external constraints and gotchas (ordering/lifecycle, load-order, framework semantics not visible locally, concurrency hazards); a workaround and its reason; a pointer to the ticket, spec, or upstream issue that motivates the code.
+
+Drop as noise: restatements of the name, signature, or next line; narration of self-descriptive code; redundant doc blocks on helpers whose name and body are already clear; section-divider banners; commented-out code.
+
+Scope: applies to code you write and to files you are already substantively editing.
+Do not churn otherwise-untouched files unless asked for a comment pass.
+On such a pass, flag rather than rewrite a collaborator's files that already meet this bar.

@@ -59,6 +59,14 @@ Default for `.md` and other long-form prose files: use semantic line breaks -- o
 
 Project tooling wins: if `.editorconfig`, `.prettierrc`, or markdownlint configures a different policy, follow the repo's setting. Prettier `proseWrap: "preserve"` and markdownlint `MD013: false` are the compatible settings. Code blocks, tables, and frontmatter are mechanical, not prose. Commit messages and PR descriptions follow their own conventions (~72-char body wrap) and are out of scope.
 
+## Comments: prefer self-explanatory code
+
+Reach for a comment only when the code cannot explain itself. First try folding it into a name -- rename the symbol, or extract a named helper or constant, until the comment is redundant (`codeOf` -> `mappedErrorCodeFor`). Then try folding it into the type: a precise type, enum, or narrowed signature often says what the comment was compensating for. Then delete it if the name, signature, or body already carries the content.
+
+Keep a comment only when it explains why, not what: non-obvious rationale or a rejected alternative; external constraints and gotchas (ordering/lifecycle, load-order, framework semantics not visible locally, concurrency hazards); a workaround and its reason; a pointer to the ticket, spec, or upstream issue that motivates the code. Drop as noise: restatements of the name, signature, or next line; narration of self-descriptive code; redundant doc blocks on helpers whose name and body are already clear; section-divider banners; commented-out code.
+
+Scope: applies to code you write and to files you are already substantively editing. Do not churn otherwise-untouched files unless asked for a comment pass; on such a pass, flag rather than rewrite a collaborator's files that already meet this bar.
+
 ## Claude-Style Workflow Intents
 
 When user intent matches these commands, use the equivalent workflow:
