@@ -75,7 +75,7 @@ to `~/.claude/hooks/README.md`). Claude and Codex both use thin wrappers around
 the shared implementations in `agent-hooks/`, deployed to `~/.agent-hooks/`.
 Summary:
 
-| Hook                      | Trigger          | Action                                                              |
+| Hook                      | Trigger (Claude Code) | Action                                                         |
 |---------------------------|------------------|---------------------------------------------------------------------|
 | `pre-security.sh`         | Read/Write/Edit/Bash | Blocks ~50 sensitive file patterns and credential directories   |
 | `pre-code-no-emoji.sh`    | Write/Edit       | Blocks decorative emoji in code files                               |
@@ -83,6 +83,53 @@ Summary:
 
 Exit codes: `0` = continue, `2` = block (stderr shown as denial reason).
 Other non-zero codes are logged but don't block.
+The shared hooks take the exit-0 route: they always exit 0 and return the
+decision as `hookSpecificOutput.permissionDecision` JSON on stdout, which both
+Claude Code and Codex parse.
+
+#### Coverage is not symmetric across tools
+
+The Trigger column above is Claude Code only.
+Codex exposes a different tool surface, so the same shared implementation
+guards less there:
+
+| Guard                | Claude Code                       | Codex                              |
+|----------------------|-----------------------------------|------------------------------------|
+| Bash command scan    | Yes (`Bash`)                      | Yes (`Bash`)                       |
+| File-write path scan | Yes (`Write`/`Edit`/`MultiEdit`)  | Yes (`apply_patch`), Codex >= 0.123.0 |
+| File-read blocking   | Yes (`Read`)                      | No -- no read tool fires PreToolUse |
+| No-emoji guard       | Yes (`Write`/`Edit`)              | Yes (`apply_patch`), Codex >= 0.123.0 |
+
+Three things drive the difference.
+
+Codex has no `Read`, `Write`, or `Edit` tool -- file edits arrive as
+`apply_patch` -- so matchers must name `apply_patch`.
+A matcher using Claude's tool names is dead wiring, which is what
+`tests/test-hook-matchers.sh` exists to catch.
+
+`apply_patch` did not emit hook events at all until Codex 0.123.0
+([#16732](https://github.com/openai/codex/issues/16732),
+[#17794](https://github.com/openai/codex/issues/17794)).
+On anything older, only the Bash scan is live; check with `codex --version`.
+
+Credential-read blocking is not achievable on Codex at any version.
+Its `read_file` and `grep` handlers implement no `pre_tool_use_payload`, so no
+hook fires ([#20204](https://github.com/openai/codex/issues/20204),
+[#18491](https://github.com/openai/codex/issues/18491)).
+The Bash scan catches shell-based reads such as `cat ~/.ssh/id_rsa`, which is
+the partial mitigation.
+
+Note that `unified_exec` -- Codex's streaming shell path -- is covered.
+It fires `PreToolUse` reporting `tool_name` as `Bash` with a string
+`tool_input.command`, so the existing Bash matcher and the `TOOL_NAME == "Bash"`
+branch in `pre-security.sh` handle it with no extra wiring.
+
+`tests/test-hook-matchers.sh` locks this down: it checks that every matcher in
+`claude-code/settings.json` and `codex/hooks.json` names a tool its platform
+actually emits, and that the wired hook dispatches on it.
+The `test-security-hook.sh` and `test-emoji-hook.sh` suites feed payloads
+straight into `agent-hooks/`, bypassing the matcher layer, so they cannot catch
+a dead matcher on their own.
 
 Commit message validation lives in `git/hooks/commit-msg` (installed via
 `core.hooksPath`). There is intentionally no PreToolUse equivalent: a
@@ -107,9 +154,12 @@ Lives at `codex/`. Deployed to `~/.codex/`.
   `approval_policy = "on-request"` (independent of sandbox mode).
 - `skills/claude-parity/` maps user intent to Claude Code-style workflows.
 - `hooks.json` wires Codex PreToolUse hooks through `~/.codex/hooks/`
-  wrappers, which exec the shared `~/.agent-hooks/` implementations so
-  sensitive-path and no-emoji behavior stays in sync. Commit messages
-  are validated by git's `commit-msg` hook, not by an agent hook.
+  wrappers, which exec the shared `~/.agent-hooks/` implementations. Matchers
+  name Codex's own tools (`Bash`, `apply_patch`) -- not Claude's
+  `Read`/`Write`/`Edit`, which Codex never emits. Behavior is shared, but
+  coverage is narrower than Claude Code's; see
+  [Coverage is not symmetric across tools](#coverage-is-not-symmetric-across-tools).
+  Commit messages are validated by git's `commit-msg` hook, not by an agent hook.
 - `hooks/notify.sh` sends Pushover notifications when idle.
 - Shell aliases: `cx` (codex), `cxe` (codex exec), `cxr`
   (codex review --uncommitted).

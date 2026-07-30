@@ -11,12 +11,20 @@ incompatibility after another. The tiered model is the simpler answer.
 Three-tier posture
 ==================
 
-| Tier                | Filesystem isolation | Network egress                                                  | Sandbox config file        |
-|---------------------|----------------------|------------------------------------------------------------------|----------------------------|
-| Host (macOS)        | Seatbelt             | `allowedDomains` (Claude Code) + macOS Seatbelt                  | `claude-code/settings.json` |
-| Host (Linux/WSL2)   | bwrap                | `allowedDomains` (kernel-enforced via netns)                     | `claude-code/settings.json` |
-| Local devcontainer  | container boundary   | Unrestricted by default; lint the spec via `bin/dc-audit.sh`     | `claude-code/settings.container.json` |
-| Codespaces          | container boundary   | Same as local devcontainer                                       | `claude-code/settings.container.json` |
+| Tier                | Claude Code                                              | Codex CLI                                                |
+|---------------------|----------------------------------------------------------|------------------------------------------------------------|
+| Host (macOS)        | Seatbelt; `allowedDomains` allowlist                     | Seatbelt; `workspace-write`, network **off**               |
+| Host (Linux/WSL2)   | bwrap + seccomp; `allowedDomains` via netns + proxy      | bwrap + seccomp; `workspace-write`, network **off**        |
+| Local devcontainer  | `sandbox.enabled: false` -- container is the boundary   | `danger-full-access` -- container is the boundary          |
+| Codespaces          | same as local devcontainer                               | same as local devcontainer                                 |
+
+Config files: `claude-code/settings.json` / `settings.container.json`, and
+`codex/config.toml` / `config.container.toml`.
+Copilot CLI has no OS sandbox of its own -- see [Copilot CLI](#copilot-cli).
+
+The two tools use the same OS primitives but **not the same posture**.
+Read [Comparative posture](#comparative-posture-claude-code-vs-codex) before
+assuming a control in one has an equivalent in the other; several do not.
 
 For hardened, unattended runs that need a hostname allowlist enforced
 inside the container, see [`unattended/`](../unattended/README.md) --
@@ -363,6 +371,61 @@ Comparison is canonical: JSON keys are sorted (`jq -S`), TOML is normalized
 through JSON (`yq -p toml -o json | jq -S`). Order and whitespace are not
 drift; structural difference is. `--json` emits JSONL findings for CI consumption.
 
+Comparative posture: Claude Code vs Codex
+=========================================
+
+Same OS primitives, different security philosophy.
+Do not assume a control in one tool has a counterpart in the other.
+
+Claude Code is **egress-centric**.
+It assumes the agent needs broad read and write access -- that is the job -- so
+the boundary that earns its keep is what can *leave*.
+Hence a hostname allowlist as the default, with network on.
+
+Codex is **write-scope-centric**.
+Reads are universal, writes are confined to the workspace, and network is simply
+off until you turn it on.
+The boundary that earns its keep is what gets *modified*.
+
+Which is stricter inverts depending on the threat you name:
+
+| Concern                          | Claude Code                    | Codex                          |
+|----------------------------------|--------------------------------|--------------------------------|
+| Reading `~/.ssh`                 | blocked (deny-globs + hook)    | **allowed** -- reads universal |
+| Shell reaching the network       | ~36 allowlisted hostnames      | **nothing**, by default        |
+| Writing outside the workspace    | permissions-gated              | blocked by the sandbox itself  |
+
+A ceiling versus a door
+-----------------------
+
+The difference worth internalizing is what happens under pressure.
+
+**Claude Code's sandbox is a ceiling.**
+Kernel-enforced and not liftable by permission mode -- auto-accept and even
+`--dangerously-skip-permissions` do not get past bwrap (see
+[Auto mode and the sandbox are independent layers](#auto-mode-and-the-sandbox-are-independent-layers)).
+Narrower than it looks, but absolute within a session.
+
+**Codex's sandbox is a restrictive default with a door in it.**
+`approval_policy` is coupled to the sandbox: a denied command can prompt to
+rerun escalated, and approving steps outside the sandbox for that command.
+It starts stricter and stays stricter only as long as you keep declining.
+
+They therefore fail differently, and both failure modes are quiet:
+
+- Claude Code fails by **silent breadth**. The allowlist looks protective, but it
+  gates only the Bash tool, WebFetch bypasses it entirely, and allowed domains
+  are abusable (see [Residual exfil paths](#residual-exfil-paths-even-with-all-four-layers-tight)).
+  You are protected less than the config suggests.
+- Codex fails by **escalation drift**. The defaults are genuinely tight, but
+  every real workflow hits the wall, and the natural response is to approve
+  repeatedly or set `network_access = true` once and never revisit it.
+
+One consequence for the four-layer model below: on Claude Code, credential
+protection is defense in depth -- deny-globs, the `pre-security.sh` hook, *and*
+an egress allowlist behind them.
+On Codex the hook is the whole story on the read side, and it cannot fire.
+
 Tool-specific notes
 ===================
 
@@ -385,11 +448,115 @@ catch interpreter bypasses there.
 Codex CLI
 ---------
 
-Same pattern: `codex/config.toml` (host) and `codex/config.container.toml`
+Same file pattern: `codex/config.toml` (host) and `codex/config.container.toml`
 (container). The host variant uses `sandbox_mode = "workspace-write"`; the
 container variant uses `sandbox_mode = "danger-full-access"` because the
-container is the boundary. Approval policy stays `on-request` in both -- the
-human-in-the-loop gate is independent of sandbox mode.
+container is the boundary.
+
+### Mechanism
+
+Codex enforces its sandbox with the same OS primitives Claude Code uses:
+Seatbelt (`sandbox-exec`) on macOS, and bwrap plus seccomp on Linux and WSL2.
+Windows gets a native sandbox implementation; WSL2 uses the Linux path.
+It needs no packages from `bootstrap/packages.sh` -- `bubblewrap` and `socat`
+are installed for Claude Code, and Codex brings its own.
+
+Note that a good deal of secondary material describes Codex's Linux sandbox as
+**Landlock + seccomp**, and the `codex sandbox landlock` alias still exists.
+Current upstream docs describe bwrap + seccomp; prefer them over blog posts when
+updating this file.
+
+### The axis of control is different
+
+`sandbox_mode` is a **filesystem write scope**, not a network policy:
+
+| Mode                  | Effect                                                    |
+|-----------------------|-----------------------------------------------------------|
+| `read-only`           | No writes anywhere                                        |
+| `workspace-write`     | Writes confined to the workspace (plus `writable_roots`)  |
+| `danger-full-access`  | No filesystem or network restriction                      |
+
+Reads are granted universally in every mode.
+Codex's sandbox has no opinion about credential files -- `pre-security.sh` is
+the only thing gating those, which is why the Codex read-coverage gap documented
+in [`agentic-tooling.md`](agentic-tooling.md#coverage-is-not-symmetric-across-tools)
+matters more there than the equivalent would on Claude Code.
+
+### Network is off by default, and that is not an allowlist
+
+Under `workspace-write`, outbound network is **disabled** unless you set:
+
+```toml
+[sandbox_workspace_write]
+network_access = true
+```
+
+This repo does not set it, so on hosts Codex's shell has no network at all,
+while Claude Code's has the ~36 entries in `allowedDomains`.
+That is a binary toggle, not an allowlist: turning it on removes Codex's single
+strongest egress control and gives nothing hostname-scoped in return.
+
+`approval_policy = "on-request"` is the release valve.
+A sandboxed command that fails can prompt to rerun escalated, and approving
+steps outside the sandbox for that command.
+Practical effect: `npm install` and `git clone` are not impossible, they are
+approval-gated.
+
+### network_proxy: the closest thing to `allowedDomains`
+
+Codex ships an experimental, off-by-default proxy that does hostname policy
+properly. Enable and configure it under `features.network_proxy`:
+
+```toml
+[features.network_proxy]
+enabled = true
+
+[features.network_proxy.domains]
+"registry.npmjs.org" = "allow"   # exact host
+"*.githubusercontent.com" = "allow"  # subdomains only
+"**.example.com" = "allow"       # apex plus subdomains
+"telemetry.example.com" = "deny"
+```
+
+Semantics worth knowing:
+
+- Unlisted domains are denied; `deny` wins any conflict with `allow`.
+- A resolved IP in a private range (RFC 1918, RFC 4193, link-local) is blocked
+  even for an allowlisted hostname, unless `allow_local_binding = true`.
+  This closes an SSRF class that a pure name-based allowlist leaves open.
+- `unix_sockets` takes the same allow/deny map, so `docker.sock` can be gated
+  by policy rather than by whether it happens to be mounted.
+- Optional MITM (TLS termination via an internally managed CA) enables
+  method-level enforcement; a "limited" mode blocks POST/PUT/DELETE. Without
+  MITM, HTTPS `CONNECT` cannot be method-filtered.
+- Policy decisions emit structured OTEL events for allow and deny, deliberately
+  without full URL/path/query.
+- It listens on loopback only; `dangerously_allow_non_loopback_proxy` defaults
+  to `false`.
+
+This is strictly more expressive than Claude Code's `allowedDomains`, which has
+no deny rules, no private-IP check, no unix-socket policy, and -- per
+[Limitations and known gaps](#limitations-and-known-gaps) -- no TLS termination,
+so broad entries like `github.com` can be domain-fronted.
+
+Source confidence: the keys, rule syntax, defaults, and experimental status come
+from the upstream configuration reference.
+The private-IP/SSRF check, the "limited" method-blocking mode, and the OTEL
+audit events come from secondary sources and were not confirmed against upstream
+docs -- verify before relying on them for a threat model.
+
+Scope matters, and it is narrower than this repo's mitmproxy profile.
+`network_proxy` mediates **sandboxed subprocess traffic**; it does not globally
+proxy everything Codex does.
+The unattended profile's mitmproxy sets `HTTPS_PROXY`/`HTTP_PROXY` container-wide,
+so it also gates the agent process's own research traffic.
+The same asymmetry Claude Code has between bash and WebFetch applies here:
+a tool-native proxy gates the shell, a container-wide proxy gates the agent.
+
+This repo does **not** currently enable `network_proxy`.
+Adopting it is the way to get Codex to egress parity with Claude Code; the cost
+is a second allowlist to maintain, and `bin/settings-drift.sh` compares host
+against container variants within a tool, not one tool against the other.
 
 Copilot CLI
 -----------
@@ -609,6 +776,8 @@ Reference
 =========
 
 - [Configure the sandboxed Bash tool (Claude Code docs)](https://code.claude.com/docs/en/sandboxing)
+- [Codex agent approvals and security (sandbox mechanism per OS)](https://learn.chatgpt.com/docs/agent-approvals-security)
+- [Codex configuration reference (`sandbox_mode`, `features.network_proxy`)](https://learn.chatgpt.com/docs/config-file/config-reference)
 - [Dev Container Features reference](https://containers.dev/implementors/features/)
 - [docker-in-docker feature (example of ${devcontainerId} in feature mounts)](https://github.com/devcontainers/features/blob/main/src/docker-in-docker/devcontainer-feature.json)
 - [@anthropic-ai/sandbox-runtime (npm package, optional)](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime)

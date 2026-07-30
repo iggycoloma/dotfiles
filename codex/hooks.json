@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read|Write|Edit",
+        "matcher": "^(Bash|apply_patch)$",
         "hooks": [
           {
             "type": "command",
@@ -12,17 +12,7 @@
         ]
       },
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.codex/hooks/pre-security.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
+        "matcher": "^apply_patch$",
         "hooks": [
           {
             "type": "command",

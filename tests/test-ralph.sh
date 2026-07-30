@@ -240,8 +240,16 @@ unattended_out=$(mktemp)
 CLAUDE_UNATTENDED=1 "$RALPH_SCRIPT" --prompt-file "$unattended_temp" --permission-mode acceptEdits >"$unattended_out" 2>&1
 rc=$?
 output=$(<"$unattended_out")
-assert_not_equals 0 "$rc" "CLAUDE_UNATTENDED=1 + acceptEdits without --yolo exits non-zero"
-assert_contains "$output" "requires --yolo" "Error message mentions --yolo requirement"
+# Without the claude CLI, ralph.sh bails at its dependency check before the
+# safety gate runs -- the non-zero exit would pass for the wrong reason. Skip
+# rather than assert a false green (same pattern as the gh guard in
+# tests/test-gh-repo-policy.sh).
+if command -v claude &>/dev/null; then
+    assert_not_equals 0 "$rc" "CLAUDE_UNATTENDED=1 + acceptEdits without --yolo exits non-zero"
+    assert_contains "$output" "requires --yolo" "Error message mentions --yolo requirement"
+else
+    test_info "Skipping CLAUDE_UNATTENDED gate assertions (claude CLI not installed)"
+fi
 rm -f "$unattended_temp" "$unattended_out"
 
 # --- Spec helper ---
@@ -546,8 +554,14 @@ assert_return_code 0 $? "ccwclean function is defined"
 # shellcheck disable=SC2119  # testing ccw with no args intentionally
 output=$(ccw 2>&1)
 rc=$?
-assert_not_equals 0 "$rc" "ccw fails without branch arg"
-assert_contains "$output" "Usage" "ccw shows usage without args"
+# Same reasoning as the CLAUDE_UNATTENDED gate above: without the claude CLI,
+# ccw exits early with "claude CLI not found" and never reaches its usage text.
+if command -v claude &>/dev/null; then
+    assert_not_equals 0 "$rc" "ccw fails without branch arg"
+    assert_contains "$output" "Usage" "ccw shows usage without args"
+else
+    test_info "Skipping ccw usage assertions (claude CLI not installed)"
+fi
 
 # --- Summary ---
 
