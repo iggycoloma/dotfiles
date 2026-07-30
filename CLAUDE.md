@@ -81,7 +81,7 @@ Local-state footguns where no other layer catches a typo: `rm -rf` variants, `gi
 
 ### Codex / Copilot parity
 
-By design, Codex CLI and GitHub Copilot CLI get no equivalent Bash deny list -- their config formats expose no per-command deny syntax. Codex relies on its native `sandbox_mode` (`workspace-write` on hosts, `danger-full-access` in containers, where the container itself is the boundary); Copilot relies on interactive permission prompts plus `--deny-tool` flags. Both pick up the shared `pre-security.sh` hook for Tier 1.
+By design, Codex CLI and GitHub Copilot CLI get no equivalent Bash deny list -- their config formats expose no per-command deny syntax. Codex relies on its native `sandbox_mode` (`workspace-write` on hosts, `danger-full-access` in containers, where the container itself is the boundary); Copilot relies on interactive permission prompts plus `--deny-tool` flags. Both pick up the shared `pre-security.sh` hook for Tier 1, but not at Claude Code's coverage. On Codex, Bash and `apply_patch` are scanned (the latter needs Codex >= 0.123.0), but credential-*read* blocking is unavailable at any version -- its `read_file` and `grep` handlers fire no `PreToolUse` hook. Treat Tier 1's read-side guarantee as Claude-Code-only; see [`docs/agentic-tooling.md`](docs/agentic-tooling.md#coverage-is-not-symmetric-across-tools).
 
 ## Devcontainer Behavior
 
