@@ -21,6 +21,27 @@ jobs:
       - name: Run shellcheck
         run: make lint
 
+  test-suite:
+    name: Full test suite (make test)
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The platform matrix below runs only unit-tests, test-packages, and
+      # test-install. This job runs `make test` so the Makefile's definition of
+      # the suite is what gates a merge -- consistency, policy, ralph, dc-audit,
+      # settings-drift, the agent-hook guards, and the hook-matcher contract
+      # were previously in no CI job at all. All of these test repo content
+      # rather than installed state, so one Linux runner is sufficient.
+      # Whole suite is ~10s; no need to shard or cache.
+      - name: Run make test
+        run: make test
+        env:
+          CI: true
+          DOTFILES_DIR: ${{ github.workspace }}
+
   test-linux-containers:
     name: Test on ${{ matrix.os }} (${{ matrix.shell }})
     needs: [lint]
@@ -427,12 +448,13 @@ jobs:
   test-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, test-linux-containers, test-macos, test-codespaces-simulation]
+    needs: [lint, test-suite, test-linux-containers, test-macos, test-codespaces-simulation]
     if: always()
     steps:
       - name: Check test results
         run: |
           if [ "${{ needs.lint.result }}" = "success" ] && \
+             [ "${{ needs.test-suite.result }}" = "success" ] && \
              [ "${{ needs.test-linux-containers.result }}" = "success" ] && \
              [ "${{ needs.test-macos.result }}" = "success" ] && \
              [ "${{ needs.test-codespaces-simulation.result }}" = "success" ]; then
@@ -441,6 +463,7 @@ jobs:
           else
             echo "✗ Some tests failed"
             echo "Lint: ${{ needs.lint.result }}"
+            echo "Full test suite: ${{ needs.test-suite.result }}"
             echo "Linux containers: ${{ needs.test-linux-containers.result }}"
             echo "macOS: ${{ needs.test-macos.result }}"
             echo "Codespaces simulation: ${{ needs.test-codespaces-simulation.result }}"
