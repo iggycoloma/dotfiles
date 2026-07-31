@@ -25,7 +25,6 @@ fi
 # shellcheck source=../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-# --- Defaults ---
 
 PROFILE="attended"
 RUBRIC=""
@@ -34,7 +33,6 @@ STRICT=false
 JSON_OUTPUT=false
 TARGETS=()
 
-# --- Help ---
 
 show_help() {
     cat <<'HELP'
@@ -61,13 +59,11 @@ Examples:
 HELP
 }
 
-# --- Dependency checks ---
 
 check_dependencies() {
     command -v jq &>/dev/null || log_and_return error 1 "Missing required tool: jq"
 }
 
-# --- Argument parsing ---
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -146,46 +142,29 @@ parse_args() {
     fi
 }
 
-# --- JSONC support ---
-#
-# devcontainer.json permits // line comments and /* block comments. Strip them
-# before feeding to jq. We avoid hard-matching quoted strings (a real parser
-# would handle them) -- the strip is intentionally conservative and may leave
-# a `//` inside a URL intact, which is fine since jq can parse that too.
-
+# Conservative by design: not matching quoted strings may leave a `//` inside
+# a URL intact, which is fine because jq parses that too.
 strip_jsonc() {
     local path="$1"
-    # Remove /* ... */ blocks and // line comments that begin a line or follow
-    # whitespace. This regex avoids eating `://` in strings.
     sed -e 's|/\*[^*]*\*\+\([^/*][^*]*\*\+\)*/||g' \
         -e 's|^\s*//.*$||' \
         -e 's|\s\+//.*$||' \
         "$path"
 }
 
-# --- Core: evaluate rules ---
-#
-# For each rule in the rubric (matching the active profile or "all"), run the
-# jq `check` expression. `check` returns true when the rule FAILS. When fix
-# mode is on and the rule is fixable, apply the jq `fix` to produce the new
-# document.
-#
-# Prints findings to stdout in human-readable or JSONL form.
-
 declare -A FINDING_COUNTS
 
+# Note the inversion: a rule's jq `check` returns true when the rule FAILS.
 audit_file() {
     local file="$1"
     local stripped
     stripped=$(strip_jsonc "$file")
 
-    # Validate JSON first.
     if ! jq empty <<<"$stripped" 2>/dev/null; then
         print_finding "$file" "parse-error" "error" "File is not valid JSON/JSONC." "no"
         return 2
     fi
 
-    # Iterate rules matching the active profile.
     local rule_count=0
     local applied_fixes=0
     rule_count=$(jq --arg p "$PROFILE" \
@@ -278,7 +257,6 @@ print_finding() {
     printf '  %s %-30s %s: %s%s\n' "$prefix" "[$id]" "$file" "$message" "$suffix"
 }
 
-# --- Main ---
 
 main() {
     parse_args "$@"
@@ -322,7 +300,6 @@ main() {
     return "$overall_rc"
 }
 
-# Allow sourcing for testing without executing main.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

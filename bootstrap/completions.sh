@@ -6,17 +6,14 @@ set -e
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
-# Shared logging functions
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-# Setup bash completions
 setup_bash_completions() {
     log_info "Setting up bash completions..."
 
     local completion_dir="$HOME/.local/share/bash-completion/completions"
     mkdir -p "$completion_dir"
 
-    # Generate completions for tools that support it
     local tools=(
         "gh:github-cli"
         "glab:gitlab-cli"
@@ -59,11 +56,9 @@ setup_bash_completions() {
     log_success "Bash completions configured"
 }
 
-# Setup zsh completions
 setup_zsh_completions() {
     log_info "Setting up zsh completions..."
 
-    # Create zsh config directory
     local zsh_dir="${ZDOTDIR:-$HOME/.config/zsh}"
     mkdir -p "$zsh_dir/completions"
 
@@ -75,7 +70,6 @@ setup_zsh_completions() {
         git clone --depth 1 --branch v3.9.0 https://github.com/zdharma-continuum/zinit.git "$zinit_dir" 2>/dev/null || true
     fi
 
-    # Generate completions for tools
     if has_tool gh; then
         gh completion -s zsh > "$zsh_dir/completions/_gh" 2>/dev/null || true
         zsh -c "zcompile '$zsh_dir/completions/_gh'" 2>/dev/null || true
@@ -99,7 +93,6 @@ setup_zsh_completions() {
         :
     fi
 
-    # Create fpath file for zshrc to source
     cat > "$zsh_dir/completions.zsh" <<'EOF'
 # Add custom completions to fpath
 fpath=("${ZDOTDIR:-$HOME/.config/zsh}/completions" $fpath)
@@ -122,7 +115,6 @@ if [[ -d "$ZINIT_HOME" ]]; then
 fi
 EOF
 
-    # Compile completions.zsh for faster loading
     if has_tool zsh; then
         zsh -c "zcompile '$zsh_dir/completions.zsh'" 2>/dev/null || true
     fi
@@ -130,18 +122,15 @@ EOF
     log_success "Zsh completions configured"
 }
 
-# Main setup function
 setup_completions() {
     log_info "Setting up shell completions..."
 
-    # Setup for both shells
     setup_bash_completions
     setup_zsh_completions
 
     log_success "Completion setup complete!"
 }
 
-# If run directly, execute
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     setup_completions
 fi

@@ -90,7 +90,6 @@ export BAT_STYLE="numbers,changes,header"
 
 # EZA colors (modern ls replacement)
 # Using bright colors for better visibility on dark backgrounds
-# Format: type=color_code
 export EZA_COLORS="\
 di=1;96:\
 ex=1;92:\
@@ -154,7 +153,6 @@ if command -v claude &> /dev/null; then
     export CLAUDE_CONFIG_DIR="$HOME/.claude"
 fi
 
-# Load local exports if they exist
 if [[ -f "$HOME/.exports.local" ]]; then
     source "$HOME/.exports.local"
 fi

@@ -22,10 +22,6 @@ source "$DOTFILES_DIR/bootstrap/symlinks.sh" 2>/dev/null
 # Re-disable set -e after sourcing (bootstrap scripts enable it)
 set +e
 
-#
-# Test Suite: create_symlink function
-#
-
 test_symlink_source_missing() {
     setup_test_env
 
@@ -118,10 +114,6 @@ test_symlink_creates_parent_directories() {
     teardown_test_env
 }
 
-#
-# Test Suite: backup_if_exists function
-#
-
 test_backup_real_file() {
     setup_test_env
 
@@ -186,12 +178,7 @@ test_backup_directory() {
     teardown_test_env
 }
 
-#
-# Test Suite: is_devcontainer function
-#
-
 test_devcontainer_remote_containers() {
-    # Save original value
     local original="${REMOTE_CONTAINERS:-}"
 
     export REMOTE_CONTAINERS="true"
@@ -202,7 +189,6 @@ test_devcontainer_remote_containers() {
         test_fail "is_devcontainer should return 0 with REMOTE_CONTAINERS=true"
     fi
 
-    # Restore
     if [[ -n "$original" ]]; then
         export REMOTE_CONTAINERS="$original"
     else
@@ -211,7 +197,6 @@ test_devcontainer_remote_containers() {
 }
 
 test_devcontainer_codespaces() {
-    # Save original value
     local original="${CODESPACES:-}"
 
     export CODESPACES="true"
@@ -222,7 +207,6 @@ test_devcontainer_codespaces() {
         test_fail "is_devcontainer should return 0 with CODESPACES=true"
     fi
 
-    # Restore
     if [[ -n "$original" ]]; then
         export CODESPACES="$original"
     else
@@ -231,7 +215,6 @@ test_devcontainer_codespaces() {
 }
 
 test_devcontainer_neither_set() {
-    # Save original values
     local original_rc="${REMOTE_CONTAINERS:-}"
     local original_cs="${CODESPACES:-}"
 
@@ -254,14 +237,9 @@ test_devcontainer_neither_set() {
         fi
     fi
 
-    # Restore
     [[ -n "$original_rc" ]] && export REMOTE_CONTAINERS="$original_rc"
     [[ -n "$original_cs" ]] && export CODESPACES="$original_cs"
 }
-
-#
-# Test Suite: detect_environment function
-#
 
 test_detect_codespaces() {
     local original="${CODESPACES:-}"
@@ -271,7 +249,6 @@ test_detect_codespaces() {
     result=$(detect_environment)
     assert_equals "codespaces" "$result" "Should detect Codespaces"
 
-    # Restore original value
     if [[ -n "$original" ]]; then
         export CODESPACES="$original"
     else
@@ -290,7 +267,6 @@ test_detect_devcontainer() {
     result=$(detect_environment)
     assert_equals "devcontainer" "$result" "Should detect devcontainer"
 
-    # Restore original values
     if [[ -n "$original_cs" ]]; then
         export CODESPACES="$original_cs"
     fi
@@ -322,7 +298,6 @@ test_detect_local() {
         assert_equals "local" "$result" "Should detect local environment"
     fi
 
-    # Restore original values
     if [[ -n "$original_cs" ]]; then
         export CODESPACES="$original_cs"
     fi
@@ -333,10 +308,6 @@ test_detect_local() {
         export SSH_CONNECTION="$original_ssh"
     fi
 }
-
-#
-# Test Suite: Logging Module
-#
 
 test_logging_sources_without_error() {
     (
@@ -368,10 +339,6 @@ test_logging_output_format() {
     assert_contains "$output" "==>" "log_info output contains ==>"
     assert_contains "$output" "test message" "log_info output contains message"
 }
-
-#
-# Test Suite: Shell Config
-#
 
 test_path_no_duplicates() {
     local output
@@ -407,10 +374,6 @@ test_completion_no_local_at_file_scope() {
         test_fail "Found 'local' at file scope in completion.sh"
     fi
 }
-
-#
-# Test Suite: Installation Toggle Gates
-#
 
 # Helper: set up a minimal dotfiles tree that create_symlinks expects
 _setup_toggle_env() {
@@ -587,10 +550,6 @@ test_toggle_no_ai_tools_log_message() {
     teardown_test_env
 }
 
-#
-# Test Suite: State Persistence Tier Detection
-#
-
 # -- Detection tests (pure, no side effects) --
 
 test_detect_state_tier_volume() {
@@ -678,10 +637,6 @@ test_no_state_persistence_toggle() {
     unset DOTFILES_NO_STATE_PERSISTENCE REMOTE_CONTAINERS
     teardown_test_env
 }
-
-#
-# Test Suite: Dotfiles State Self-Heal
-#
 
 # Source state-heal.sh against the test HOME; it runs _heal_dotfiles_state.
 # setup_test_env exports HOME="$TEST_TEMP_DIR/home"; tests address that path
