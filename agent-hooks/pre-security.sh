@@ -126,6 +126,47 @@ SENSITIVE_ASSIGNED_VARS=(
     'SSH_AGENT_PID'
 )
 
+# Inside single quotes the shell does not treat a backslash as an escape, so
+# `\.env` there cannot name a file anyone has -- it is a regex from an embedded
+# perl, sed, or rg script. Neutralize those escapes before the path scans so
+# editing a pattern that mentions a credential file does not read as opening
+# one. Unquoted `\.env` IS shell escaping and still opens the file, so it
+# survives untouched.
+#
+# Each escape becomes a newline rather than vanishing: deleting it would let the
+# neighbours close up into a match neither side contained, e.g. `.aws\/\n/m;`
+# collapsing to `.aws/`. No path spans a newline, so the substitution cannot
+# manufacture a hit or hide a real one.
+#
+# The walk is quadratic in command length, and this hook runs on every Bash
+# call, so STRIP_MAX_BYTES bounds it: past that size the raw command is scanned.
+# Skipping the strip only costs false positives, never a miss, while a hook slow
+# enough to hit its timeout fails open -- padding a command to 40KB would
+# otherwise buy an attacker a free pass on every check below.
+STRIP_MAX_BYTES=4096
+
+strip_quoted_regex_escapes() {
+    local cmd="$1"
+    local out="" i=0 squote=0 dquote=0 ch
+
+    while ((i < ${#cmd})); do
+        ch="${cmd:i:1}"
+        if [[ "$ch" == "'" && $dquote -eq 0 ]]; then
+            ((squote = 1 - squote))
+        elif [[ "$ch" == '"' && $squote -eq 0 ]]; then
+            ((dquote = 1 - dquote))
+        elif [[ "$ch" == \\ && $squote -eq 1 ]]; then
+            out+=$'\n'
+            ((i += 2))
+            continue
+        fi
+        out+="$ch"
+        ((i++))
+    done
+
+    printf '%s' "$out"
+}
+
 check_file_path() {
     local file_path="$1"
     local pattern relative_pattern sensitive_file dir
@@ -174,10 +215,17 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     COMMAND=$(echo "$input" | jq -r '.tool_input.command // empty')
     [[ -z "$COMMAND" ]] && exit 0
 
+    # The path scans below run against the escape-stripped text; the structural
+    # checks further down still read the command verbatim.
+    SCAN_TARGET="$COMMAND"
+    if ((${#COMMAND} <= STRIP_MAX_BYTES)) && [[ "$COMMAND" == *"'"* && "$COMMAND" == *\\* ]]; then
+        SCAN_TARGET=$(strip_quoted_regex_escapes "$COMMAND")
+    fi
+
     for pattern in "${SENSITIVE_PATHS[@]}" "${SENSITIVE_EXTENSIONS[@]}"; do
         suffix="${pattern#\*/}"
         suffix="${suffix#\*}"
-        if [[ "$COMMAND" == *"$suffix"* ]]; then
+        if [[ "$SCAN_TARGET" == *"$suffix"* ]]; then
             emit_decision "$ASK_DECISION" "This command may access sensitive file matching: $suffix"
             exit 0
         fi
@@ -185,14 +233,14 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
 
     # Catches globs too: ~/.ssh/*, rg ~/.aws/
     for dir in "${SENSITIVE_DIRS[@]}"; do
-        if [[ "$COMMAND" == *"$dir/"* ]] || [[ "$COMMAND" == *"$dir "* ]] || [[ "$COMMAND" == *"$dir" ]]; then
+        if [[ "$SCAN_TARGET" == *"$dir/"* ]] || [[ "$SCAN_TARGET" == *"$dir "* ]] || [[ "$SCAN_TARGET" == *"$dir" ]]; then
             emit_decision "$ASK_DECISION" "This command may access sensitive directory: $dir"
             exit 0
         fi
     done
 
     for sensitive_file in "${SENSITIVE_FILES[@]}"; do
-        if [[ "$COMMAND" == *"$sensitive_file"* ]]; then
+        if [[ "$SCAN_TARGET" == *"$sensitive_file"* ]]; then
             emit_decision "$ASK_DECISION" "This command may access sensitive file: $sensitive_file"
             exit 0
         fi
@@ -201,7 +249,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     # BEGIN/END flag pattern is required: `exit` inside a -ne loop still runs
     # the END block, so the flag carries the result out instead.
     for pattern in "${SENSITIVE_GLOB_PATTERNS[@]}"; do
-        if echo "$COMMAND" | perl -ne "BEGIN{\$f=1} if(/$pattern/){\$f=0} END{exit \$f}" 2>/dev/null; then
+        if echo "$SCAN_TARGET" | perl -ne "BEGIN{\$f=1} if(/$pattern/){\$f=0} END{exit \$f}" 2>/dev/null; then
             emit_decision "$ASK_DECISION" "This command may access sensitive files (pattern: $pattern)"
             exit 0
         fi

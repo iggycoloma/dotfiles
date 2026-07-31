@@ -279,6 +279,50 @@ test_bash_credential_files_still_blocked() {
 }
 
 #
+# Single-quoted regex literals vs real paths
+#
+
+test_bash_quoted_regex_literals_allowed() {
+    # Regression: rewriting a pattern that *names* a credential file used to read
+    # as accessing one. Inside single quotes a backslash is not a shell escape,
+    # so `\.env` there is a regex, not a path.
+    assert_allowed "$(run_bash_hook "perl -0pi -e 's/^# catches \.en\*, \.env\?, etc\.\n//m;' agent-hooks/pre-security.sh")" \
+        "Allows perl regex mentioning .env"
+    assert_allowed "$(run_bash_hook "sd '\.npmrc' NPMRC docs/setup.md")" "Allows sd pattern mentioning .npmrc"
+    assert_allowed "$(run_bash_hook "rg '\.ssh/config' docs/")" "Allows rg pattern mentioning .ssh/config"
+    assert_allowed "$(run_bash_hook "sed -i 's/\.aws\/credentials//' README.md")" "Allows sed pattern mentioning .aws/credentials"
+
+    # Neutralizing an escape must not let its neighbours close up into a match:
+    # deleting `\/` here would glue `.aws` to perl's closing delimiter.
+    assert_allowed "$(run_bash_hook "perl -0pi -e 's/^# old\n/    # globs: ~\/.ssh\/*, rg ~\/.aws\/\n/m;' hook.sh")" \
+        "Allows perl replacement whose escapes bracket a directory name"
+}
+
+test_bash_quoted_regex_evasion_still_blocked() {
+    # The guard must not become an escape hatch: outside single quotes a
+    # backslash IS shell escaping, and `~/\.env` still opens the file.
+    assert_blocked "$(run_bash_hook "cat ~/\.env")" "Blocks unquoted backslash-escaped .env"
+    assert_blocked "$(run_bash_hook "cat ~/\.ssh/id_rsa")" "Blocks unquoted backslash-escaped .ssh path"
+    assert_blocked "$(run_bash_hook "cat \"~/\.env\"")" "Blocks double-quoted backslash-escaped .env"
+
+    # A regex literal in the same command as a real access does not launder it.
+    assert_blocked "$(run_bash_hook "printf 'a\tb' && cat ~/.ssh/id_rsa")" "Blocks real .ssh access alongside quoted escape"
+    assert_blocked "$(run_bash_hook "echo \"don't touch\" && sed 's/\.x//' f && cat ~/.aws/credentials")" \
+        "Blocks real .aws access with mixed quoting"
+
+    # Oversized commands skip the strip rather than risk the hook's timeout,
+    # which would fail open. Padding must not launder a real access.
+    local padding="" pad_cmd
+    while ((${#padding} < 5000)); do padding+="perl -pe 's/\.foo//' x && "; done
+    pad_cmd="$padding cat ~/.ssh/id_rsa"
+    assert_blocked "$(run_bash_hook "$pad_cmd")" "Blocks .ssh access padded past the strip limit"
+
+    # Single-quoted but unescaped stays blocked -- conservative by design.
+    assert_blocked "$(run_bash_hook "sed -n '/.env/p' config.txt")" "Blocks unescaped .env inside single quotes"
+    assert_blocked "$(run_bash_hook "perl -e 'open(F, \"/home/me/.env\") or die'")" "Blocks real path inside single quotes"
+}
+
+#
 # File tool checks (Read/Write/Edit path matching)
 #
 
@@ -430,6 +474,10 @@ main() {
     test_bash_glob_evasion
     test_bash_keyword_not_false_positive
     test_bash_credential_files_still_blocked
+
+    test_suite "Quoted Regex Literals"
+    test_bash_quoted_regex_literals_allowed
+    test_bash_quoted_regex_evasion_still_blocked
 
     test_suite "File Tool Checks (Read/Write/Edit)"
     test_file_tool_env
