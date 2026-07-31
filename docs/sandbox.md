@@ -829,6 +829,48 @@ What replaces it, per tier:
 | Container | The container boundary; host credential paths are not mounted in |
 | Both | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credential env vars from every subprocess regardless of sandboxing |
 
+What the credential list covers
+-------------------------------
+
+`sandbox.credentials.files` is a literal path list -- no globs -- so the entries
+are chosen deliberately rather than mirrored from the `Read`/`Write`/`Edit` deny
+globs. Three rules govern the divergence.
+
+**Toolchain directories get file-level denies, not directory-level.**
+`~/.m2/settings.xml` rather than `~/.m2`, because `~/.m2/repository`,
+`~/.cargo/registry`, and `~/.gradle/caches` are build caches a sandboxed build
+must read. The deny-glob layer can afford `~/.m2/**` because it only gates
+Claude's own file tools; the sandbox gates real builds.
+
+**Agent config is a credential store.** `~/.claude/settings.local.json`,
+`~/.claude.json`, `~/.codex/auth.json`, and `~/.copilot` hold MCP server
+definitions, and inline tokens there are common. The sandbox already denies
+*write* access to settings files at every scope, which makes it easy to assume
+reads are covered too -- they are not. `~/.dotfiles-state` is denied as well,
+since `~/.claude` and `~/.codex` are symlinks into it and the deny must hold on
+the resolved path.
+
+**Shell history is a durable credential store.** `~/.bash_history`,
+`~/.zsh_history`, and `~/.local/share/atuin` routinely contain
+`export SOME_TOKEN=...` from months ago, and this repo persists history across
+container rebuilds.
+
+`~/.ssh` is the one entry expressed as `filesystem.denyRead` plus an
+`allowRead` for `known_hosts`, rather than a `credentials.files` entry. Naming
+private keys individually (`id_rsa`, `id_ed25519`, ...) misses
+`~/.ssh/work_key`; denying the directory covers arbitrary key names, and the
+narrower `allowRead` keeps host-key verification working. Allow-within-deny with
+most-specific-wins is documented for `denyRead`; whether an `allowRead` can
+re-open a `credentials.files` entry is not, so the pair lives in `filesystem`
+where the precedence is specified.
+
+Three limits worth stating. `~/.npmrc` and `~/.pypirc` double as tooling config,
+so denying them is the entry most likely to break a private-registry install --
+drop those two lines first if `npm ci` or `pip install` starts failing. Extension
+patterns (`*.pem`, `*.tfvars`, `*.p12`) cannot be expressed here at all and stay
+with the deny globs. And none of this constrains `excludedCommands` (`gh`,
+`glab`, `docker`), which run outside the sandbox entirely.
+
 The `Bash` matcher was removed from `claude-code/settings.json`,
 `codex/hooks.json`, and `copilot/hooks.json` at the same time, so the hook is no
 longer spawned per command. `tests/test-security-hook.sh` asserts Bash payloads
