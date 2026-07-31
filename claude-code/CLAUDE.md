@@ -95,7 +95,8 @@ Apply to new content and to sections you are substantively rewriting. Do NOT ref
 Exceptions, in priority order:
 1. **Project tooling wins.** A repo's `.editorconfig`, `.prettierrc`, `.markdownlint*.json`, or similar configured with a different policy (e.g. `proseWrap: "always"` and `printWidth: 80`) overrides this default. Prettier `proseWrap: "preserve"` and markdownlint `MD013: false` are the compatible settings; their absence does not block this default, but a stricter policy's presence does.
 2. **Code blocks, tables, and frontmatter are mechanical.** Don't reformat them as prose.
-3. **Commit messages and PR descriptions** follow their own conventions (subject < 72 chars, body wrapped to ~72) -- semantic breaks do not apply there.
+3. **Commit messages** wrap the body to ~72 columns (subject < 72 chars) -- git and terminal tooling do not reflow, so source width is display width.
+4. **PR, issue, and comment bodies on GitHub do NOT wrap.** GitHub renders them as GFM with hardbreaks enabled, so every newline becomes a `<br>` and a 72-column source displays as a narrow ragged column. Let paragraph lines run long, or use one sentence per line; separate paragraphs with blank lines. This is deliberately the opposite of the commit-message rule above, and applies only to text destined for the GitHub web UI -- `.md` files rendered from the repo do reflow and follow the default.
 
 When in doubt, match the surrounding file's existing style rather than introducing a third pattern.
 
