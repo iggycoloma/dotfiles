@@ -6,7 +6,7 @@
 - Use conventional commits; no AI attribution or Co-Authored-By lines
 - Never read .env, credentials, secrets, .pem, .key files
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.config/glab-cli, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
-- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json
+- Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json, ~/.claude/.credentials.json
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 
 Enforcement: `settings.json` permission hooks carry the credential deny lists, `pre-security.sh` blocks sensitive paths at runtime, `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.

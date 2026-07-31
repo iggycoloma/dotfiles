@@ -32,6 +32,9 @@ SENSITIVE_PATHS=(
     "*/.env.staging"
     "*/credentials.json"
     "*/.credentials"
+    # The agent CLIs' own OAuth tokens. `*/credentials.json` does not reach
+    # these: the leading dot means the char before the match is not a `/`.
+    "*/.credentials.json"
     "*/secrets.yaml"
     "*/secrets.json"
     "*/.aws/credentials"

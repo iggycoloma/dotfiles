@@ -136,6 +136,24 @@ test_bash_credential_files() {
     assert_blocked "$(run_bash_hook 'cat secrets.json')" "Blocks secrets.json"
 }
 
+test_bash_agent_oauth_tokens() {
+    # The agent CLIs' own OAuth tokens. The Bash scan already caught these via
+    # the `.credentials` substring; the file tools did not, because a leading
+    # dot puts the basename out of reach of the `*/credentials.json` glob.
+    assert_blocked "$(run_bash_hook 'cat ~/.claude/.credentials.json')" "Blocks .claude/.credentials.json"
+    assert_blocked "$(run_file_hook Read '/home/user/.claude/.credentials.json')" "Read blocks .credentials.json"
+    assert_blocked "$(run_file_hook Write '/home/user/.claude/.credentials.json')" "Write blocks .credentials.json"
+    assert_blocked "$(run_file_hook Edit '/home/user/.claude/.credentials.json')" "Edit blocks .credentials.json"
+    assert_blocked "$(run_file_hook Read '.credentials.json')" "Read blocks bare .credentials.json"
+
+    local patch
+    patch='*** Begin Patch
+*** Update File: .claude/.credentials.json
++{}
+*** End Patch'
+    assert_blocked "$(run_apply_patch_hook "$patch")" "apply_patch blocks .credentials.json"
+}
+
 test_bash_ssh_keys() {
     assert_blocked "$(run_bash_hook 'cat ~/.ssh/id_rsa')" "Blocks .ssh/id_rsa"
     assert_blocked "$(run_bash_hook 'cat ~/.ssh/id_ed25519')" "Blocks .ssh/id_ed25519"
@@ -454,6 +472,7 @@ main() {
     test_suite "Layer 2: Exact Path Matching"
     test_bash_env_files
     test_bash_credential_files
+    test_bash_agent_oauth_tokens
     test_bash_ssh_keys
     test_bash_git_credentials
     test_bash_database_credentials
