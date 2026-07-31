@@ -178,8 +178,8 @@ reference.
 ### Agentic coding support
 
 Native installs of Claude Code and Codex CLI on hosts, devcontainers, and
-Codespaces (no Node.js, no devcontainer features). Both upgrade to the current
-release on re-run; every other tool stays install-once.
+Codespaces (no Node.js, no devcontainer features). Install-once, like every
+other tool -- run `claude update` or `codex update` to move one forward.
 Shared guardrails across a six-file instruction
 architecture (project-scope `AGENTS.md` + `CLAUDE.md` +
 `.github/copilot-instructions.md`, plus global-scope `claude-code/CLAUDE.md`
