@@ -105,7 +105,7 @@ Summary:
 
 | Hook                      | Trigger (Claude Code) | Action                                                         |
 |---------------------------|------------------|---------------------------------------------------------------------|
-| `pre-security.sh`         | Read/Write/Edit/Bash | Blocks ~50 sensitive file patterns and credential directories   |
+| `pre-security.sh`         | Read/Write/Edit  | Blocks ~50 sensitive file patterns and credential directories       |
 | `pre-code-no-emoji.sh`    | Write/Edit       | Blocks decorative emoji in code files                               |
 | `notify.sh`               | Notification     | Pushover notification when Claude is idle and waiting for input     |
 
@@ -123,7 +123,7 @@ guards less there:
 
 | Guard                | Claude Code                       | Codex                              |
 |----------------------|-----------------------------------|------------------------------------|
-| Bash command scan    | Yes (`Bash`)                      | Yes (`Bash`)                       |
+| Bash command scan    | No -- retired                     | No -- retired                      |
 | File-write path scan | Yes (`Write`/`Edit`/`MultiEdit`)  | Yes (`apply_patch`), Codex >= 0.123.0 |
 | File-read blocking   | Yes (`Read`)                      | No -- no read tool fires PreToolUse |
 | No-emoji guard       | Yes (`Write`/`Edit`)              | Yes (`apply_patch`), Codex >= 0.123.0 |
@@ -138,19 +138,19 @@ A matcher using Claude's tool names is dead wiring, which is what
 `apply_patch` did not emit hook events at all until Codex 0.123.0
 ([#16732](https://github.com/openai/codex/issues/16732),
 [#17794](https://github.com/openai/codex/issues/17794)).
-On anything older, only the Bash scan is live; check with `codex --version`.
+On anything older no guard is live at all; check with `codex --version`.
 
 Credential-read blocking is not achievable on Codex at any version.
 Its `read_file` and `grep` handlers implement no `pre_tool_use_payload`, so no
 hook fires ([#20204](https://github.com/openai/codex/issues/20204),
 [#18491](https://github.com/openai/codex/issues/18491)).
-The Bash scan catches shell-based reads such as `cat ~/.ssh/id_rsa`, which is
-the partial mitigation.
-
-Note that `unified_exec` -- Codex's streaming shell path -- is covered.
-It fires `PreToolUse` reporting `tool_name` as `Bash` with a string
-`tool_input.command`, so the existing Bash matcher and the `TOOL_NAME == "Bash"`
-branch in `pre-security.sh` handle it with no extra wiring.
+The Bash scan used to be the partial mitigation for shell-based reads such as
+`cat ~/.ssh/id_rsa`; it was retired because it could not model quoting or
+expansion and prompted on ordinary commands
+(see [sandbox.md](sandbox.md#why-there-is-no-bash-scan)).
+On Claude Code `sandbox.credentials` replaces it. Codex has no equivalent, so on
+Codex the remaining boundary is its native `sandbox_mode` -- `workspace-write`
+with network off by default on hosts, the container in devcontainers.
 
 `tests/test-hook-matchers.sh` locks this down: it checks that every matcher in
 `claude-code/settings.json` and `codex/hooks.json` names a tool its platform

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Tests for agent-hooks/pre-security.sh
-# Covers all 4 defense layers:
-#   1. Permissions deny list (settings.json) -- not testable here, declarative config
-#   2. Exact path/extension substring matching (Check 1)
-#   3. Directory-level and standalone file blocking (Check 2, 2b)
-#   4. Glob/regex pattern matching (Check 3)
+#
+# The hook guards file-path arguments only: Claude's Read/Write/Edit/MultiEdit
+# and Codex's apply_patch. Bash commands are deliberately not inspected -- see
+# the "Bash is not inspected" suite below and docs/sandbox.md
+# "Why there is no Bash scan".
 
 set +e
 
@@ -108,7 +108,7 @@ test_hook_handles_multiline_json() {
     # Regression: read -r used to truncate the payload at the first newline.
     # Pretty-printed JSON would parse-fail in jq and silently allow.
     local payload
-    payload=$'{\n  "tool_name": "Bash",\n  "tool_input": {"command": "cat .env"}\n}'
+    payload=$'{\n  "tool_name": "Read",\n  "tool_input": {"file_path": "/home/user/project/.env"}\n}'
     local result
     result=$(printf '%s' "$payload" | bash "$HOOK" 2>/dev/null)
     if [[ -n "$result" ]] && echo "$result" | jq -e '.hookSpecificOutput.permissionDecision' >/dev/null 2>&1; then
@@ -119,225 +119,37 @@ test_hook_handles_multiline_json() {
 }
 
 #
-# Layer 2: Exact path substring matching (SENSITIVE_PATHS + SENSITIVE_EXTENSIONS)
+# Bash is not inspected -- deliberate, not a regression.
+#
+# A substring scan over a command string cannot tell naming a path from opening
+# one, and cannot model quoting or expansion. It produced steady false prompts
+# (measured: 19 of 60 ordinary dev commands) while missing any non-literal
+# access. Credential reads from Bash are now blocked by `sandbox.credentials` in
+# claude-code/settings.json, enforced by bwrap/Seatbelt against every child
+# process, and by the container boundary plus CLAUDE_CODE_SUBPROCESS_ENV_SCRUB
+# in devcontainers.
+#
+# These assertions exist so re-adding a Bash branch is a deliberate act with a
+# failing test attached, not a quiet drift back.
 #
 
-test_bash_env_files() {
-    assert_blocked "$(run_bash_hook 'cat .env')" "Blocks .env"
-    assert_blocked "$(run_bash_hook 'cat .env.local')" "Blocks .env.local"
-    assert_blocked "$(run_bash_hook 'cat .env.production')" "Blocks .env.production"
-    assert_blocked "$(run_bash_hook 'cat .env.staging')" "Blocks .env.staging"
-}
-
-test_bash_credential_files() {
-    assert_blocked "$(run_bash_hook 'cat credentials.json')" "Blocks credentials.json"
-    assert_blocked "$(run_bash_hook 'cat .credentials')" "Blocks .credentials"
-    assert_blocked "$(run_bash_hook 'cat secrets.yaml')" "Blocks secrets.yaml"
-    assert_blocked "$(run_bash_hook 'cat secrets.json')" "Blocks secrets.json"
-}
-
-test_bash_agent_oauth_tokens() {
-    # The agent CLIs' own OAuth tokens. The Bash scan already caught these via
-    # the `.credentials` substring; the file tools did not, because a leading
-    # dot puts the basename out of reach of the `*/credentials.json` glob.
-    assert_blocked "$(run_bash_hook 'cat ~/.claude/.credentials.json')" "Blocks .claude/.credentials.json"
-    assert_blocked "$(run_file_hook Read '/home/user/.claude/.credentials.json')" "Read blocks .credentials.json"
-    assert_blocked "$(run_file_hook Write '/home/user/.claude/.credentials.json')" "Write blocks .credentials.json"
-    assert_blocked "$(run_file_hook Edit '/home/user/.claude/.credentials.json')" "Edit blocks .credentials.json"
-    assert_blocked "$(run_file_hook Read '.credentials.json')" "Read blocks bare .credentials.json"
-
-    local patch
-    patch='*** Begin Patch
-*** Update File: .claude/.credentials.json
-+{}
-*** End Patch'
-    assert_blocked "$(run_apply_patch_hook "$patch")" "apply_patch blocks .credentials.json"
-}
-
-test_bash_ssh_keys() {
-    assert_blocked "$(run_bash_hook 'cat ~/.ssh/id_rsa')" "Blocks .ssh/id_rsa"
-    assert_blocked "$(run_bash_hook 'cat ~/.ssh/id_ed25519')" "Blocks .ssh/id_ed25519"
-}
-
-test_bash_git_credentials() {
-    assert_blocked "$(run_bash_hook 'cat ~/.git-credentials')" "Blocks .git-credentials"
-    assert_blocked "$(run_bash_hook 'cat ~/.config/git/credentials')" "Blocks config/git/credentials"
-    assert_blocked "$(run_bash_hook 'cat ~/.git/config')" "Blocks .git/config"
-}
-
-test_bash_database_credentials() {
-    assert_blocked "$(run_bash_hook 'cat ~/.pgpass')" "Blocks .pgpass"
-    assert_blocked "$(run_bash_hook 'cat ~/.my.cnf')" "Blocks .my.cnf"
-    assert_blocked "$(run_bash_hook 'cat ~/.mongorc.js')" "Blocks .mongorc.js"
-}
-
-test_bash_extensions() {
-    assert_blocked "$(run_bash_hook 'cat server.pem')" "Blocks .pem"
-    assert_blocked "$(run_bash_hook 'cat private.key')" "Blocks .key"
-    assert_blocked "$(run_bash_hook 'cat cert.p12')" "Blocks .p12"
-    assert_blocked "$(run_bash_hook 'cat cert.pfx')" "Blocks .pfx"
-    assert_blocked "$(run_bash_hook 'cat server.ppk')" "Blocks .ppk"
-    assert_blocked "$(run_bash_hook 'cat terraform.tfvars')" "Blocks .tfvars"
-    assert_blocked "$(run_bash_hook 'cat app.jks')" "Blocks .jks"
-    assert_blocked "$(run_bash_hook 'cat app.keystore')" "Blocks .keystore"
-}
-
-#
-# Layer 3a: Directory-level blocking (SENSITIVE_DIRS)
-#
-
-test_bash_sensitive_dirs_slash() {
-    assert_blocked "$(run_bash_hook 'rg x ~/.ssh/')" "Blocks .ssh/ directory access"
-    assert_blocked "$(run_bash_hook 'rg x ~/.aws/')" "Blocks .aws/ directory access"
-    assert_blocked "$(run_bash_hook 'rg x ~/.gnupg/')" "Blocks .gnupg/ directory access"
-    assert_blocked "$(run_bash_hook 'rg x ~/.azure/')" "Blocks .azure/ directory access"
-    assert_blocked "$(run_bash_hook 'rg x ~/.config/gcloud/')" "Blocks .config/gcloud/ directory"
-    assert_blocked "$(run_bash_hook 'rg x ~/.config/gh/')" "Blocks .config/gh/ directory"
-    assert_blocked "$(run_bash_hook 'rg x ~/.docker/')" "Blocks .docker/ directory"
-    assert_blocked "$(run_bash_hook 'rg x ~/.kube/')" "Blocks .kube/ directory"
-}
-
-test_bash_sensitive_dirs_new() {
-    assert_blocked "$(run_bash_hook 'rg x ~/.config/heroku/')" "Blocks .config/heroku/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.config/doctl/')" "Blocks .config/doctl/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.gradle/')" "Blocks .gradle/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.m2/')" "Blocks .m2/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.minikube/')" "Blocks .minikube/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.cargo/')" "Blocks .cargo/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.gem/')" "Blocks .gem/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.composer/')" "Blocks .composer/"
-    assert_blocked "$(run_bash_hook 'rg x ~/.stripe/')" "Blocks .stripe/"
-    # Agent-tool credential dirs from CLAUDE.md.
-    assert_blocked "$(run_bash_hook 'cat ~/.copilot/auth.json')" "Blocks .copilot/"
-    assert_blocked "$(run_bash_hook 'cat ~/.cursor/credentials')" "Blocks .cursor/"
-    assert_blocked "$(run_bash_hook 'cat ~/.windsurf/config')" "Blocks .windsurf/"
-    assert_blocked "$(run_bash_hook 'cat ~/.continue/config.json')" "Blocks .continue/"
-}
-
-test_bash_sensitive_dirs_glob_bypass() {
-    # These previously bypassed the hook via glob expansion
-    assert_blocked "$(run_bash_hook 'cp ~/.ssh/* /tmp/')" "Blocks glob copy from .ssh"
-    assert_blocked "$(run_bash_hook 'find ~/.ssh -type f | xargs cat')" "Blocks pipe from .ssh"
-}
-
-test_bash_shell_expansion_bypass() {
-    # Variable expansion that splits a sensitive identifier across tokens.
-    # The literal `.ssh` never appears in the command, so substring scans miss
-    # it; Check 4 catches the combination of `~/.` and `$`.
-    # shellcheck disable=SC2016  # literals being passed as input
-    assert_blocked "$(run_bash_hook 'D=ssh; cat ~/.$D/id_rsa')" "Blocks dotfile + var expansion"
+test_bash_former_false_positives_pass() {
+    assert_allowed "$(run_bash_hook "jq -r '.key' package.json")" "Bash: jq '.key' not inspected"
+    assert_allowed "$(run_bash_hook 'cat .env.example')" "Bash: .env.example not inspected"
+    # shellcheck disable=SC2016  # literal, passed to the hook verbatim
+    assert_allowed "$(run_bash_hook 'export PATH="$HOME/.cargo/bin:$PATH"')" "Bash: .cargo on PATH not inspected"
+    assert_allowed "$(run_bash_hook 'rg "settings.local.json" docs/')" "Bash: grepping for a filename not inspected"
     # shellcheck disable=SC2016
-    assert_blocked "$(run_bash_hook 'x=$(printf %s ssh); cat ~/.$x/id_rsa')" "Blocks dotfile + command substitution"
-    # shellcheck disable=SC2016
-    assert_blocked "$(run_bash_hook 'cat $HOME/.$(echo aws)/credentials')" "Blocks \$HOME dotfile + cmd subst"
-    # Backtick form
-    # shellcheck disable=SC2016
-    assert_blocked "$(run_bash_hook 'cat ~/.`echo ssh`/id_rsa')" "Blocks dotfile + backticks"
+    assert_allowed "$(run_bash_hook 'GITHUB_TOKEN=$T gh pr list')" "Bash: scoped env assignment not inspected"
+    assert_allowed "$(run_bash_hook 'cat .git/config')" "Bash: .git/config not inspected"
 }
 
-test_bash_sensitive_env_assignment() {
-    # Assigning a credential-redirecting env-var is suspicious whether or not
-    # the redirected path is sensitive on disk -- the *purpose* is exfil.
-    assert_blocked "$(run_bash_hook 'AWS_SHARED_CREDENTIALS_FILE=/tmp/x aws s3 ls')" "Blocks AWS_SHARED_CREDENTIALS_FILE assignment"
-    assert_blocked "$(run_bash_hook 'AWS_CONFIG_FILE=/tmp/c aws sts get-caller-identity')" "Blocks AWS_CONFIG_FILE assignment"
-    assert_blocked "$(run_bash_hook 'KUBECONFIG=/tmp/k kubectl get pods')" "Blocks KUBECONFIG assignment"
-    assert_blocked "$(run_bash_hook 'GNUPGHOME=/tmp/g gpg --list-keys')" "Blocks GNUPGHOME assignment"
-    assert_blocked "$(run_bash_hook 'GOOGLE_APPLICATION_CREDENTIALS=/tmp/g gcloud auth list')" "Blocks GOOGLE_APPLICATION_CREDENTIALS assignment"
-    assert_blocked "$(run_bash_hook 'export KUBECONFIG=/tmp/k')" "Blocks export KUBECONFIG=..."
-    assert_blocked "$(run_bash_hook 'a=1; b=2; AWS_CONFIG_FILE=/tmp/x aws sts get-caller-identity')" "Blocks AWS_CONFIG_FILE after other assigns"
-}
-
-test_bash_sensitive_dirs_end_of_string() {
-    # Directory at end of command (no trailing /)
-    assert_blocked "$(run_bash_hook 'ls ~/.ssh')" "Blocks .ssh at end of command"
-    assert_blocked "$(run_bash_hook 'ls ~/.aws')" "Blocks .aws at end of command"
-}
-
-#
-# Layer 3b: Standalone sensitive files (SENSITIVE_FILES)
-#
-
-test_bash_sensitive_standalone_files() {
-    assert_blocked "$(run_bash_hook 'cat ~/.npmrc')" "Blocks .npmrc"
-    assert_blocked "$(run_bash_hook 'cat ~/.pypirc')" "Blocks .pypirc"
-    assert_blocked "$(run_bash_hook 'cat ~/.netrc')" "Blocks .netrc"
-    assert_blocked "$(run_bash_hook 'cat ~/.htpasswd')" "Blocks .htpasswd"
-    assert_blocked "$(run_bash_hook 'cat .env.vault')" "Blocks .env.vault"
-}
-
-#
-# Layer 4: Glob/regex pattern matching (SENSITIVE_GLOB_PATTERNS)
-#
-
-test_bash_glob_evasion() {
-    assert_blocked "$(run_bash_hook 'cat .en*')" "Blocks .en* glob"
-    assert_blocked "$(run_bash_hook 'cat .en?')" "Blocks .en? glob"
-    assert_blocked "$(run_bash_hook 'cat .envrc')" "Blocks .envrc (matches .env pattern)"
-}
-
-test_bash_keyword_not_false_positive() {
-    # Keywords in arguments/titles/search terms should NOT trigger blocks.
-    # The actual credential files are covered by other layers (Check 1, 2, 2b).
-    assert_allowed "$(run_bash_hook 'gh pr create --title "feat: token refresh"')" "Allows token in PR title"
-    assert_allowed "$(run_bash_hook 'git commit -m "fix: credential handler"')" "Allows credential in commit message"
-    assert_allowed "$(run_bash_hook 'grep -r "password" src/validators.py')" "Allows password as grep argument"
-    assert_allowed "$(run_bash_hook 'rg secret src/config/')" "Allows secret as search term"
-    assert_allowed "$(run_bash_hook 'git commit -m "fix auth.json handling"')" "Allows auth.json in commit message"
-    assert_allowed "$(run_bash_hook 'curl -H "Authorization: Bearer tok" https://api.example.com')" "Allows auth header in curl"
-}
-
-test_bash_credential_files_still_blocked() {
-    # Actual credential files are still blocked by Check 1 (exact path matching)
-    assert_blocked "$(run_bash_hook 'cat credentials.json')" "Blocks credentials.json (Check 1)"
-    assert_blocked "$(run_bash_hook 'cat secrets.yaml')" "Blocks secrets.yaml (Check 1)"
-    assert_blocked "$(run_bash_hook 'cat secrets.json')" "Blocks secrets.json (Check 1)"
-    assert_blocked "$(run_bash_hook 'cat .credentials')" "Blocks .credentials (Check 1)"
-    # auth.json in composer dir blocked by Check 2 (directory-level)
-    assert_blocked "$(run_bash_hook 'cat ~/.composer/auth.json')" "Blocks ~/.composer/auth.json (Check 2)"
-}
-
-#
-# Single-quoted regex literals vs real paths
-#
-
-test_bash_quoted_regex_literals_allowed() {
-    # Regression: rewriting a pattern that *names* a credential file used to read
-    # as accessing one. Inside single quotes a backslash is not a shell escape,
-    # so `\.env` there is a regex, not a path.
-    assert_allowed "$(run_bash_hook "perl -0pi -e 's/^# catches \.en\*, \.env\?, etc\.\n//m;' agent-hooks/pre-security.sh")" \
-        "Allows perl regex mentioning .env"
-    assert_allowed "$(run_bash_hook "sd '\.npmrc' NPMRC docs/setup.md")" "Allows sd pattern mentioning .npmrc"
-    assert_allowed "$(run_bash_hook "rg '\.ssh/config' docs/")" "Allows rg pattern mentioning .ssh/config"
-    assert_allowed "$(run_bash_hook "sed -i 's/\.aws\/credentials//' README.md")" "Allows sed pattern mentioning .aws/credentials"
-
-    # Neutralizing an escape must not let its neighbours close up into a match:
-    # deleting `\/` here would glue `.aws` to perl's closing delimiter.
-    assert_allowed "$(run_bash_hook "perl -0pi -e 's/^# old\n/    # globs: ~\/.ssh\/*, rg ~\/.aws\/\n/m;' hook.sh")" \
-        "Allows perl replacement whose escapes bracket a directory name"
-}
-
-test_bash_quoted_regex_evasion_still_blocked() {
-    # The guard must not become an escape hatch: outside single quotes a
-    # backslash IS shell escaping, and `~/\.env` still opens the file.
-    assert_blocked "$(run_bash_hook "cat ~/\.env")" "Blocks unquoted backslash-escaped .env"
-    assert_blocked "$(run_bash_hook "cat ~/\.ssh/id_rsa")" "Blocks unquoted backslash-escaped .ssh path"
-    assert_blocked "$(run_bash_hook "cat \"~/\.env\"")" "Blocks double-quoted backslash-escaped .env"
-
-    # A regex literal in the same command as a real access does not launder it.
-    assert_blocked "$(run_bash_hook "printf 'a\tb' && cat ~/.ssh/id_rsa")" "Blocks real .ssh access alongside quoted escape"
-    assert_blocked "$(run_bash_hook "echo \"don't touch\" && sed 's/\.x//' f && cat ~/.aws/credentials")" \
-        "Blocks real .aws access with mixed quoting"
-
-    # Oversized commands skip the strip rather than risk the hook's timeout,
-    # which would fail open. Padding must not launder a real access.
-    local padding="" pad_cmd
-    while ((${#padding} < 5000)); do padding+="perl -pe 's/\.foo//' x && "; done
-    pad_cmd="$padding cat ~/.ssh/id_rsa"
-    assert_blocked "$(run_bash_hook "$pad_cmd")" "Blocks .ssh access padded past the strip limit"
-
-    # Single-quoted but unescaped stays blocked -- conservative by design.
-    assert_blocked "$(run_bash_hook "sed -n '/.env/p' config.txt")" "Blocks unescaped .env inside single quotes"
-    assert_blocked "$(run_bash_hook "perl -e 'open(F, \"/home/me/.env\") or die'")" "Blocks real path inside single quotes"
+test_bash_credential_reads_delegated() {
+    # These ARE credential access. The hook no longer blocks them; the sandbox
+    # does. Asserting pass-through here keeps the delegation explicit rather
+    # than leaving a silent hole nobody documented.
+    assert_allowed "$(run_bash_hook 'cat ~/.ssh/id_rsa')" "Bash: ssh key read delegated to sandbox.credentials"
+    assert_allowed "$(run_bash_hook 'cat ~/.aws/credentials')" "Bash: aws creds read delegated to sandbox.credentials"
 }
 
 #
@@ -356,6 +168,11 @@ test_file_tool_sensitive_dirs() {
     assert_blocked "$(run_file_hook Write '/home/user/.aws/config')" "Write blocks .aws directory contents"
     assert_blocked "$(run_file_hook Edit '/home/user/.config/gh/hosts.yml')" "Edit blocks .config/gh directory contents"
     assert_blocked "$(run_file_hook MultiEdit '/home/user/.docker/config.json')" "MultiEdit blocks .docker directory contents"
+}
+
+test_file_tool_agent_oauth_tokens() {
+    assert_blocked "$(run_file_hook Read '/home/user/.claude/.credentials.json')" "Read blocks the Claude OAuth token file"
+    assert_blocked "$(run_file_hook Read '/home/user/.codex/.credentials.json')" "Read blocks the Codex OAuth token file"
 }
 
 test_file_tool_extensions() {
@@ -379,6 +196,8 @@ test_file_tool_path_traversal() {
 test_file_tool_safe_paths() {
     assert_allowed "$(run_file_hook Read '/home/user/project/README.md')" "Allows README.md"
     assert_allowed "$(run_file_hook Read '/home/user/project/src/index.js')" "Allows src/index.js"
+    assert_allowed "$(run_file_hook Read '/home/user/project/package.json')" "Allows package.json"
+    assert_allowed "$(run_file_hook Read '/home/user/project/docs/keys.md')" "Allows docs/keys.md"
     assert_allowed "$(run_file_hook Write '/home/user/project/output.txt')" "Allows writing output.txt"
 }
 
@@ -416,37 +235,8 @@ test_apply_patch_safe_paths() {
     assert_allowed "$(run_apply_patch_hook "$patch")" "apply_patch allows safe add path"
 }
 
-#
-# False positive checks - these MUST be allowed
-#
-
-test_no_false_positives() {
-    assert_allowed "$(run_bash_hook 'ls -la')" "Allows ls"
-    assert_allowed "$(run_bash_hook 'git status')" "Allows git status"
-    assert_allowed "$(run_bash_hook 'rg TODO src/')" "Allows rg in src/"
-    assert_allowed "$(run_bash_hook 'cat README.md')" "Allows cat README.md"
-    assert_allowed "$(run_bash_hook 'cp src/foo.js src/bar.js')" "Allows cp in project"
-    assert_allowed "$(run_bash_hook 'fd main src/')" "Allows fd in src/"
-    assert_allowed "$(run_bash_hook 'scc .')" "Allows scc"
-    assert_allowed "$(run_bash_hook 'git log --oneline')" "Allows git log"
-    assert_allowed "$(run_bash_hook 'npm test')" "Allows npm test"
-    assert_allowed "$(run_bash_hook 'python3 -c print(1)')" "Allows python3"
-    # Check-4 shouldn't trip on legitimate dotfile paths that just happen to
-    # appear in the same command as a $-expansion. The literal command text
-    # contains a $, but Check-4 fires only when $ or ` *immediately follows*
-    # the dotfile dot.
-    # shellcheck disable=SC2016  # literals being passed to the hook
-    assert_allowed "$(run_bash_hook 'echo $HOME/.local/bin')" "Allows \$HOME/.local"
-    # shellcheck disable=SC2016
-    assert_allowed "$(run_bash_hook 'for f in ~/.local/share/*; do echo \"\$f\"; done')" "Allows ~/.local glob in for-loop"
-    # Check-5 shouldn't trip on innocuous assignments.
-    # shellcheck disable=SC2016
-    assert_allowed "$(run_bash_hook 'PATH=/usr/local/bin:$PATH ls')" "Allows PATH= assignment"
-    assert_allowed "$(run_bash_hook 'DEBUG=1 npm test')" "Allows DEBUG= assignment"
-}
-
 test_non_bash_tool_passthrough() {
-    # Tools other than Bash/Read/Write/Edit should pass through
+    # Tools other than Read/Write/Edit/apply_patch should pass through
     local json='{"tool_name":"Glob","tool_input":{"pattern":"**/*.js"}}'
     local result
     result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
@@ -469,38 +259,14 @@ main() {
     test_hook_requires_jq
     test_hook_handles_multiline_json
 
-    test_suite "Layer 2: Exact Path Matching"
-    test_bash_env_files
-    test_bash_credential_files
-    test_bash_agent_oauth_tokens
-    test_bash_ssh_keys
-    test_bash_git_credentials
-    test_bash_database_credentials
-    test_bash_extensions
-
-    test_suite "Layer 3a: Directory-Level Blocking"
-    test_bash_sensitive_dirs_slash
-    test_bash_sensitive_dirs_new
-    test_bash_sensitive_dirs_glob_bypass
-    test_bash_sensitive_dirs_end_of_string
-    test_bash_shell_expansion_bypass
-    test_bash_sensitive_env_assignment
-
-    test_suite "Layer 3b: Standalone Sensitive Files"
-    test_bash_sensitive_standalone_files
-
-    test_suite "Layer 4: Glob/Regex Pattern Matching"
-    test_bash_glob_evasion
-    test_bash_keyword_not_false_positive
-    test_bash_credential_files_still_blocked
-
-    test_suite "Quoted Regex Literals"
-    test_bash_quoted_regex_literals_allowed
-    test_bash_quoted_regex_evasion_still_blocked
+    test_suite "Bash is not inspected"
+    test_bash_former_false_positives_pass
+    test_bash_credential_reads_delegated
 
     test_suite "File Tool Checks (Read/Write/Edit)"
     test_file_tool_env
     test_file_tool_sensitive_dirs
+    test_file_tool_agent_oauth_tokens
     test_file_tool_extensions
     test_file_tool_path_traversal
     test_file_tool_safe_paths
@@ -509,8 +275,7 @@ main() {
     test_apply_patch_sensitive_paths
     test_apply_patch_safe_paths
 
-    test_suite "False Positive Prevention"
-    test_no_false_positives
+    test_suite "Pass-through"
     test_non_bash_tool_passthrough
 
     print_test_summary

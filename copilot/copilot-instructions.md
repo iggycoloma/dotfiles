@@ -11,7 +11,7 @@
 
 ## Command legibility (permissions, security, observability)
 
-Your tool's permission checks, the `pre-security.sh` path scan, and the session/audit log all read the literal command string -- the realtime gate and the audit trail share the same blind spot, so keep that string an honest record of what runs.
+Your tool's permission checks and the session/audit log both read the literal command string -- the realtime gate and the audit trail share the same blind spot, so keep that string an honest record of what runs.
 
 - Prefer built-in file-search and edit tools over shelling out to read, search, or edit files -- no permission prompt, structured output, and a typed log event instead of a raw shell string.
 - Keep commands literal: do not hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). These defeat the scan at runtime and make the log unsearchable and non-reproducible afterward.

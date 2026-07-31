@@ -194,6 +194,44 @@ Each workaround was correct in isolation, but the pattern was that container
 config kept encoding *host-OS* knowledge. That dependency direction is wrong:
 the container should not need to know what host it is running on.
 
+### `enableWeakerNestedSandbox` does not reopen this
+
+Upstream ships `sandbox.enableWeakerNestedSandbox` for unprivileged containers,
+which reads like the missing piece. It is not, and the reason is worth recording
+so this does not get re-litigated a third time.
+
+The setting makes bwrap bind-mount the container's *existing* `/proc` instead of
+mounting a fresh one. That is a problem you hit **after** creating namespaces
+successfully. Namespace creation is what fails first inside these containers:
+
+```
+$ unshare --user --map-root-user true
+unshare: unshare failed: Operation not permitted
+$ bwrap --unshare-user --dev-bind / / true
+bwrap: No permissions to create a new namespace, likely because the kernel
+       does not allow non-privileged user namespaces.
+```
+
+`Seccomp: 2` in `/proc/self/status` with `CAP_SYS_ADMIN` absent from `CapBnd`
+is the Docker default seccomp profile blocking the clone/unshare path -- failure
+modes 2 and 3 above, unchanged. Reaching the stage `enableWeakerNestedSandbox`
+addresses still requires `--security-opt=seccomp=unconfined` and
+`--cap-add=SYS_ADMIN`, which is trading a strong outer boundary for a weaker
+inner one. Our own `unattended/devcontainer-rubric.json` warns on both
+(`runargs-seccomp-unconfined`, `runargs-cap-sys-admin`), and the `unattended`
+profile runs `--cap-drop=ALL --security-opt=no-new-privileges` -- pointed the
+opposite way on purpose.
+
+Trail of Bits reaches the same conclusion for their hardened Claude Code
+devcontainer: *"Do not 'fix' bubblewrap by granting SYS_ADMIN /
+seccomp=unconfined / unprivileged user namespaces -- that lets the AI nest a
+sandbox by weakening the container's own boundary."*
+
+Upstream's own guidance now agrees with the tiering: the dev container is ranked
+a *peer* isolation approach to the Bash sandbox, not a base to layer under, and
+it is the recommended boundary for unattended runs precisely because the Bash
+sandbox does not cover Read/Edit, MCP servers, or hooks.
+
 The pivot: **the container is itself a kernel-enforced isolation primitive,
 and bwrap inside a container is defense-in-depth with high maintenance cost.**
 Drop bwrap inside containers, keep it on hosts where it has no leaky
@@ -756,6 +794,54 @@ exporting the env var still resolve correctly). Then:
 
 The container does not install `bubblewrap` or `socat` -- those are skipped in
 `bootstrap/packages.sh` when `is_devcontainer()` is true.
+
+A base image may still ship them, so `command -v bwrap` succeeding inside a
+container is not evidence the sandbox could run there. It cannot: namespace
+creation is blocked before bwrap gets far enough to matter. See
+[`enableWeakerNestedSandbox` does not reopen this](#enableweakernestedsandbox-does-not-reopen-this).
+
+Why there is no Bash scan
+=========================
+
+`agent-hooks/pre-security.sh` guards file-path arguments only -- Claude's
+Read/Write/Edit/MultiEdit and Codex's `apply_patch`. It used to also scan Bash
+command strings for credential filenames. That branch was retired.
+
+The scan matched credential names as bare substrings against the whole command,
+with no path context, so *mentioning* a path was indistinguishable from
+*opening* one. Measured against 60 ordinary development commands, 19 tripped it
+and only 3 were real credential access: `jq -r '.key'`, `export
+PATH="$HOME/.cargo/bin:$PATH"`, `cat .env.example`, `rg "settings.local.json"`,
+and `GITHUB_TOKEN=$T gh pr list` all prompted. The last is the safe way to scope
+a token, penalised by the guard meant to protect it.
+
+It was not buying coverage in exchange. It missed `gh auth token`,
+`curl -d "$(env)"`, `grep -r "AKIA" ~`, and `cat ~/.s''sh/id_rsa` -- anything
+that does not spell the path literally. A string matcher cannot model bash's
+quoting and expansion, which is a category limit, not a tuning problem; adding
+patterns closes none of it.
+
+What replaces it, per tier:
+
+| Tier | Credential reads from Bash gated by |
+|------|-------------------------------------|
+| Host | `sandbox.credentials.files` in `claude-code/settings.json`, enforced by bwrap/Seatbelt against every child process |
+| Container | The container boundary; host credential paths are not mounted in |
+| Both | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credential env vars from every subprocess regardless of sandboxing |
+
+The `Bash` matcher was removed from `claude-code/settings.json`,
+`codex/hooks.json`, and `copilot/hooks.json` at the same time, so the hook is no
+longer spawned per command. `tests/test-security-hook.sh` asserts Bash payloads
+pass through untouched, and `tests/test-hook-matchers.sh` asserts the probe is
+inert on Bash, so re-adding the branch is a deliberate act with a failing test
+attached.
+
+Two things this genuinely gives up, stated plainly. Codex loses its only
+read-side mitigation, since its `read_file` and `grep` handlers fire no
+`PreToolUse` hook and it has no `sandbox.credentials` equivalent -- its host
+`workspace-write` mode with network off by default is what remains. And
+`excludedCommands` (`gh`, `glab`, `docker`) run outside the sandbox entirely, so
+`sandbox.credentials` does not constrain them either.
 
 Limitations and known gaps
 ==========================

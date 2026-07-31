@@ -224,8 +224,10 @@ assert_return_code 0 $? "claude-code/settings.json is valid JSON"
 test_suite "hook matchers: probes are discriminating"
 
 # Guard the guard: if these self-checks drift, Layer 2 silently passes.
-assert_equals "dispatched" "$(probe_dispatch "$SECURITY_HOOK" Bash)" \
-    "security probe denies a sensitive Bash command"
+# Bash is inert by design -- the command-string scan was retired in favour of
+# sandbox.credentials; see docs/sandbox.md "Why there is no Bash scan".
+assert_equals "inert" "$(probe_dispatch "$SECURITY_HOOK" Bash)" \
+    "security probe treats Bash as inert"
 assert_equals "dispatched" "$(probe_dispatch "$SECURITY_HOOK" apply_patch)" \
     "security probe denies a sensitive apply_patch path"
 assert_equals "inert" "$(probe_dispatch "$SECURITY_HOOK" Glob)" \

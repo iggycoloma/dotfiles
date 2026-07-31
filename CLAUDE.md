@@ -59,13 +59,13 @@ useful when editing the deny lists, dead weight in every unrelated project's ses
 
 - `Read(<glob>)` / `Write(<glob>)` / `Edit(<glob>)` -- real glob matching against the `file_path` argument. The primary boundary for credential paths; covers `.env*`, `~/.ssh/**`, `~/.aws/**`, etc.
 - `Bash(<prefix>:*)` -- prefix match against the command string. `Bash(rm -rf:*)` blocks only commands literally starting with `rm -rf`, not `sudo rm -rf /`, `bash -c 'rm -rf /'`, `env rm -rf /`, `xargs rm -rf`, subshells, or pipes. A tripwire, never a security boundary.
-- The real defense for dangerous Bash is the `pre-security.sh` hook (which scans the full command string for sensitive-path substrings and sensitive-directory access) plus the glob rules above.
+- There is no hook-based Bash scan behind these. `pre-security.sh` guards file-path arguments only; the command-string scan was retired because it could not tell naming a path from opening one (see [docs/sandbox.md](docs/sandbox.md#why-there-is-no-bash-scan)). Credential reads from Bash are gated by `sandbox.credentials`, enforced by bwrap/Seatbelt.
 
 ### Three-tier responsibility model
 
 Bash deny entries stay deliberately narrow. Each risk is defended at exactly one tier; do not duplicate across tiers.
 
-- **Tier 1 -- file content (this layer defends).** Credential exposure is caught by the `Read`/`Write`/`Edit` globs in `settings.json` plus the `pre-security.sh` substring scan. Authoritative; new file-content guards belong here.
+- **Tier 1 -- file content (this layer defends).** Credential exposure is caught by the `Read`/`Write`/`Edit` globs in `settings.json` and the matching `pre-security.sh` path check, with `sandbox.credentials` covering the same paths for Bash subprocesses. Authoritative; new file-content guards belong here.
 - **Tier 2 -- system state and network (sandbox/host defends).** The container boundary, OS sandbox (bwrap on Linux/WSL2, seatbelt on macOS), and the `sudo:*` deny are the gates. Do NOT add per-binary Bash denies for `iptables`, `systemctl`, `mkfs`, `dd`, `shutdown`, etc. -- they need sudo to do anything meaningful and sudo is already blocked, so each one only adds a redundant prompt.
 - **Tier 3 -- remote / shared (server defends).** Trunk protection, required reviews, and push restrictions live on the remote (GitHub branch protection rules). Do NOT simulate with `Bash(git push * main*)` tripwires -- the prefix matcher does not handle inline wildcards reliably, and remote protection is the only authoritative defense against an accidental trunk push.
 
@@ -81,7 +81,7 @@ Local-state footguns where no other layer catches a typo: `rm -rf` variants, `gi
 
 ### Codex / Copilot parity
 
-By design, Codex CLI and GitHub Copilot CLI get no equivalent Bash deny list -- their config formats expose no per-command deny syntax. Codex relies on its native `sandbox_mode` (`workspace-write` on hosts, `danger-full-access` in containers, where the container itself is the boundary); Copilot relies on interactive permission prompts plus `--deny-tool` flags. Both pick up the shared `pre-security.sh` hook for Tier 1, but not at Claude Code's coverage. On Codex, Bash and `apply_patch` are scanned (the latter needs Codex >= 0.123.0), but credential-*read* blocking is unavailable at any version -- its `read_file` and `grep` handlers fire no `PreToolUse` hook. Treat Tier 1's read-side guarantee as Claude-Code-only; see [`docs/agentic-tooling.md`](docs/agentic-tooling.md#coverage-is-not-symmetric-across-tools).
+By design, Codex CLI and GitHub Copilot CLI get no equivalent Bash deny list -- their config formats expose no per-command deny syntax. Codex relies on its native `sandbox_mode` (`workspace-write` on hosts, `danger-full-access` in containers, where the container itself is the boundary); Copilot relies on interactive permission prompts plus `--deny-tool` flags. Both pick up the shared `pre-security.sh` hook for Tier 1, but not at Claude Code's coverage. On Codex only `apply_patch` is scanned (needs Codex >= 0.123.0); credential-*read* blocking is unavailable at any version, since its `read_file` and `grep` handlers fire no `PreToolUse` hook, and it has no `sandbox.credentials` equivalent. Treat Tier 1's read-side guarantee as Claude-Code-only; see [`docs/agentic-tooling.md`](docs/agentic-tooling.md#coverage-is-not-symmetric-across-tools).
 
 ## Devcontainer Behavior
 
