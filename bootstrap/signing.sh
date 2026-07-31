@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# signing.sh -- SSH commit signing setup.
-#
-# Extracted from install.sh so the branch matrix is reachable from tests: agent
-# vs file-based key, ed25519 vs rsa preference, the devcontainer carve-out, and
-# the two shapes `user.signingkey` can take when resolving allowed_signers.
-# Every branch here has produced a real bug at least once (#58, #68).
-#
-# Callers must have sourced bootstrap/logging.sh and bootstrap/detect.sh.
+# signing.sh -- SSH commit signing setup. Split out of install.sh so the branch
+# matrix is reachable from tests; every branch here has caused a real bug (#58,
+# #68). Callers must have sourced bootstrap/logging.sh and bootstrap/detect.sh.
 
-# Pick a signing key from the agent, preferring ed25519.
-#
 # `ssh-add -L` prints "The agent has no identities." on stdout and exits 1 when
 # the agent is empty, so filter to real key lines -- otherwise that sentence is
 # captured as the signing key (#68).
@@ -21,10 +14,8 @@ _signing_key_from_agent() {
     echo "$agent_keys" | grep -m1 'ssh-ed25519' || echo "$agent_keys" | head -1
 }
 
-# Resolve `user.signingkey` to the literal public key material.
-#
-# The value has two shapes: `key::<literal-pubkey>` for agent-based signing
-# (git >= 2.35) and a path to a .pub file for file-based signing.
+# `user.signingkey` has two shapes: `key::<literal-pubkey>` for agent-based
+# signing (git >= 2.35), or a path to a .pub file for file-based signing.
 _signing_key_content() {
     local key_value="$1"
     if [[ "$key_value" == key::* ]]; then
@@ -34,14 +25,9 @@ _signing_key_content() {
     fi
 }
 
-# Add our own key to ~/.config/git/allowed_signers so `git log --show-signature`
-# can verify our commits.
-#
-# APPENDS. This file is shared state: its whole purpose is to list every signer
-# you trust, so it routinely holds teammates' keys put there by hand or by
-# another tool. Truncating it silently destroys the ability to verify everyone
-# else's commits, which surfaces much later as "unknown signer" on colleagues'
-# history. Idempotent: an entry for this key already present is left alone.
+# APPENDS, idempotently. allowed_signers is shared state listing every signer
+# you trust, so it routinely holds teammates' keys. Truncating it destroys the
+# ability to verify their commits, surfacing much later as "unknown signer".
 _write_allowed_signers() {
     local key_value local_email signers_file key_content
     key_value=$(git config user.signingkey 2>/dev/null) || return 0
