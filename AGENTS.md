@@ -58,8 +58,8 @@ Use these tools when available instead of standard Unix alternatives:
 
 ## Command legibility (permissions, security, observability)
 
-Permission matching, the `pre-security.sh` path scan, and the session/audit log all
-operate on the literal command string.
+Permission matching and the session/audit log both operate on the literal command
+string.
 Keep that string an honest record of what runs:
 it is both the realtime gate and the after-the-fact audit trail,
 and both go blind to the same thing -- indirection.

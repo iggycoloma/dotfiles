@@ -9,7 +9,7 @@
 - Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json, ~/.claude/.credentials.json
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 
-Enforcement: `settings.json` permission hooks carry the credential deny lists, `pre-security.sh` blocks sensitive paths at runtime, `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.
+Enforcement: `settings.json` permission rules carry the credential deny lists and `pre-security.sh` blocks the same paths for the file tools; `sandbox.credentials` blocks them for Bash subprocesses at the OS level. `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.
 
 ## Memory
 
@@ -43,7 +43,7 @@ Security: MCP servers run as child processes with full filesystem and network ac
 - Availability varies by context: background jobs and some subagent profiles ship a reduced tool set, so a rule that assumes Grep exists is unfollowable where it does not. Check what you have rather than assuming. When Grep and Glob are absent, `rg` and `fd` through Bash are the correct fallback, not a rule violation -- the allow list covers them so they run without prompting. Say so once when you fall back, so the choice is visible rather than looking like drift.
 - Use Bash for CLI tools with no built-in equivalent (`sg`, `scc`, `yq`, `shellcheck`) regardless of what else is available.
 - Do not wrap searches in Bash `for`/`while` loops -- one glob pattern in a single Grep/Glob call, or one `rg`/`fd` invocation. A loop's command string starts with `for`, not the inner tool, so `Bash(rg:*)` never matches and every iteration prompts.
-- Keep Bash commands literal so the permission matcher, `pre-security.sh`, and the session log all see what actually runs. Do NOT hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). Length is fine; indirection is not -- the realtime gate and the audit trail share the same blind spot.
+- Keep Bash commands literal so the permission matcher and the session log both see what actually runs. Do NOT hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). Length is fine; indirection is not -- the realtime gate and the audit trail share the same blind spot.
 
 ## Preferred CLI Tools
 

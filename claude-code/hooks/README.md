@@ -9,7 +9,7 @@ wrappers plus notification/session hooks.
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| pre-security.sh | Read/Write/Edit/Bash | Protects sensitive files (.env, credentials, keys) |
+| pre-security.sh | Read/Write/Edit | Protects sensitive files (.env, credentials, keys). Bash is not scanned -- `sandbox.credentials` covers it; see docs/sandbox.md "Why there is no Bash scan" |
 | pre-code-no-emoji.sh | Write/Edit | Blocks emoji characters in code files |
 | notify.sh | Notification | Cross-platform desktop alert when Claude needs attention |
 | *(inline)* | SessionStart (compact) | Re-injects key rules after context compaction |

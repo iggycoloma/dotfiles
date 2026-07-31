@@ -274,16 +274,6 @@
         ]
       },
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/pre-security.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {
@@ -345,10 +335,31 @@
     "padding": 0
   },
   "alwaysThinkingEnabled": true,
+  "env": {
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
+  },
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": false,
     "excludedCommands": ["glab *", "gh *", "docker *"],
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh/id_rsa", "mode": "deny" },
+        { "path": "~/.ssh/id_ecdsa", "mode": "deny" },
+        { "path": "~/.ssh/id_ed25519", "mode": "deny" },
+        { "path": "~/.aws/credentials", "mode": "deny" },
+        { "path": "~/.gnupg", "mode": "deny" },
+        { "path": "~/.azure", "mode": "deny" },
+        { "path": "~/.config/gcloud", "mode": "deny" },
+        { "path": "~/.config/gh", "mode": "deny" },
+        { "path": "~/.config/glab-cli", "mode": "deny" },
+        { "path": "~/.stripe", "mode": "deny" },
+        { "path": "~/.git-credentials", "mode": "deny" },
+        { "path": "~/.netrc", "mode": "deny" },
+        { "path": "~/.pgpass", "mode": "deny" },
+        { "path": "~/.claude/.credentials.json", "mode": "deny" }
+      ]
+    },
     "network": {
       "allowedDomains": [
         "api.anthropic.com",
