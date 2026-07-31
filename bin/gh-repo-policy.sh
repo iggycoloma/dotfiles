@@ -10,12 +10,8 @@ DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-# --- Constants ---
-
 readonly SEMANTIC_ACTION_REF="amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017"
 readonly SEMANTIC_CHECK_NAME="Semantic PR title"
-
-# --- Defaults ---
 
 PROFILE="solo"
 BRANCH="main"
@@ -26,8 +22,6 @@ RULESET_NAME=""
 DRY_RUN=false
 FORCE=false
 REPO=""
-
-# --- Help ---
 
 show_help() {
     cat <<'HELP'
@@ -59,8 +53,6 @@ Examples:
 HELP
 }
 
-# --- Dependency checks ---
-
 check_dependencies() {
     local missing=()
     for cmd in gh jq base64; do
@@ -72,8 +64,6 @@ check_dependencies() {
         log_and_return error 1 "Missing required tools: ${missing[*]}"
     fi
 }
-
-# --- Argument parsing ---
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -149,8 +139,6 @@ parse_args() {
             ;;
     esac
 }
-
-# --- Validate repo access ---
 
 validate_repo() {
     local repo="$1"
@@ -654,8 +642,6 @@ print_summary() {
         log_success "All settings applied successfully"
     fi
 }
-
-# --- Main ---
 
 main() {
     parse_args "$@"

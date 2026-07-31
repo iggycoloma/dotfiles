@@ -24,8 +24,6 @@ fi
 # shellcheck source=../../bootstrap/logging.sh
 source "$LOGGING_SH"
 
-# --- Defaults ---
-
 PROMPT_FILE=""
 MAX_ITERATIONS=20
 PERMISSION_MODE="acceptEdits"
@@ -40,8 +38,6 @@ else
     MAX_BUDGET="${RALPH_DEFAULT_BUDGET:-10}"
     MODEL="${RALPH_DEFAULT_MODEL:-}"
 fi
-
-# --- Help ---
 
 show_help() {
     cat <<'HELP'
@@ -64,8 +60,6 @@ Examples:
   ralph-parallel.sh --prompt-file PROMPT.md --max-iterations 10 fix/bug1:bug1.md fix/bug2:bug2.md
 HELP
 }
-
-# --- Argument parsing ---
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -141,8 +135,6 @@ parse_args() {
     done
 }
 
-# --- Notification ---
-
 # Returns 0 if the file is owner-readable only (mode 0600/0400/0200/0000).
 creds_file_secure() {
     local f="$1" mode=""
@@ -187,8 +179,6 @@ parallel_notify() {
         -F "sound=cosmic" \
         https://api.pushover.net/1/messages.json &>/dev/null &
 }
-
-# --- Main ---
 
 main() {
     parse_args "$@"

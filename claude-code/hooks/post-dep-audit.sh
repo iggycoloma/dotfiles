@@ -110,7 +110,7 @@ if [[ $audit_rc -eq 0 ]]; then
     exit 0
 fi
 
-# Audit found something. Append a warning line to progress.txt for the next iteration.
+# The warning lands in progress.txt for the agent to read next iteration.
 if [[ -f "$PROGRESS_FILE" ]]; then
     {
         printf '\n## Audit Warning (iteration end)\n'
@@ -119,7 +119,6 @@ if [[ -f "$PROGRESS_FILE" ]]; then
     } >> "$PROGRESS_FILE"
 fi
 
-# Log details.
 {
     printf '%s  ecosystem=%s  command=%s\n' "$stamp" "$ecosystem" "$COMMAND"
     printf '%s\n' "$audit_output"
