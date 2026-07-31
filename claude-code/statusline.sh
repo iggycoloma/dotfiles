@@ -5,13 +5,11 @@
 
 read -r input
 
-# Validate jq is available
 if ! command -v jq &> /dev/null; then
     echo "Error: jq is required for statusline" >&2
     exit 1
 fi
 
-# Validate input is valid JSON
 if ! echo "$input" | jq empty 2>/dev/null; then
     echo "Error: Invalid JSON input to statusline" >&2
     exit 1
@@ -28,7 +26,6 @@ CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200
 VIM_MODE=$(echo "$input" | jq -r '.vim.mode // empty')
 SESSION_ID=$(echo "$input" | jq -r '.session_id // "default"')
 
-# Ensure numeric defaults for empty values
 DURATION_MS=${DURATION_MS:-0}
 CONTEXT_PCT=${CONTEXT_PCT:-0}
 CONTEXT_SIZE=${CONTEXT_SIZE:-200000}
@@ -41,18 +38,15 @@ CYAN=$'\033[36m'
 DIM=$'\033[2m'
 RESET=$'\033[0m'
 
-# Format context window size (200K or 1M)
 if [ "$CONTEXT_SIZE" -ge 1000000 ] 2>/dev/null; then
     CONTEXT_SIZE_FMT="1M"
 else
     CONTEXT_SIZE_FMT="200K"
 fi
 
-# Round context percentage to integer (handle floats)
 CONTEXT_PCT_INT=$(printf "%.0f" "$CONTEXT_PCT" 2>/dev/null || echo 0)
 CONTEXT_PCT_INT=${CONTEXT_PCT_INT:-0}
 
-# Build color-coded progress bar (10 chars)
 # Green < 70%, Yellow 70-89%, Red >= 90%
 if [ "$CONTEXT_PCT_INT" -ge 90 ]; then
     BAR_COLOR="$RED"
@@ -69,7 +63,6 @@ BAR=""
 [ "$FILLED" -gt 0 ] && BAR=$(printf "%${FILLED}s" | tr ' ' '#')
 [ "$EMPTY" -gt 0 ] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '-')"
 
-# Format duration
 DURATION_SEC=$((DURATION_MS / 1000))
 if [ "$DURATION_SEC" -lt 60 ]; then
     DURATION="${DURATION_SEC}s"
@@ -106,7 +99,6 @@ fi
 
 IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"
 
-# Build git status string with colors
 GIT_INFO=""
 if [ -n "$BRANCH" ]; then
     GIT_STATUS=""
@@ -116,11 +108,9 @@ if [ -n "$BRANCH" ]; then
     GIT_INFO=" | ${CYAN}${BRANCH}${RESET}${GIT_STATUS}"
 fi
 
-# Build model string with optional agent
 MODEL_STR="$MODEL"
 [ -n "$AGENT" ] && MODEL_STR="${MODEL} -> ${AGENT}"
 
-# Build vim mode indicator
 VIM_INDICATOR=""
 [ -n "$VIM_MODE" ] && VIM_INDICATOR=" [${VIM_MODE}]"
 

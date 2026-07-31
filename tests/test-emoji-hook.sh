@@ -111,10 +111,6 @@ assert_allowed() {
     fi
 }
 
-#
-# Test Suite: Write tool -- decorative emojis blocked
-#
-
 test_suite "Write Tool -- Decorative Emojis Blocked"
 
 assert_denied "$(run_write_hook "echo Hello World ${ROCKET}")" \
@@ -132,10 +128,6 @@ assert_denied "$(run_write_hook "# TODO: fix this ${BUG}")" \
 assert_denied "$(run_write_hook "${WARNING} Warning message")" \
     "Blocks warning emoji in Write content"
 
-#
-# Test Suite: Write tool -- plain text allowed
-#
-
 test_suite "Write Tool -- Plain Text Allowed"
 
 assert_allowed "$(run_write_hook 'echo "Hello World"')" \
@@ -151,10 +143,6 @@ assert_allowed "$(run_write_hook 'function test_fn() { return 0; }')" \
 
 assert_allowed "$(run_write_hook '')" \
     "Allows empty content"
-
-#
-# Test Suite: Write tool -- markdown task symbols allowed
-#
 
 test_suite "Write Tool -- Markdown Task Symbols Allowed"
 
@@ -173,10 +161,6 @@ assert_allowed "$(run_write_hook "- ${XMARK} task failed")" \
 assert_allowed "$(run_write_hook "${HEAVYCHECK} Done ${BALLOTX} Not done")" \
     "Allows heavy check and ballot X"
 
-#
-# Test Suite: Edit tool -- only new_string checked
-#
-
 test_suite "Edit Tool -- Only new_string Checked"
 
 assert_denied "$(run_edit_hook 'old code' "new code ${ROCKET}")" \
@@ -187,10 +171,6 @@ assert_allowed "$(run_edit_hook "old code ${ROCKET}" 'new code without emoji')" 
 
 assert_allowed "$(run_edit_hook 'old code' 'new code')" \
     "Allows plain text edit"
-
-#
-# Test Suite: MultiEdit and apply_patch added content checked
-#
 
 test_suite "MultiEdit/apply_patch -- Added Content Checked"
 
@@ -270,10 +250,6 @@ assert_denied "$(run_write_hook "evil ${ROCKET}" "/tmp/.claude/plans/payload.sh"
     "Blocks emoji in /tmp/.claude/plans/* (not anchored to HOME)"
 assert_denied "$(run_write_hook "evil ${ROCKET}" "/var/cache/.codex/plans/x.md")" \
     "Blocks emoji in non-HOME .codex/plans path"
-
-#
-# Test Suite: Non-Write/Edit tools pass through
-#
 
 test_suite "Non-Write/Edit Tools Pass Through"
 

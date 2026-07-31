@@ -29,8 +29,6 @@ source "$LOGGING_SH"
 # shellcheck source=./ralph-spec.sh
 source "$SCRIPT_DIR/ralph-spec.sh"
 
-# --- Defaults ---
-
 PROMPT_FILE=""
 PRD_FILE=""
 MAX_ITERATIONS=20
@@ -66,8 +64,6 @@ else
     MAX_BUDGET="${RALPH_DEFAULT_BUDGET:-10}"
     MODEL="${RALPH_DEFAULT_MODEL:-}"
 fi
-
-# --- Help ---
 
 show_help() {
     cat <<'HELP'
@@ -143,16 +139,12 @@ Examples:
 HELP
 }
 
-# --- Dependency checks ---
-
 check_dependencies() {
     if ! command -v claude &>/dev/null; then
         log_error "Missing required tool: claude"
         return 1
     fi
 }
-
-# --- Argument parsing ---
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -302,12 +294,6 @@ parse_args() {
     fi
 }
 
-# --- Safety resolution ---
-#
-# Decide the effective permission mode and iteration cap based on --yolo,
-# RALPH_UNSAFE_MODE, and RALPH_MAX_MODE. Emits warnings for dangerous
-# combinations.
-
 resolve_safety() {
     local unsafe=false
     if [[ "$YOLO" == true ]] || [[ "${RALPH_UNSAFE_MODE:-0}" == "1" ]]; then
@@ -359,8 +345,6 @@ resolve_safety() {
     fi
 }
 
-# --- Notification ---
-
 # Returns 0 if the file is owner-readable only (mode 0600 or 0400).
 # Cross-platform: GNU stat and BSD stat have different flags.
 creds_file_secure() {
@@ -410,8 +394,6 @@ ralph_notify() {
         https://api.pushover.net/1/messages.json &>/dev/null &
 }
 
-# --- Template substitution ---
-
 render_prompt() {
     local iteration="$1" max="$2" progress="$3"
     local prompt
@@ -421,8 +403,6 @@ render_prompt() {
     prompt="${prompt//\{\{PROGRESS_FILE\}\}/$progress}"
     echo "$prompt"
 }
-
-# --- Session ID generation ---
 
 generate_session_id() {
     if command -v uuidgen &>/dev/null; then
@@ -434,8 +414,6 @@ generate_session_id() {
         echo "$(date +%s)-$RANDOM-$RANDOM-$RANDOM"
     fi
 }
-
-# --- Verification ---
 
 run_verify() {
     local cmd="${1:-$VERIFY_CMD}"
@@ -450,8 +428,6 @@ run_verify() {
     fi
     return $rc
 }
-
-# --- Git checkpoint ---
 
 git_checkpoint() {
     [[ "$CHECKPOINT" != true ]] && return 0
@@ -476,8 +452,7 @@ git_checkpoint() {
     log_info "Checkpoint: committed iteration $iteration."
 }
 
-# Re-initialize the progress file if the agent deleted it mid-run.
-# Called at the top of every iteration.
+# The agent can delete this mid-run, so it is re-checked every iteration.
 ensure_progress_file() {
     [[ -f "$PROGRESS_FILE" ]] && return 0
     log_warn "progress file vanished at $PROGRESS_FILE; re-initializing from template."
@@ -490,8 +465,7 @@ ensure_progress_file() {
     fi
 }
 
-# --- Circuit breaker ---
-
+# Circuit breaker: identical progress across iterations means the agent is stuck.
 progress_hash() {
     if [[ ! -f "$PROGRESS_FILE" ]]; then
         echo "empty"
@@ -511,10 +485,7 @@ progress_hash() {
     fi
 }
 
-# --- Run log + cost tracking ---
-
 # Probe whether the installed claude supports --output-format json.
-# Called once before the loop runs.
 detect_claude_json() {
     if claude --help 2>&1 | grep -qE -- '--output-format'; then
         CLAUDE_JSON_OUTPUT=true
@@ -542,7 +513,6 @@ parse_claude_usage() {
     printf '%s\t%s\t%s\n' "${cost:-null}" "${tokens_in:-null}" "${tokens_out:-null}"
 }
 
-# Append one JSONL record for the current iteration.
 write_run_log() {
     command -v jq &>/dev/null || return 0
     local session_id="$1" iteration="$2" exit_code="$3" verify_passed="$4"
@@ -600,14 +570,13 @@ under_session_budget() {
     awk -v t="$total" -v b="$SESSION_BUDGET" 'BEGIN{ exit (t+0 <= b+0) ? 0 : 1 }'
 }
 
-# Short SHA of the latest commit (for JSONL checkpoint_sha field).
 last_checkpoint_sha() {
     command -v git &>/dev/null || { echo ""; return; }
     git rev-parse --is-inside-work-tree &>/dev/null 2>&1 || { echo ""; return; }
     git rev-parse --short HEAD 2>/dev/null || echo ""
 }
 
-# Print the end-of-run summary. Called on every exit path.
+# Called on every exit path, including failures.
 print_summary() {
     local session_id="$1" iteration="$2" max_iter="$3" elapsed="$4" exit_code="$5"
     local exit_label="$6"
@@ -624,8 +593,6 @@ print_summary() {
     fi
     printf '  Exit:       %s (%s)\n' "$exit_code" "$exit_label"
 }
-
-# --- Main loop ---
 
 run_loop() {
     local session_id
@@ -660,7 +627,6 @@ run_loop() {
     log_info "Session:    ${session_id:0:8}..."
     [[ -n "$WORKTREE" ]] && log_info "Worktree:   $WORKTREE"
 
-    # Initialize progress file from template if it doesn't exist
     if [[ ! -f "$PROGRESS_FILE" ]]; then
         local template_dir
         template_dir="$(cd "$(dirname "$PROMPT_FILE")" && pwd)"
@@ -688,7 +654,6 @@ run_loop() {
         fi
     fi
 
-    # Copy PRD to workdir if provided
     if [[ -n "$PRD_FILE" ]] && [[ ! -f "./PRD.md" ]]; then
         cp "$PRD_FILE" "./PRD.md"
         log_info "Copied PRD to ./PRD.md"
@@ -725,7 +690,6 @@ run_loop() {
 
         ensure_progress_file
 
-        # --- Spec-driven verify override ---
         local task_id=""
         local iter_verify="$VERIFY_CMD"
         if [[ -n "$SPEC_FILE" ]]; then
@@ -762,7 +726,6 @@ run_loop() {
         [[ -n "$WORKTREE" ]] && cmd+=(--worktree "$WORKTREE")
         [[ "$BARE" == true ]] && cmd+=(--bare)
 
-        # Render prompt with substitutions
         local prompt
         prompt=$(render_prompt "$iteration" "$MAX_ITERATIONS" "$PROGRESS_FILE")
 
@@ -795,7 +758,6 @@ run_loop() {
             return 1
         fi
 
-        # --- Post-iteration verification ---
         local verify_passed=true
         if ! run_verify "$iter_verify"; then
             verify_passed=false
@@ -831,9 +793,8 @@ run_loop() {
             return 6
         fi
 
-        # --- Spec-driven completion ---
-        # If using a spec file, flip the current task's done flag on verify pass
-        # and halt only when every task is done. The ## COMPLETE sentinel is
+        # With a spec file, a verify pass flips the current task's done flag
+        # and halts only when every task is done. The ## COMPLETE sentinel is
         # written automatically; the agent does not control it.
         if [[ -n "$SPEC_FILE" ]] && [[ -n "$task_id" ]] && [[ "$verify_passed" == true ]]; then
             log_info "Marking task $task_id done."
@@ -849,8 +810,8 @@ run_loop() {
             fi
         fi
 
-        # --- Prose-driven completion gate (no spec file) ---
-        # The agent wrote ## COMPLETE; accept only if verify passes.
+        # Without a spec file the agent writes ## COMPLETE itself, so accept it
+        # only if verify passes.
         if [[ -z "$SPEC_FILE" ]] && grep -q '^## COMPLETE' "$PROGRESS_FILE" 2>/dev/null; then
             if [[ "$verify_passed" == true ]]; then
                 git_checkpoint "$iteration"
@@ -898,8 +859,6 @@ run_loop() {
     print_summary "$session_id" "$MAX_ITERATIONS" "$MAX_ITERATIONS" "$elapsed" 2 "max-iterations"
     return 2
 }
-
-# --- Entry point ---
 
 main() {
     parse_args "$@" || return $?

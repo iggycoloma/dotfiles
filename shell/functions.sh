@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Useful shell functions
 
-# Create directory and cd into it
 function mkcd {
     mkdir -p "$1" && cd "$1" || return 1
 }
 
-# Extract various archive formats
 function extract {
     if [[ -f "$1" ]]; then
         case "$1" in
@@ -28,7 +26,6 @@ function extract {
     fi
 }
 
-# Kill process on specific port
 function killport {
     if [[ -z "$1" ]]; then
         echo "Usage: killport <port>"
@@ -39,11 +36,9 @@ function killport {
     if command -v fuser &>/dev/null; then
         (fuser -k "${port}/tcp" 2>/dev/null || fuser -k "${port}/udp" 2>/dev/null) && return 0
     fi
-    # Fallback to lsof
     if command -v lsof &>/dev/null; then
         lsof -ti:"${port}" 2>/dev/null | grep . | xargs kill -9 2>/dev/null && return 0
     fi
-    # Last resort: parse ss output for PIDs
     if command -v ss &>/dev/null; then
         ss -lptnH "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | grep . | xargs kill -9 2>/dev/null && return 0
     fi
@@ -81,7 +76,6 @@ function glf {
             --bind "enter:execute(git show {1} | less -R)"
 }
 
-# Create timestamped backup of file or directory
 function backup {
     if [[ -z "$1" ]]; then
         echo "Usage: backup <file_or_directory>"
@@ -93,7 +87,6 @@ function backup {
     echo "Backup created: ${1}_backup_${timestamp}"
 }
 
-# Serve current directory over HTTP
 function serve {
     local port="${1:-8000}"
     if command -v python3 &> /dev/null; then
@@ -124,7 +117,6 @@ function fd_dir {
     fi
 }
 
-# Search file contents
 function search {
     if command -v rg &> /dev/null; then
         rg "$@"
@@ -142,9 +134,8 @@ function gcl {
     git clone "$1" && cd "$(basename "$1" .git)" || return 1
 }
 
-# Create GitHub PR from current branch
-# Note: gpr alias already exists in aliases.sh for 'git pull --rebase'
-# This function uses a different name to avoid conflict
+# GitHub PR from the current branch. Not `gpr` -- that is taken by the
+# git pull --rebase alias in aliases.sh.
 function ghpr {
     if command -v gh &> /dev/null; then
         gh pr create --web
@@ -154,8 +145,7 @@ function ghpr {
     fi
 }
 
-# Create GitLab MR from current branch. Counterpart to ghpr above; glmr rather
-# than glmr-ish shorthand because gmr would collide with the git aliases.
+# GitLab counterpart to ghpr. Not `gmr` -- that would collide with the git aliases.
 function glmr {
     if command -v glab &> /dev/null; then
         glab mr create --web
@@ -164,8 +154,6 @@ function glmr {
         return 1
     fi
 }
-
-# Note: weather alias already exists in aliases.sh
 
 # Show disk usage for current directory
 function usage {
@@ -178,7 +166,6 @@ function usage {
     fi
 }
 
-# Quick note taking
 function note {
     local notes_dir="$HOME/notes"
     mkdir -p "$notes_dir"
@@ -251,12 +238,10 @@ function weather {
     curl -m 7 -s "$url" || echo "Unable to fetch weather"
 }
 
-# Quick chmod shortcuts
 function chmodx {
     chmod +x "$@"
 }
 
-# Create and enter a temporary directory
 function tmp {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -264,24 +249,19 @@ function tmp {
     echo "Created temp directory: $tmp_dir"
 }
 
-# Smart cat that uses bat for terminal output, plain cat for pipes
-# This prevents decorations (line numbers, headers) from breaking scripts
+# Falls back to plain cat when piped, so bat decorations never reach a script.
 function cat {
     if command -v bat &> /dev/null; then
         if [[ -t 1 ]]; then
-            # stdout is a terminal - use bat with styling
             bat --paging=never "$@"
         else
-            # stdout is not a terminal (pipe/redirect) - use plain cat
             command cat "$@"
         fi
     else
-        # bat not available, use system cat
         command cat "$@"
     fi
 }
 
-# Alias for original cat without any wrappers
 alias ccat='command cat'
 
 # Yazi file manager wrapper: cd to last directory on exit
@@ -413,12 +393,9 @@ function dotfiles-doctor {
     echo "== Summary =="
     echo -e "  \033[0;32m$pass passed\033[0m, \033[1;33m$warn warnings\033[0m, \033[0;31m$fail failed\033[0m"
 
-    # Clean up helper functions from shell namespace
     unset -f _doc_pass _doc_fail _doc_warn _doc_check_symlink _doc_check_tool _doc_check_git_include
     [[ $fail -eq 0 ]] && return 0 || return 1
 }
-
-# --- Claude Code worktree helpers ---
 
 # Launch Claude Code in a new git worktree
 function ccw {
@@ -439,7 +416,6 @@ function ccw {
     fi
 }
 
-# List active git worktrees
 function ccwls {
     git worktree list
 }
@@ -470,7 +446,6 @@ function ccwclean {
     echo "Worktree cleanup complete"
 }
 
-# Load local functions if they exist
 if [[ -f "$HOME/.functions.local" ]]; then
     source "$HOME/.functions.local"
 fi

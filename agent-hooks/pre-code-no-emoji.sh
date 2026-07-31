@@ -2,12 +2,11 @@
 # Pre-tool emoji validation hook - Prevent agents from adding decorative emojis
 # Blocks emojis in new code/docs while allowing markdown task symbols
 
-# Source shared detection patterns
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HOOK_DIR/shared-patterns.sh"
 
-# Validate jq is available. Content guardrails should fail closed: Codex
-# treats ordinary hook failures as non-blocking, so emit a deny decision.
+# Fail closed: Codex treats ordinary hook failures as non-blocking, so a
+# missing jq must produce an explicit deny rather than a non-zero exit.
 if ! command -v jq &> /dev/null; then
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"jq is required for the no-emoji guard"}}'
     exit 0
@@ -20,48 +19,35 @@ input=$(cat)
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 CONTENT_TO_CHECK=""
 
-# Exempt agent-internal write surfaces. Plan-mode output and auto-memory
-# entries are agent-generated scratch content, not code or docs we ship,
-# so the no-emoji guardrail does not apply. Without this, a stray glyph in
-# a generated plan blocks every subsequent plan update with a hard deny.
-# Anchor to $HOME so a path-substring match (e.g. /tmp/.claude/plans/x.sh)
-# cannot be used by an adversarial prompt to slip non-policy content past
-# the check.
+# Plans and auto-memory are agent scratch content, not code we ship, and a
+# stray glyph in one would otherwise hard-deny every subsequent update.
+# Anchored to $HOME so an adversarial /tmp/.claude/plans/x.sh cannot match.
 FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 case "$FILE_PATH" in
     "$HOME"/.claude/plans/*|"$HOME"/.claude/projects/*/memory/*|"$HOME"/.codex/plans/*|"$HOME"/.codex/projects/*/memory/*) exit 0 ;;
 esac
 
-# Validate file-editing tools.
-if [[ "$TOOL_NAME" == "Write" ]]; then
-    # For Write: check the entire content being written
-    # Known limitation: Write replaces the entire file, so if the existing file
-    # already contains emoji, the agent gets blocked from touching it even if it
-    # didn't add the emoji. The Edit path (which only checks new_string) is
-    # not affected.
-    CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.content // empty')
-elif [[ "$TOOL_NAME" == "Edit" ]]; then
-    # For Edit: only check new_string (what the agent is adding), not old_string (existing code)
-    CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.new_string // empty')
-elif [[ "$TOOL_NAME" == "MultiEdit" ]]; then
-    # For MultiEdit: only check new_string values across all edits.
-    CONTENT_TO_CHECK=$(echo "$input" | jq -r '[.tool_input.edits[]?.new_string // empty] | join("\n")')
-elif [[ "$TOOL_NAME" == "apply_patch" ]]; then
-    # Codex apply_patch supplies a patch body. Check added content lines only,
-    # not context or removed lines.
-    PATCH=$(echo "$input" | jq -r '.tool_input.command // .tool_input.patch // empty')
-    CONTENT_TO_CHECK=$(printf '%s\n' "$PATCH" | awk '/^\+/ && $0 !~ /^\+\+\+/ {print substr($0, 2)}')
-else
-    # Not a tool we care about
-    exit 0
-fi
+# Every branch inspects only content the agent is adding, so pre-existing
+# emoji never blocks an edit. Write is the exception: it replaces the whole
+# file, so a stray glyph anywhere in the file blocks the write.
+case "$TOOL_NAME" in
+    Write)
+        CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.content // empty') ;;
+    Edit)
+        CONTENT_TO_CHECK=$(echo "$input" | jq -r '.tool_input.new_string // empty') ;;
+    MultiEdit)
+        CONTENT_TO_CHECK=$(echo "$input" | jq -r '[.tool_input.edits[]?.new_string // empty] | join("\n")') ;;
+    apply_patch)
+        PATCH=$(echo "$input" | jq -r '.tool_input.command // .tool_input.patch // empty')
+        CONTENT_TO_CHECK=$(printf '%s\n' "$PATCH" | awk '/^\+/ && $0 !~ /^\+\+\+/ {print substr($0, 2)}') ;;
+    *)
+        exit 0 ;;
+esac
 
-# If no content to check, allow
 if [[ -z "$CONTENT_TO_CHECK" ]]; then
     exit 0
 fi
 
-# Strip allowed task symbols, then check for decorative emojis (uses shared patterns)
 FILTERED_CONTENT=$(strip_allowed_symbols "$CONTENT_TO_CHECK")
 
 if has_emoji "$FILTERED_CONTENT"; then
@@ -76,5 +62,4 @@ if has_emoji "$FILTERED_CONTENT"; then
     exit 0
 fi
 
-# All validation passed
 exit 0

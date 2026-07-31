@@ -3,13 +3,10 @@
 # Compatible with VS Code devcontainers, Codespaces, and local installations
 
 # Don't use set -e as we want to handle errors explicitly
-set -u  # Error on undefined variables
+set -u
 
-# Shared logging functions
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bootstrap/logging.sh"
 
-# Parse minimal CLI args. Keep this tiny -- the only knob the installer
-# cares about right now is opting in to the unattended coding harness.
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --with-unattended)
@@ -47,7 +44,6 @@ HELP
     esac
 done
 
-# Dotfiles directory (prefer env var, then script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$SCRIPT_DIR}"
 export DOTFILES_DIR
@@ -60,19 +56,15 @@ if [[ -n "${DOTFILES_WORKSPACE:-}" ]] && [[ "$SCRIPT_DIR" != "$DOTFILES_DIR" ]];
     exit 0
 fi
 
-# Check if dotfiles directory exists
 if [[ ! -d "$DOTFILES_DIR" ]]; then
     log_error "Dotfiles directory not found at $DOTFILES_DIR"
     exit 1
 fi
 
-# Change to dotfiles directory
 cd "$DOTFILES_DIR" || exit 1
 
-# Source detection script
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
-# Display environment info
 log_section "Environment Detection"
 ENV_TYPE=$(detect_environment)
 OS_TYPE=$(detect_os)
@@ -83,19 +75,16 @@ log_info "Environment: $ENV_TYPE"
 log_info "Operating System: $OS_TYPE"
 log_info "Package Manager: $PKG_MGR"
 log_info "Minimal Install: $IS_MINIMAL"
-# Unattended harness is a devcontainer concern -- only surface its status when
-# it's actually relevant (in a devcontainer, or when the caller explicitly
-# opted in on a host).
+# Only surfaced where it is relevant: in a devcontainer, or when a host caller
+# explicitly opted in.
 if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]]; then
     log_info "Unattended Harness: enabled (deploying ~/.unattended/)"
 elif is_devcontainer; then
     log_info "Unattended Harness: disabled (pass --with-unattended to opt in)"
 fi
 
-# Make bootstrap scripts executable
 chmod +x "$DOTFILES_DIR"/bootstrap/*.sh
 
-# Installation steps
 log_section "Installing Packages"
 source "$DOTFILES_DIR/bootstrap/packages.sh"
 if install_packages; then
@@ -128,8 +117,6 @@ else
 fi
 
 log_section "Verifying Git Configuration"
-# Git config: dotfiles settings included via [include] in XDG config
-# Check if git identity is configured
 if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
     log_success "Git identity configured: $(git config user.name) <$(git config user.email)>"
 else
@@ -138,20 +125,15 @@ else
     log_info "         git config --global user.email \"your@email.com\""
 fi
 
-# SSH commit signing: auto-detect key from agent or local files.
-# Opt-out via DOTFILES_NO_SSH_SIGNING=1 (accesses ssh-add and ~/.ssh/*.pub).
-#
-# Guarded because `set -e` is live by this point -- symlinks.sh and
-# completions.sh each run `set -e` at their top and sourcing propagates the
-# option into this shell. A bare `source` of a missing signing.sh would abort
-# the installer here with no message at all.
+# Guarded because `set -e` is live by this point: symlinks.sh and completions.sh
+# each set it at their top and sourcing propagates the option into this shell,
+# so a bare `source` of a missing signing.sh would abort with no message at all.
 if source "$DOTFILES_DIR/bootstrap/signing.sh"; then
     configure_ssh_signing
 else
     log_warn "Signing setup script not found -- commit signing not configured"
 fi
 
-# Final message
 log_section "Installation Complete"
 log_success "Dotfiles installed successfully!"
 echo ""

@@ -45,7 +45,6 @@ SENSITIVE_PATHS=(
     "*/.mongorc.js"
 )
 
-# Sensitive extension patterns
 SENSITIVE_EXTENSIONS=(
     "*.pem"
     "*.key"
@@ -171,14 +170,11 @@ check_file_path() {
     return 1
 }
 
-# --- Bash tool: scan command for sensitive path references ---
 if [[ "$TOOL_NAME" == "Bash" ]]; then
     COMMAND=$(echo "$input" | jq -r '.tool_input.command // empty')
     [[ -z "$COMMAND" ]] && exit 0
 
-    # Check 1: Exact sensitive file substrings (existing check)
     for pattern in "${SENSITIVE_PATHS[@]}" "${SENSITIVE_EXTENSIONS[@]}"; do
-        # Extract the filename/suffix from the glob pattern (strip leading */ and *)
         suffix="${pattern#\*/}"
         suffix="${suffix#\*}"
         if [[ "$COMMAND" == *"$suffix"* ]]; then
@@ -187,16 +183,14 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         fi
     done
 
-    # Check 2: Sensitive directory access (catches globs like ~/.ssh/*, rg ~/.aws/)
+    # Catches globs too: ~/.ssh/*, rg ~/.aws/
     for dir in "${SENSITIVE_DIRS[@]}"; do
-        # Match dir followed by /, space, or end-of-string
         if [[ "$COMMAND" == *"$dir/"* ]] || [[ "$COMMAND" == *"$dir "* ]] || [[ "$COMMAND" == *"$dir" ]]; then
             emit_decision "$ASK_DECISION" "This command may access sensitive directory: $dir"
             exit 0
         fi
     done
 
-    # Check 2b: Sensitive standalone files (not in SENSITIVE_PATHS)
     for sensitive_file in "${SENSITIVE_FILES[@]}"; do
         if [[ "$COMMAND" == *"$sensitive_file"* ]]; then
             emit_decision "$ASK_DECISION" "This command may access sensitive file: $sensitive_file"
@@ -204,9 +198,8 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         fi
     done
 
-    # Check 3: Glob/fuzzy patterns near sensitive files (catches .en*, .env?, etc.)
-    # NOTE: perl -ne requires BEGIN/END flag pattern because exit inside -ne loop
-    # doesn't prevent END block from running (see memory: perl emoji detection)
+    # BEGIN/END flag pattern is required: `exit` inside a -ne loop still runs
+    # the END block, so the flag carries the result out instead.
     for pattern in "${SENSITIVE_GLOB_PATTERNS[@]}"; do
         if echo "$COMMAND" | perl -ne "BEGIN{\$f=1} if(/$pattern/){\$f=0} END{exit \$f}" 2>/dev/null; then
             emit_decision "$ASK_DECISION" "This command may access sensitive files (pattern: $pattern)"
@@ -214,13 +207,10 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         fi
     done
 
-    # Check 4: Shell-expansion obfuscation immediately after a dotfile dot.
-    # The earlier substring scans only see literal text; a prompt of the form
-    #   D=ssh; cat ~/.$D/id_rsa
-    # bypasses every check above because the literal `~/.ssh` never appears.
-    # The narrow pattern that distinguishes obfuscation from legitimate uses
-    # (e.g. `cd ~/.config && echo $HOME`) is a variable or command
-    # substitution *directly* following the dot: `~/.$`, `~/.${`, `~/.` + `` ` ``.
+    # Shell-expansion obfuscation. The scans above see only literal text, so
+    # `D=ssh; cat ~/.$D/id_rsa` slips past them all -- `~/.ssh` never appears.
+    # Requiring the expansion to follow the dot *directly* is what separates
+    # obfuscation from legitimate uses like `cd ~/.config && echo $HOME`.
     # shellcheck disable=SC2016  # literal $ in the pattern, not an expansion
     if [[ "$COMMAND" == *'~/.$'* ]] || [[ "$COMMAND" == *'~/.`'* ]] ||
        [[ "$COMMAND" == *'$HOME/.$'* ]] || [[ "$COMMAND" == *'$HOME/.`'* ]]; then
@@ -228,12 +218,9 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
         exit 0
     fi
 
-    # Check 5: Assignment to a known sensitive env-var. Redirects credential-
-    # using tools (aws, gcloud, kubectl, gpg, gh, glab, npm, pip, docker) at an
-    # attacker-chosen file -- the actual access never names a credential path.
+    # Redirects credential-using tools at an attacker-chosen file, so the
+    # access itself never names a credential path.
     for var in "${SENSITIVE_ASSIGNED_VARS[@]}"; do
-        # Match `<VAR>=` either at the start of the command or right after a
-        # whitespace / shell-separator character.
         if [[ "$COMMAND" =~ (^|[[:space:];&|])${var}= ]]; then
             emit_decision "$ASK_DECISION" "Assignment to sensitive environment variable: $var"
             exit 0
@@ -243,7 +230,6 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     exit 0
 fi
 
-# --- Codex apply_patch: inspect patch target paths directly ---
 if [[ "$TOOL_NAME" == "apply_patch" ]]; then
     PATCH=$(echo "$input" | jq -r '.tool_input.command // .tool_input.patch // empty')
     [[ -z "$PATCH" ]] && exit 0
@@ -260,7 +246,6 @@ if [[ "$TOOL_NAME" == "apply_patch" ]]; then
     exit 0
 fi
 
-# --- File tools: check file_path directly ---
 if [[ "$TOOL_NAME" != "Read" && "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "MultiEdit" ]]; then
     exit 0
 fi
@@ -268,5 +253,4 @@ fi
 FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 check_file_path "$FILE_PATH" && exit 0
 
-# Allow by default
 exit 0

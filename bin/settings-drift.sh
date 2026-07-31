@@ -18,10 +18,6 @@
 # maintained by hand and must stay identical in content and order, or a path
 # ends up blocked for Read but writable through Edit. Deliberate asymmetries
 # are declared in PARITY_WRITE_EDIT_ONLY below; anything else is a bug.
-#
-# Exit codes:
-#   0  variants in sync
-#   1  drift detected, or one half of a pair is missing (deletion is drift)
 
 set -euo pipefail
 
@@ -81,7 +77,6 @@ parse_args() {
     done
 }
 
-# Report a drift finding. In JSON mode, emit JSONL; otherwise human-readable.
 emit_drift() {
     local pair="$1" exclude_key="$2" diff_output="$3"
     ERRORS=$((ERRORS + 1))
@@ -136,7 +131,6 @@ emit_missing() {
     fi
 }
 
-# Compare two JSON files after deleting an excluded key path.
 check_json_drift() {
     local pair="$1" host="$2" container="$3" exclude="$4"
 
@@ -151,7 +145,6 @@ check_json_drift() {
         return 0
     fi
 
-    # -S canonicalizes key order. del(.path) removes the per-tier section.
     local h c diff_out
     if ! h=$(jq -S "del($exclude)" "$host" 2>&1); then
         emit_skip "$pair" "host variant not valid JSON: $h"
@@ -171,8 +164,7 @@ check_json_drift() {
     emit_drift "$pair" "$exclude" "$diff_out"
 }
 
-# Compare two TOML files after deleting an excluded key path.
-# yq output is canonical for a given input, so we can string-compare.
+# Canonical yq output for a given input makes a string compare safe here.
 check_toml_drift() {
     local pair="$1" host="$2" container="$3" exclude="$4"
 
@@ -189,9 +181,7 @@ check_toml_drift() {
         return 0
     fi
 
-    # Normalize: parse TOML -> emit JSON (canonical), drop the excluded key,
-    # then compare. Using JSON as the intermediate makes the comparison
-    # whitespace-insensitive and key-order-insensitive.
+    # JSON as the intermediate makes the compare whitespace- and key-order-insensitive.
     local h c diff_out
     if ! h=$(yq -p toml -o json "del($exclude)" "$host" 2>&1 | jq -S '.'); then
         emit_skip "$pair" "host variant not valid TOML: $h"
@@ -211,11 +201,6 @@ check_toml_drift() {
     emit_drift "$pair" "$exclude" "$diff_out"
 }
 
-# Verify the Read/Write/Edit deny triples inside one settings file agree.
-#
-# Order matters as well as membership: the three blocks are kept in the same
-# order so they can be diffed side by side, and a reordering is the first sign
-# someone appended to one block instead of inserting into all three.
 check_deny_parity() {
     local pair="$1" file="$2"
 
@@ -239,10 +224,11 @@ check_deny_parity() {
 
     exempt_json=$(printf '%s\n' "${PARITY_WRITE_EDIT_ONLY[@]}" | jq -R . | jq -sc .)
 
-    # Order matters as well as membership, so report the two classes
-    # differently. jq's array `-` is set difference and reports nothing at all
-    # for a pure reordering; that case needs the first diverging index instead,
-    # or the message names no path and the maintainer cannot act on it.
+    # Order matters as well as membership -- a reordering is the first sign
+    # someone appended to one block instead of inserting into all three. The
+    # two classes need different reporting: jq's array `-` is set difference
+    # and says nothing at all about a pure reordering, so that case reports the
+    # first diverging index instead, or the message names no actionable path.
     if ! findings=$(jq -r --argjson exempt "$exempt_json" '
         def deny_for($tool):
             [ .permissions.deny[]

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Environment and OS detection for dotfiles installation
 
-# Detect environment type
 detect_environment() {
     if [[ -n "${CODESPACES:-}" ]]; then
         echo "codespaces"
@@ -19,7 +18,6 @@ detect_environment() {
     fi
 }
 
-# Detect operating system
 detect_os() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "macos"
@@ -35,7 +33,6 @@ detect_os() {
     fi
 }
 
-# Detect available package manager
 detect_package_manager() {
     if command -v brew &> /dev/null; then
         echo "brew"
@@ -48,17 +45,15 @@ detect_package_manager() {
     fi
 }
 
-# Check if running as root
 is_root() {
     [[ $EUID -eq 0 ]]
 }
 
-# Check if tool is already installed
 has_tool() {
     command -v "$1" &> /dev/null
 }
 
-# Run a command with sudo if needed (safe replacement for unquoted $SUDO)
+# Avoids the unquoted-$SUDO idiom, which breaks on empty expansion.
 run_sudo() {
     if is_root; then
         "$@"
@@ -75,21 +70,17 @@ is_devcontainer() {
     [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]]
 }
 
-# Alias kept for caller intent: gate "should we do a minimal install" rather
-# than "are we in a container". Currently equivalent; if the policy ever
-# diverges (e.g. minimal on CI runners too), only this body changes.
+# Currently equivalent to is_devcontainer, but named for caller intent so a
+# future divergence (minimal on CI runners too) changes only this body.
 is_minimal_install() {
     is_devcontainer
 }
 
-# Check if the dotfiles repo itself is the active workspace
 is_dotfiles_workspace() {
     [[ -n "${DOTFILES_WORKSPACE:-}" ]]
 }
 
-# Detect the best available state persistence tier for devcontainers.
-# Pure detection -- sets STATE_TIER and STATE_PATH, no side effects.
-# Tiers: volume > codespaces > ephemeral
+# Pure detection: sets STATE_TIER and STATE_PATH, touches nothing on disk.
 detect_state_tier() {
     # shellcheck disable=SC2034  # STATE_TIER/STATE_PATH read by callers and tests
     STATE_TIER=""
@@ -116,7 +107,6 @@ detect_state_tier() {
     STATE_PATH="$HOME/.dotfiles-state"
 }
 
-# Export detection functions for use in other scripts
 export -f detect_environment
 export -f detect_os
 export -f detect_package_manager
@@ -128,7 +118,6 @@ export -f is_devcontainer
 export -f is_dotfiles_workspace
 export -f detect_state_tier
 
-# If sourced, don't execute; if run directly, show info
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Environment: $(detect_environment)"
     echo "OS: $(detect_os)"
