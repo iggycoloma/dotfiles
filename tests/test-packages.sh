@@ -117,6 +117,57 @@ output=$(_install_tool "lazygit" "{}" "jesseduffield/lazygit" "/tmp" "x86_64" "u
 assert_contains "$output" "musl" "lazygit skip message mentions musl"
 
 # ============================================================
+# Test Suite: version detection and upgrade gating
+# ============================================================
+test_suite "upgrade gating"
+
+# Only the agentic CLIs opt into upgrade-on-reinstall. Every other tool stays
+# install-once so a routine install.sh run does not re-download the world or
+# burn the unauthenticated GitHub API budget (60/hour).
+_tool_config codex
+assert_equals "true" "$_tc_upgrade" "codex opts into upgrades"
+
+for tool in starship eza zoxide delta lazygit atuin sd sg difft scc yq watchexec bottom; do
+    _tool_config "$tool"
+    assert_equals "" "$_tc_upgrade" "$tool stays install-once"
+done
+
+# --version output formats differ per tool and both real shapes must parse.
+_ver_fixture() {
+    local name="$1" output="$2" dir
+    dir=$(mktemp -d)
+    printf '#!/usr/bin/env bash\necho "%s"\n' "$output" > "$dir/$name"
+    chmod +x "$dir/$name"
+    printf '%s' "$dir"
+}
+
+vdir=$(_ver_fixture "faketool" "2.1.220 (Claude Code)")
+assert_equals "2.1.220" "$(PATH="$vdir:$PATH" _installed_version faketool)" \
+    "parses a leading version (claude shape)"
+rm -rf "$vdir"
+
+vdir=$(_ver_fixture "faketool" "codex-cli 0.136.0")
+assert_equals "0.136.0" "$(PATH="$vdir:$PATH" _installed_version faketool)" \
+    "parses a trailing version (codex shape)"
+rm -rf "$vdir"
+
+# A tool that prints no version must yield empty, not garbage -- callers treat
+# empty as "unknown" and reinstall, which is the safe direction.
+vdir=$(_ver_fixture "faketool" "no version here")
+assert_equals "" "$(PATH="$vdir:$PATH" _installed_version faketool)" \
+    "yields empty when no version is present"
+rm -rf "$vdir"
+
+assert_equals "" "$(_installed_version definitely-not-installed-xyz)" \
+    "yields empty for a tool that is not installed"
+
+# Release tags carry inconsistent prefixes upstream.
+assert_equals "0.146.0" "$(_release_version 'rust-v0.146.0')" "strips codex rust-v prefix"
+assert_equals "1.2.3" "$(_release_version 'v1.2.3')" "strips a plain v prefix"
+assert_equals "1.2.3" "$(_release_version '1.2.3')" "passes through a bare version"
+assert_equals "" "$(_release_version 'nightly')" "yields empty for a non-semver tag"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary

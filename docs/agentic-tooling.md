@@ -7,10 +7,38 @@ For the autonomous-loop harness (`ralph.sh`, unattended profile), see
 
 ## Installation
 
-In devcontainers and Codespaces, Claude Code and Codex CLI are installed
-automatically as **native binaries** -- no devcontainer features, no Node.js
-required. On hosts, users manage their own installs (`brew install
-anthropic-ai/claude/claude`, etc.); this repo just deploys configuration.
+Claude Code and Codex CLI are installed automatically as **native binaries** on
+every environment -- hosts, devcontainers, and Codespaces alike. No devcontainer
+features, no Node.js required. macOS goes through the same path as Linux: Codex
+publishes `codex-ARCH-apple-darwin.tar.gz` and the OS detection maps `Darwin` to
+`apple-darwin`, so there is no brew special-case.
+
+These are developer tools rather than project-dependent ones, so they sit in the
+tier this repo installs (alongside ripgrep and starship), not the config-only
+tier shared with `gh` and `kubectl`. Hosts were devcontainer-only until
+[#71](https://github.com/iggycoloma/dotfiles/pull/71); that was a scope artifact
+of the original devcontainer-features migration rather than a decision, and it
+left Linux hosts installing `bubblewrap` and `socat` -- which exist solely to
+back Claude Code's sandbox -- without installing Claude Code.
+
+Both **upgrade** on re-run, unlike the rest of the toolchain. Re-running
+`install.sh` pulls the current release:
+
+- **Codex** compares `codex --version` against the latest GitHub release tag and
+  reinstalls only when they differ. Tags carry a `rust-v` prefix upstream, which
+  is normalized before comparison.
+- **Claude Code** delegates to its own `claude update`. That is the supported
+  upgrade path, it needs no download when already current, and it leaves the
+  existing installation method intact -- a brew- or npm-managed `claude` is not
+  silently replaced by a native one.
+
+Everything else stays install-once. Upgrade is opt-in per tool via
+`_tc_upgrade="true"` in `_tool_config`, set only for `codex`, because checking
+every tool would add roughly 20 unauthenticated GitHub API calls per run against
+a 60/hour limit and re-download tools with no reason to move.
+
+Failures here are non-fatal. An unreachable GitHub API or a failed
+`claude update` leaves the existing binary in place and the install continues.
 
 Skip both with `DOTFILES_NO_AI_TOOLS=1`.
 

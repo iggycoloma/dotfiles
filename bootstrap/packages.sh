@@ -86,6 +86,7 @@ _tool_config() {
     _tc_binary_name="$tool"       # binary name in archive
     _tc_api_fallback=""           # "lazygit" for special HTTP redirect fallback
     _tc_binary_rename=""          # glob pattern to find + rename binary (e.g. "codex-*" -> "$tool")
+    _tc_upgrade=""                # "true" to reinstall when a newer release exists
 
     case "$tool" in
         starship)
@@ -158,6 +159,9 @@ _tool_config() {
             # Archive contains "codex-ARCH-OS" not "codex"; _tc_binary_rename
             # tells _install_tool to find by glob and rename to "codex"
             _tc_binary_rename="codex-*"
+            # Agentic CLI: track upstream rather than pinning to whatever
+            # version happened to be current at first install.
+            _tc_upgrade="true"
             ;;
         duf)
             _tc_arch_remap="arm64"
@@ -774,6 +778,26 @@ install_brew() {
     _BREW_LIST_CACHE=""
 }
 
+# Extract a bare semver from a tool's --version output.
+#
+# Formats vary and are not worth special-casing per tool:
+#   claude --version  ->  "2.1.220 (Claude Code)"
+#   codex  --version  ->  "codex-cli 0.136.0"
+# Taking the first x.y.z match handles both, and anything that prints no
+# version at all yields "" so callers fall back to reinstalling.
+_installed_version() {
+    local tool="$1"
+    command -v "$tool" >/dev/null 2>&1 || return 0
+    "$tool" --version 2>/dev/null | head -1 |
+        grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
+}
+
+# Normalize a release tag to a bare semver. Upstream prefixes vary
+# ("v0.146.0", codex's "rust-v0.146.0"), so strip everything up to the digits.
+_release_version() {
+    printf '%s' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
+}
+
 # Install tool from GitHub releases
 install_from_github() {
     local tool=$1
@@ -782,8 +806,16 @@ install_from_github() {
 
     mkdir -p "$install_dir"
 
-    # Skip if already installed
-    if has_tool "$tool"; then
+    # Tools default to install-once. Only those flagged _tc_upgrade="true"
+    # pay the extra GitHub API call to check for a newer release -- doing it
+    # for every tool would add ~20 unauthenticated API calls per run against
+    # a 60/hour limit, and re-download tools that have no reason to move.
+    local want_upgrade=""
+    if _tool_config "$tool" 2>/dev/null; then
+        want_upgrade="$_tc_upgrade"
+    fi
+
+    if has_tool "$tool" && [[ "$want_upgrade" != "true" ]]; then
         log_info "$tool already installed, skipping"
         return 0
     fi
@@ -815,8 +847,26 @@ install_from_github() {
     api_json=$(curl -fsSL "$api_url" 2>/dev/null || true)
     if [[ -z "$api_json" ]]; then
         log_error "Failed to query GitHub API for $repo"
+        # An already-installed tool stays usable when the API is unreachable;
+        # only a first install is a real failure.
+        has_tool "$tool" && return 0
         return 1
     fi
+
+    # Upgrade path: skip the download when the installed version already
+    # matches the latest release. An unparseable version on either side falls
+    # through to reinstalling, which is the safe direction.
+    if has_tool "$tool" && [[ "$want_upgrade" == "true" ]]; then
+        local current latest
+        current=$(_installed_version "$tool")
+        latest=$(_release_version "$(echo "$api_json" | jq -r '.tag_name // empty')")
+        if [[ -n "$current" && -n "$latest" && "$current" == "$latest" ]]; then
+            log_info "$tool $current is current, skipping"
+            return 0
+        fi
+        log_info "Upgrading $tool ${current:-unknown} -> ${latest:-latest}"
+    fi
+
     _install_tool "$tool" "$api_json" "$repo" "$install_dir" "$arch" "$os"
 
     if _managed_install_exists "$tool" "$install_dir"; then
@@ -906,8 +956,23 @@ install_bash_preexec() {
 # distinguishable. No pinnable checksum -- this is Anthropic's official
 # installer and is a moving target.
 install_claude_code() {
+    # Already present: use the built-in updater rather than re-running the
+    # install script. It is the supported upgrade path, needs no download when
+    # already current, and leaves the existing installation method alone
+    # (a brew- or npm-managed claude is not silently replaced by a native one).
     if has_tool claude; then
-        log_info "Claude Code already installed, skipping"
+        local before after
+        before=$(_installed_version claude)
+        if claude update >/dev/null 2>&1; then
+            after=$(_installed_version claude)
+            if [[ -n "$before" && -n "$after" && "$before" != "$after" ]]; then
+                log_success "Claude Code upgraded $before -> $after"
+            else
+                log_info "Claude Code ${before:-} is current"
+            fi
+        else
+            log_warn "Claude Code update failed (non-fatal); existing install left in place"
+        fi
         return 0
     fi
     log_info "Installing Claude Code via native installer..."
@@ -1010,13 +1075,26 @@ install_packages() {
         fi
     fi
 
-    # AI coding tools -- native binary installs, devcontainer only
+    # AI coding tools -- native binary installs, every environment
     # (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && is_devcontainer; then
+    #
+    # Hosts included deliberately. These are developer tools, not
+    # project-dependent ones, so they belong in the "this repo installs it"
+    # tier alongside ripgrep and starship rather than the config-only tier
+    # with gh and kubectl (see CLAUDE.md "Design Philosophy"). Hosts already
+    # get bubblewrap and socat above solely to back Claude Code's sandbox;
+    # installing those and not the tool that uses them made no sense.
+    #
+    # macOS resolves through the same path: codex publishes
+    # codex-ARCH-apple-darwin.tar.gz and the OS detection maps Darwin to
+    # apple-darwin, so no brew special-case is needed.
+    #
+    # Both upgrade on re-run rather than skipping when present: codex compares
+    # against the latest release tag, Claude Code delegates to `claude update`.
+    # Everything else in this file stays install-once.
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
         log_info "Installing AI coding tools..."
-        if [[ "$pkg_mgr" != "brew" ]]; then
-            install_from_github "codex" "$(get_github_repo codex)"
-        fi
+        install_from_github "codex" "$(get_github_repo codex)"
         install_claude_code
     fi
 
