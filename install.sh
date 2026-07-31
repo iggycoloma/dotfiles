@@ -138,67 +138,17 @@ else
     log_info "         git config --global user.email \"your@email.com\""
 fi
 
-# SSH commit signing: auto-detect key from agent or local files
-# Opt-out via DOTFILES_NO_SSH_SIGNING=1 (accesses ssh-add and ~/.ssh/*.pub)
-if [[ "${DOTFILES_NO_SSH_SIGNING:-}" == "1" ]]; then
-    log_info "DOTFILES_NO_SSH_SIGNING=1, skipping SSH signing setup"
-elif ! git config user.signingkey >/dev/null 2>&1; then
-    signing_key=""
-    # Try SSH agent first (works with devcontainer forwarding), prefer ed25519
-    # ssh-add -L prints "The agent has no identities." to stdout and exits 1
-    # when the agent is empty, so filter to real key lines to avoid capturing
-    # that sentence as the signing key.
-    agent_keys=$(ssh-add -L 2>/dev/null | grep -E '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-|sk-ssh-ed25519@|sk-ecdsa-sha2-) ' || true)
-    if [[ -n "$agent_keys" ]]; then
-        signing_key=$(echo "$agent_keys" | grep -m1 'ssh-ed25519' || echo "$agent_keys" | head -1)
-    fi
-
-    if [[ -n "$signing_key" ]]; then
-        git config --global user.signingkey "key::$signing_key"
-        git config --global commit.gpgsign true
-        log_success "SSH commit signing configured (from agent)"
-    elif is_devcontainer; then
-        # Devcontainers: agent-only. A file-based key inside the container is
-        # a long-lived credential that survives rebuilds in the persisted
-        # state volume and gives container-resident code (and any prompt-
-        # injected agent) a signing primitive without the user in the loop.
-        # Forward ssh-agent into the container instead.
-        log_warn "No SSH agent forwarded into container -- commit signing disabled"
-        log_info "Forward ssh-agent into the devcontainer to enable signing"
-    elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
-        git config --global user.signingkey "$HOME/.ssh/id_ed25519.pub"
-        git config --global commit.gpgsign true
-        log_success "SSH commit signing configured (ed25519)"
-    elif [[ -f "$HOME/.ssh/id_rsa.pub" ]]; then
-        git config --global user.signingkey "$HOME/.ssh/id_rsa.pub"
-        git config --global commit.gpgsign true
-        log_success "SSH commit signing configured (rsa)"
-    else
-        log_warn "No SSH key found -- commit signing disabled"
-        log_info "Add an SSH key and re-run install.sh to enable signing"
-    fi
-
-    # Create allowed_signers file if signing key was configured
-    if git config user.signingkey >/dev/null 2>&1; then
-        local_email=$(git config user.email 2>/dev/null || echo "unknown")
-        signers_file="$HOME/.config/git/allowed_signers"
-        mkdir -p "$(dirname "$signers_file")"
-        # Resolve the key content (handles both key:: prefix and file paths)
-        key_value=$(git config user.signingkey)
-        if [[ "$key_value" == key::* ]]; then
-            key_content="${key_value#key::}"
-        elif [[ -f "$key_value" ]]; then
-            key_content=$(command cat "$key_value")
-        else
-            key_content=""
-        fi
-        if [[ -n "$key_content" ]] && ! grep -qF "$key_content" "$signers_file" 2>/dev/null; then
-            echo "$local_email $key_content" > "$signers_file"
-            log_success "Created allowed_signers file"
-        fi
-    fi
+# SSH commit signing: auto-detect key from agent or local files.
+# Opt-out via DOTFILES_NO_SSH_SIGNING=1 (accesses ssh-add and ~/.ssh/*.pub).
+#
+# Guarded because `set -e` is live by this point -- symlinks.sh and
+# completions.sh each run `set -e` at their top and sourcing propagates the
+# option into this shell. A bare `source` of a missing signing.sh would abort
+# the installer here with no message at all.
+if source "$DOTFILES_DIR/bootstrap/signing.sh"; then
+    configure_ssh_signing
 else
-    log_success "SSH commit signing already configured"
+    log_warn "Signing setup script not found -- commit signing not configured"
 fi
 
 # Final message

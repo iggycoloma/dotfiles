@@ -181,12 +181,14 @@ around the friction:
   needs. Workaround: `--security-opt=seccomp=unconfined` in runArgs.
 - The kernel additionally gates `CLONE_NEWNS` on `CAP_SYS_ADMIN`. Workaround:
   `--cap-add=SYS_ADMIN`.
-- bwrap on Linux installs a seccomp filter that unconditionally blocks
-  `socket(AF_UNIX, ...)`, breaking ssh-agent reachability for signed git commits.
-  No setting bypasses this on Linux (issue [#44180](https://github.com/anthropics/claude-code/issues/44180)
+- Claude Code's optional Linux seccomp filter blocks `socket(AF_UNIX, ...)`,
+  breaking ssh-agent reachability for signed git commits when it is installed.
+  No setting bypasses it on Linux (issue [#44180](https://github.com/anthropics/claude-code/issues/44180)
   is the open feature request; `excludedCommands "git *"` does *not* work per
   [#10767](https://github.com/anthropics/claude-code/issues/10767),
   [#29274](https://github.com/anthropics/claude-code/issues/29274)).
+  See "SSH agent and signed commits" below for when the filter is actually
+  present -- this repo does not install it.
 
 Each workaround was correct in isolation, but the pattern was that container
 config kept encoding *host-OS* knowledge. That dependency direction is wrong:
@@ -213,35 +215,159 @@ HTTP proxy. On Linux, bwrap unshares the network namespace and bridges via socat
 into the proxy, so the policy is kernel-enforced for every bash subprocess. On
 macOS, Seatbelt enforces a similar boundary.
 
+Commands excluded from the sandbox
+----------------------------------
+
+`sandbox.excludedCommands` in `claude-code/settings.json` runs three commands
+outside the sandbox entirely:
+
+```json
+"excludedCommands": ["glab *", "gh *", "docker *"]
+```
+
+This is a real hole, not a tuning knob. An excluded command gets no
+`allowedDomains` enforcement and no filesystem confinement -- `gh api` and
+`glab api` become arbitrary-egress channels holding your tokens. Upstream flags
+the same interaction: check that an `excludedCommands` exception does not undo a
+restriction on the other side. The entries are here anyway because each has no
+narrower fix:
+
+- **`docker *`** -- upstream states docker is incompatible with the sandbox and
+  names this exact remedy. Applies on every platform.
+- **`gh *` / `glab *`** -- Go-based CLIs fail TLS verification under Seatbelt on
+  macOS, and upstream's documented workaround is to exclude them. This is a
+  macOS-only need, but one settings file serves both host platforms, so it costs
+  Linux/WSL2 hosts the same exclusion for no benefit there: on Linux both tools
+  work sandboxed, since `github.com`, `api.github.com`, and `gitlab.com` are
+  already in `allowedDomains`. Splitting the file per platform to recover that
+  would cost more than the exclusion does.
+
+What still applies to an excluded command: `permissions.deny[]` rules and the
+`pre-security.sh` PreToolUse hook, which are evaluated before the command runs
+and are independent of the sandbox. That hook is a substring scan over the
+command string, so it catches `gh` reading `~/.config/gh` by name and does not
+catch `gh api /user`. Treat the exclusion as trading network confinement for
+tool compatibility, with Tier-1 credential guards intact.
+
+**The permission layer has to carry the weight the sandbox no longer does.**
+Excluding a command and auto-approving it are independent settings that stack
+badly: a command on both lists runs unprompted *and* unconfined, which is
+strictly weaker than either setting alone implies. `Bash(gh api:*)` and
+`Bash(glab api:*)` were deliberately removed from `permissions.allow` for
+exactly this reason -- `gh api` is the arbitrary-request subcommand, so
+combining auto-approval with sandbox exclusion turns it into an unattended
+egress channel authenticated with your own token. The scoped subcommands
+(`gh pr`, `gh issue`, `gh run`, `glab mr`, `glab issue`, `glab ci`) stay
+auto-approved; `gh api` and `glab api` now prompt. When adding to
+`excludedCommands`, check what the same command matches in `permissions.allow`.
+
+Self-hosted GitLab would be the one case worth revisiting: a private host is not
+in `allowedDomains`, so `glab` would need either the exclusion or an entry for
+that host. This repo's GitLab usage is gitlab.com, which is already allowlisted.
+
 SSH agent and signed commits
 ----------------------------
 
-bwrap's default Linux profile installs a seccomp filter that blocks
-`socket(AF_UNIX, ...)`. This breaks ssh-agent reachability from any sandboxed
-bash command -- including `git commit` when commits are SSH-signed via the agent.
+Signing over ssh-agent needs `socket(AF_UNIX, ...)`, which the sandbox may or
+may not permit. On Linux the answer depends on a component this repo does not
+install, so establish which case you are in before debugging anything else.
 
-Status by host platform:
+### Whether AF_UNIX is blocked on Linux at all
 
-- **macOS**: `sandbox.network.allowUnixSockets` accepts a path glob. The dotfiles
-  config narrowly allows the launchd-bridged ssh-agent path
-  (`/private/tmp/com.apple.launchd.*/Listeners`). Signed commits in-session work.
-- **Linux + WSL2**: no equivalent setting exists. Issue
-  [#44180](https://github.com/anthropics/claude-code/issues/44180) tracks the
-  upstream fix. The two SSH-signing variants behave differently inside the
-  sandbox:
+bwrap alone does **not** block AF_UNIX. The blocking comes from Claude Code's
+seccomp BPF filter, which upstream ships as a **separate, optional** package:
+`npm install -g @anthropic-ai/sandbox-runtime`. When it is installed the filter
+is absolute -- every `socket(AF_UNIX, ...)` returns `EPERM`, with no path-scoped
+escape ([#44180](https://github.com/anthropics/claude-code/issues/44180) is the
+open request for one). When it is absent, nothing blocks AF_UNIX and ssh-agent
+is reachable from sandboxed commands.
+
+`bootstrap/packages.sh` installs `bubblewrap` and `socat` and **not**
+`@anthropic-ai/sandbox-runtime`. So on a host provisioned by these dotfiles the
+filter is absent by default and agent-based signing works in-sandbox.
+
+Check your own host rather than trusting that default -- the filter may have
+arrived via an unrelated global npm install:
+
+```sh
+npm ls -g --depth=0 2>/dev/null | grep sandbox-runtime   # installed?
+claude   # then run /sandbox and look for a Dependencies tab listing it
+```
+
+That cuts both ways, and the tradeoff is a real choice rather than an oversight:
+
+| Filter | Unix-socket isolation | Agent-based signing |
+|--------|-----------------------|---------------------|
+| Absent (this repo's default) | none -- a sandboxed command can reach any socket it can see, including `docker.sock` | works |
+| Installed | complete | broken, no per-path exemption |
+
+This repo leaves it absent. Signed commits are a daily workflow; the sockets a
+sandboxed command could reach on a developer host are the same ones any other
+process running as that user could reach anyway, so the filter buys less than
+it costs here. Installing it is a supported choice if your threat model differs
+-- expect to switch signing to file-based (below) at the same time. Note also
+that installing it has been unreliable in practice
+([#37916](https://github.com/anthropics/claude-code/issues/37916),
+[#24238](https://github.com/anthropics/claude-code/issues/24238)).
+
+### If the filter is installed
+
+- **macOS**: not applicable -- Seatbelt is the enforcement layer, and
+  `sandbox.network.allowUnixSockets` takes path globs. The dotfiles config
+  allows exactly one:
+
+  ```
+  /private/tmp/com.apple.launchd.*/Listeners
+  ```
+
+  That is the whole correct answer for the *system* ssh-agent, and the
+  derivation matters because guessing here is how you end up with dead
+  entries. `/System/Library/LaunchAgents/com.openssh.ssh-agent.plist`
+  declares its socket with launchd's `SecureSocketWithKey` key. That key
+  means launchd -- not the plist author -- picks the path, and it always
+  mints a fresh randomized directory under `/private/tmp` per user session,
+  which is why the glob has a wildcard in the middle. `/var/run` is the
+  traditional home for *fixed, system-wide* sockets that a daemon author
+  names explicitly; `SecureSocketWithKey` never puts anything there, so a
+  `/var/run/com.apple.launchd.*` glob matches nothing on any macOS version.
+  `/var` is also a symlink to `/private/var`, so those two spellings are one
+  directory and listing both is redundant regardless.
+
+  Keep this list at one entry. Upstream ships `allowUnixSockets: []` in its
+  own sandbox example and blesses no ssh-agent path, and it warns that a
+  permissive list hands out access to powerful system services -- its example
+  is `/var/run/docker.sock`, which sits in the directory a `/var/run` glob
+  would have covered.
+
+  **If signing still fails, the agent is not the system one.** Third-party
+  agents use entirely different paths, and no `com.apple.launchd` glob will
+  ever reach them. Run `echo $SSH_AUTH_SOCK` and add that path:
+
+  | Agent | Socket |
+  |-------|--------|
+  | macOS system (launchd) | `/private/tmp/com.apple.launchd.*/Listeners` |
+  | 1Password | `~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock` |
+  | gpg-agent | `~/.gnupg/S.gpg-agent.ssh` |
+  | Secretive | `~/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh` |
+
+  There is no path-scoped Linux equivalent
+  ([#44180](https://github.com/anthropics/claude-code/issues/44180) is the open
+  request), but `allowAllUnixSockets: true` does exist and disables seccomp
+  blocking wholesale on Linux. That is all-or-nothing: it removes Unix-socket
+  isolation entirely rather than admitting one agent, so prefer leaving the
+  filter uninstalled over enabling it.
+- **Linux + WSL2**: the two SSH-signing variants diverge.
   - **File-based** (`user.signingkey` = path to `~/.ssh/id_ed25519.pub`):
     works. `ssh-keygen` derives the private key path by stripping `.pub`
-    and reads the file directly -- no AF_UNIX socket, so the bwrap seccomp
-    filter is irrelevant. `install.sh` falls back to this when no agent
-    is reachable at install time.
+    and reads the file directly -- no AF_UNIX socket, so the filter is
+    irrelevant. `install.sh` falls back to this when no agent is reachable
+    at install time.
   - **Agent-based** (`user.signingkey` = `"key::<literal-pubkey>"`):
-    broken. ssh-keygen must contact `SSH_AUTH_SOCK`, which requires
-    `socket(AF_UNIX, ...)`. `install.sh` prefers this when an agent is
-    loaded at install time, so signing breaks for those users in-sandbox.
-    Workaround: re-run `git config --global user.signingkey
-    ~/.ssh/id_ed25519.pub` to switch to file-based, or run `git commit`
-    in a separate terminal until upstream lands a Linux equivalent of
-    `allowUnixSockets`.
+    broken. `ssh-keygen` must contact `SSH_AUTH_SOCK`. `install.sh` prefers
+    this form when an agent is loaded at install time, so signing breaks for
+    those users in-sandbox. Workaround: re-run `git config --global
+    user.signingkey ~/.ssh/id_ed25519.pub` to switch to file-based, or run
+    `git commit` in a separate terminal.
 
 Settings precedence (managed > CLI > local > project > user) means an
 organization can enforce sandboxing for every developer via managed settings;
@@ -356,16 +482,35 @@ ralph harness; that warning is expected.
 Settings variant drift
 ----------------------
 
-`bin/settings-drift.sh` is the companion that verifies host and container
-settings variants stay in sync on every non-sandbox key. The drift check
-lives in its own tool (not the rubric) because it's a two-file comparison,
-not a per-devcontainer.json rule. Wired into `make lint` via the
-`lint-settings-drift` target so every CI lint catches drift.
+Two tools, in order of preference: generate what can be generated, verify the
+rest.
 
-Checks:
+`bin/sync-settings.sh` generates `claude-code/settings.container.json` from
+`settings.json` by replacing `.sandbox` with the container-tier policy. Because
+the container variant is derived, "edited one file, forgot the other" is not a
+bug you can commit for the Claude pair -- it is unrepresentable. Run
+`make sync-settings` after editing `settings.json` and commit both.
+`make lint` runs `--check` and fails if the committed file is stale.
+
+The Codex pair is not derivable the same way: its variants differ by *value*
+(`workspace-write` vs `danger-full-access`), and a `yq` round-trip would strip
+the comments. It stays hand-maintained and drift-checked.
+
+`bin/settings-drift.sh` is the verifier, wired into `make lint` via
+`lint-settings-drift`. It covers two drift classes:
+
+Class 1 -- host vs container variants:
 
 - `claude-code/settings.json` vs `settings.container.json`, ignoring `.sandbox`.
 - `codex/config.toml` vs `codex/config.container.toml`, ignoring `.sandbox_mode`.
+
+Class 2 -- `Read`/`Write`/`Edit` deny parity inside `settings.json`. Every
+credential path is listed three times, once per file tool, and the three blocks
+must match in content *and* order. Without this, a path denied for `Read` but
+missed for `Edit` is still writable, and the omission is invisible in a diff of
+a 130-line list. Deliberate asymmetries are declared in the script's
+`PARITY_WRITE_EDIT_ONLY` array with a reason; anything undeclared fails. Only
+the host variant is checked, since the container variant is generated from it.
 
 Comparison is canonical: JSON keys are sorted (`jq -S`), TOML is normalized
 through JSON (`yq -p toml -o json | jq -S`). Order and whitespace are not
@@ -433,9 +578,10 @@ Claude Code
 -----------
 
 Host vs container variant lives at `claude-code/settings.json` and
-`claude-code/settings.container.json`. Both files mirror each other on
-`permissions`, `hooks`, `statusLine`, `env`, etc. Only the `sandbox` block
-differs:
+`claude-code/settings.container.json`. The container variant is *generated* from
+the host one by `bin/sync-settings.sh` (`make sync-settings`), so the two are
+identical on `permissions`, `hooks`, `statusLine`, `env`, etc. by construction.
+Edit `settings.json` only. Only the `sandbox` block differs:
 
 - Host: `sandbox.enabled: true`, full filesystem/network config.
 - Container: `sandbox.enabled: false`, nothing else under sandbox.
@@ -614,12 +760,18 @@ The container does not install `bubblewrap` or `socat` -- those are skipped in
 Limitations and known gaps
 ==========================
 
-- **Linux ssh-agent-based signed commits**: blocked by the unconditional
-  AF_UNIX seccomp filter. Tracked at issue
-  [#44180](https://github.com/anthropics/claude-code/issues/44180).
-  File-based SSH signing works in-sandbox (see "SSH agent and signed
-  commits" above for how to switch); agent-based signing needs a separate
-  terminal until upstream lands a Linux `allowUnixSockets` equivalent.
+- **No Unix-socket isolation on Linux by default**: the seccomp filter that
+  blocks AF_UNIX is an optional upstream package this repo does not install,
+  so sandboxed commands can reach any Unix socket visible to the user. The
+  same gap is what keeps agent-based signed commits working. Installing
+  `@anthropic-ai/sandbox-runtime` closes it and breaks agent-based signing,
+  with no per-path exemption on Linux
+  ([#44180](https://github.com/anthropics/claude-code/issues/44180)).
+  See "SSH agent and signed commits" above for the tradeoff and how to
+  switch signing to file-based.
+- **`excludedCommands` is an unsandboxed hole by construction**: `gh`, `glab`,
+  and `docker` run outside the sandbox entirely -- no `allowedDomains`, no
+  filesystem confinement. See "Commands excluded from the sandbox" above.
 - **Host network proxy and TLS**: the built-in proxy enforces by hostname
   without TLS termination. Broad allowedDomains entries (e.g. `github.com`)
   can be domain-fronted by attacker code running inside the sandbox. Threat
@@ -629,10 +781,11 @@ Limitations and known gaps
   can dial allowed destinations (e.g. push to a controlled github.com
   repo). The allowlist narrows the channel; outer-ring controls
   (credential scoping, deny-list) are what limit blast radius.
-- **Settings file drift**: `claude-code/settings.json` and
-  `claude-code/settings.container.json` are two physical files maintained in
-  parallel. The linter's drift check enforces sync on non-sandbox keys.
-  Adding a key to one without the other is a `make lint` warning.
+- **Settings file drift**: closed for the Claude pair --
+  `claude-code/settings.container.json` is generated from `settings.json` by
+  `bin/sync-settings.sh`, and `make lint` fails if the committed copy is stale.
+  The Codex pair is still two hand-maintained files; `bin/settings-drift.sh`
+  enforces sync on non-`sandbox_mode` keys there.
 
 Threat model and security recommendations
 =========================================

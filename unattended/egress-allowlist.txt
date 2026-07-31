@@ -19,6 +19,12 @@ objects.githubusercontent.com
 raw.githubusercontent.com
 uploads.github.com
 
+# --- GitLab (git, glab CLI) ---
+# gitlab.com only. A self-hosted instance is deliberately not listed: add your
+# own host here if you need one, and keep it out of the shared allowlist.
+gitlab.com
+registry.gitlab.com
+
 # --- Package registries ---
 # npm
 registry.npmjs.org

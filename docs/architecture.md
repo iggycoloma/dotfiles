@@ -153,11 +153,21 @@ Two complementary linters live in `bin/`:
   `updateRemoteUserUID`, `waitFor`. Profiles: `attended` (light safety) and
   `unattended` (hardened). `--fix` applies additive-only fixes (never
   overwrites or removes existing values). Wired into `make lint-devcontainers`.
-- [`bin/settings-drift.sh`](../bin/settings-drift.sh) -- variant drift linter.
-  Compares `claude-code/settings.json` vs `settings.container.json` on every
-  key outside `.sandbox`, and `codex/config.toml` vs `config.container.toml`
-  on every key outside `.sandbox_mode`. Wired into `make lint` as a prereq,
-  so drift is caught on every CI shellcheck run.
+- [`bin/sync-settings.sh`](../bin/sync-settings.sh) -- generates
+  `claude-code/settings.container.json` from `settings.json`, swapping in the
+  container-tier `.sandbox` block. `make sync-settings` writes it;
+  `make lint` runs `--check` and fails when the committed copy is stale.
+  Generating rather than mirroring makes host/container drift unrepresentable
+  for the Claude pair.
+- [`bin/settings-drift.sh`](../bin/settings-drift.sh) -- drift linter, two
+  classes. Host vs container: `claude-code/settings.json` vs
+  `settings.container.json` outside `.sandbox`, and `codex/config.toml` vs
+  `config.container.toml` outside `.sandbox_mode` (the Codex pair's only
+  guard -- it differs by value and carries comments, so it cannot be
+  generated). Deny parity: the `Read`/`Write`/`Edit` blocks in
+  `permissions.deny[]` must match in content and order, so a path blocked for
+  reads cannot stay writable through `Edit`. Wired into `make lint` as a
+  prereq, so both are caught on every CI shellcheck run.
 
 For the rubric, profiles, and the rationale behind splitting the drift check
 into its own tool, see [`sandbox.md`](sandbox.md#devcontainerjson-linter).
@@ -196,7 +206,8 @@ The test suite runs via `make test`:
 | `tests/test-gh-repo-policy.sh` | GitHub repo policy CLI                                           |
 | `tests/test-ralph.sh`          | Agentic ralph harness                                            |
 | `tests/test-dc-audit.sh`       | Devcontainer.json linter rubric                                  |
-| `tests/test-settings-drift.sh` | Host vs container settings variant drift detection               |
+| `tests/test-settings-drift.sh` | Settings variant drift, deny-list parity, container-variant generation |
+| `tests/test-signing.sh`        | SSH signing key detection, devcontainer carve-out, allowed_signers |
 
 Auxiliary scripts in `tests/`:
 

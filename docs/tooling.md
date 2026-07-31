@@ -62,7 +62,8 @@ integration; projects bring the executable.
 
 | Tool                                                           | What this repo provides                                                 |
 |----------------------------------------------------------------|-------------------------------------------------------------------------|
-| [gh](https://cli.github.com/)                                  | Aliases, completions, `~/.config/gh` state persistence, `ghpr` function |
+| [gh](https://cli.github.com/)                                  | Completions, `~/.config/gh` state persistence, `ghpr` function          |
+| [glab](https://gitlab.com/gitlab-org/cli)                      | Completions, `~/.config/glab-cli` state persistence, `glmr` function    |
 | [docker](https://www.docker.com/)                              | Aliases (`d`, `dc`, `dps`, `di`, `dex`) + helper functions              |
 | [kubectl](https://kubernetes.io/)                              | Aliases (`k`, `kgp`, `kgs`, `kgd`), completions                         |
 | [direnv](https://direnv.net/)                                  | Shell activation (deferred on zsh for performance)                      |
@@ -155,10 +156,16 @@ The installer auto-detects SSH keys from the agent (prefers ed25519) or from
 `~/.ssh/id_ed25519.pub`. When a key is found, `commit.gpgsign` is enabled
 and `allowed_signers` is populated. No key? Signing stays disabled.
 
-Note on signing inside the sandbox on Linux/WSL2 hosts: file-based signing
-works, agent-based does not (bwrap's AF_UNIX seccomp filter blocks the
-agent socket). See [sandbox.md](sandbox.md#ssh-agent-and-signed-commits) for
-the full story.
+Inside devcontainers the agent is the only accepted source: a file-based key
+would be a long-lived signing credential persisted across rebuilds, so it is
+deliberately not adopted there. Forward ssh-agent into the container instead.
+
+Note on signing inside the sandbox on Linux/WSL2 hosts: agent-based signing
+works unless Claude Code's optional AF_UNIX seccomp filter
+(`@anthropic-ai/sandbox-runtime`) is installed, which this repo does not
+install. File-based signing works either way. See
+[sandbox.md](sandbox.md#ssh-agent-and-signed-commits) for how to check which
+case you are in and what the tradeoff is.
 
 ### Secret scanning
 

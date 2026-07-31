@@ -154,6 +154,17 @@ function ghpr {
     fi
 }
 
+# Create GitLab MR from current branch. Counterpart to ghpr above; glmr rather
+# than glmr-ish shorthand because gmr would collide with the git aliases.
+function glmr {
+    if command -v glab &> /dev/null; then
+        glab mr create --web
+    else
+        echo "GitLab CLI (glab) is not installed"
+        return 1
+    fi
+}
+
 # Note: weather alias already exists in aliases.sh
 
 # Show disk usage for current directory

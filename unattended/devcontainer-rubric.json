@@ -129,16 +129,16 @@
       "id": "no-host-creds-unattended",
       "profile": "unattended",
       "severity": "error",
-      "message": "Unattended profile must not bind-mount host credential directories (~/.ssh, ~/.aws, ~/.config/gh, ~/.gnupg, ~/.kube, ~/.docker).",
-      "check": "[(.mounts // [])[] | select(type == \"string\" and test(\"(^|,|=)(source=)?[^,]*(\\\\.ssh|\\\\.aws|\\\\.config/gh|\\\\.gnupg|\\\\.kube|\\\\.docker)(/|,|$)\"))] | length > 0",
+      "message": "Unattended profile must not bind-mount host credential directories (~/.ssh, ~/.aws, ~/.config/gh, ~/.config/glab-cli, ~/.gnupg, ~/.kube, ~/.docker).",
+      "check": "[(.mounts // [])[] | select(type == \"string\" and test(\"(^|,|=)(source=)?[^,]*(\\\\.ssh|\\\\.aws|\\\\.config/gh|\\\\.config/glab-cli|\\\\.gnupg|\\\\.kube|\\\\.docker)(/|,|$)\"))] | length > 0",
       "fixable": false
     },
     {
       "id": "host-creds-mount-attended",
       "profile": "attended",
       "severity": "warn",
-      "message": "Bind-mounts a host credential directory (~/.ssh, ~/.aws, ~/.config/gh, ~/.gnupg, ~/.kube, ~/.docker). These are long-lived, high-value credentials -- every layer below this mount is bypassable through the mounted file. Confirm the mount is necessary and consider per-project narrowing.",
-      "check": "[(.mounts // [])[] | select(type == \"string\" and test(\"(^|,|=)(source=)?[^,]*(\\\\.ssh|\\\\.aws|\\\\.config/gh|\\\\.gnupg|\\\\.kube|\\\\.docker)(/|,|$)\"))] | length > 0",
+      "message": "Bind-mounts a host credential directory (~/.ssh, ~/.aws, ~/.config/gh, ~/.config/glab-cli, ~/.gnupg, ~/.kube, ~/.docker). These are long-lived, high-value credentials -- every layer below this mount is bypassable through the mounted file. Confirm the mount is necessary and consider per-project narrowing.",
+      "check": "[(.mounts // [])[] | select(type == \"string\" and test(\"(^|,|=)(source=)?[^,]*(\\\\.ssh|\\\\.aws|\\\\.config/gh|\\\\.config/glab-cli|\\\\.gnupg|\\\\.kube|\\\\.docker)(/|,|$)\"))] | length > 0",
       "fixable": false
     },
     {

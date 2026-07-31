@@ -19,6 +19,7 @@ setup_bash_completions() {
     # Generate completions for tools that support it
     local tools=(
         "gh:github-cli"
+        "glab:gitlab-cli"
         "kubectl:kubernetes"
         "docker:docker"
         "terraform:terraform"
@@ -32,6 +33,9 @@ setup_bash_completions() {
             case "$tool" in
                 gh)
                     gh completion -s bash > "$completion_dir/gh" 2>/dev/null || true
+                    ;;
+                glab)
+                    glab completion -s bash > "$completion_dir/glab" 2>/dev/null || true
                     ;;
                 kubectl)
                     kubectl completion bash > "$completion_dir/kubectl" 2>/dev/null || true
@@ -76,6 +80,12 @@ setup_zsh_completions() {
         gh completion -s zsh > "$zsh_dir/completions/_gh" 2>/dev/null || true
         zsh -c "zcompile '$zsh_dir/completions/_gh'" 2>/dev/null || true
         log_success "Generated gh completion"
+    fi
+
+    if has_tool glab; then
+        glab completion -s zsh > "$zsh_dir/completions/_glab" 2>/dev/null || true
+        zsh -c "zcompile '$zsh_dir/completions/_glab'" 2>/dev/null || true
+        log_success "Generated glab completion"
     fi
 
     if has_tool kubectl; then

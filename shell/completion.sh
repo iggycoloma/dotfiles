@@ -33,6 +33,9 @@ if [[ -n "$BASH_VERSION" ]]; then
         if command -v gh &> /dev/null; then
             eval "$(gh completion -s bash 2>/dev/null)"
         fi
+        if command -v glab &> /dev/null; then
+            eval "$(glab completion -s bash 2>/dev/null)"
+        fi
         if command -v kubectl &> /dev/null; then
             source <(kubectl completion bash 2>/dev/null)
         fi

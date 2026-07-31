@@ -585,10 +585,24 @@ create_symlinks() {
         _setup_unattended
     fi
 
-    # GitHub CLI credentials (devcontainer persistence only)
+    # Forge CLI credentials (devcontainer persistence only). Without this,
+    # `gh auth login` / `glab auth login` have to be repeated on every rebuild.
+    #
+    # Report per-tool rather than unconditionally: setup_volume_dir returns 1
+    # when it cannot migrate an existing directory, leaving no symlink behind.
+    # A success line printed anyway tells the user their credentials persist
+    # when they are about to be lost on the next rebuild.
     if is_devcontainer && [[ -d "$HOME/.dotfiles-state" ]]; then
-        setup_volume_dir "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"
-        log_success "$HOME/.config/gh -> volume"
+        if setup_volume_dir "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"; then
+            log_success "$HOME/.config/gh -> volume"
+        else
+            log_warn "$HOME/.config/gh not persisted -- gh credentials will not survive a rebuild"
+        fi
+        if setup_volume_dir "$HOME/.dotfiles-state/glab-cli" "$HOME/.config/glab-cli"; then
+            log_success "$HOME/.config/glab-cli -> volume"
+        else
+            log_warn "$HOME/.config/glab-cli not persisted -- glab credentials will not survive a rebuild"
+        fi
     fi
 
     # Tmux configuration (skip in containers)

@@ -184,9 +184,11 @@ Same dotfiles, different deployed shape:
 | Codespaces         | `settings.container.json`    | `config.container.toml`            | `sandbox.enabled=false`            |
 
 Dispatch happens in `bootstrap/symlinks.sh` via `_deploy_variant_file`, gated
-on `is_devcontainer()`. `bin/settings-drift.sh` (wired into `make lint`)
-verifies that the host and container variants stay in sync on every key
-outside the per-tier sandbox block.
+on `is_devcontainer()`. The Claude container variant is generated from the host
+one by `bin/sync-settings.sh` (`make sync-settings`), so edit `settings.json`
+only. `bin/settings-drift.sh` (wired into `make lint`) verifies the generated
+copy is current and that the hand-maintained Codex pair stays in sync on every
+key outside the per-tier sandbox block.
 
 In **devcontainers and Codespaces**, egress is unrestricted by default;
 the container boundary plus a `bin/dc-audit.sh`-linted spec is the
