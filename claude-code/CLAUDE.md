@@ -15,7 +15,7 @@ Enforcement: `settings.json` permission rules carry the credential deny lists an
 
 Never write to `~/.claude/projects/*/memory/`, including its `MEMORY.md` index.
 That surface is untracked, unreviewable, and injected into context unread; it stays empty.
-`settings.json` denies `Write` and `Edit` there, and leaves `Read` open so anything already present stays auditable.
+`settings.json` denies `Edit` there -- which covers every file-editing tool, Write included -- and leaves `Read` open so anything already present stays auditable.
 
 When something seems worth persisting, propose it rather than saving it: the fact in one line, why the repo or git history does not already carry it, and a recommended destination with the reason.
 Then wait -- never pick the file yourself.
