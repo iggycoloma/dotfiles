@@ -11,6 +11,26 @@
 
 Enforcement: `settings.json` permission hooks carry the credential deny lists, `pre-security.sh` blocks sensitive paths at runtime, `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.
 
+## Memory
+
+Never write to `~/.claude/projects/*/memory/`, including its `MEMORY.md` index.
+That surface is untracked, unreviewable, and injected into context unread; it stays empty.
+`settings.json` denies `Write` and `Edit` there, and leaves `Read` open so anything already present stays auditable.
+
+When something seems worth persisting, propose it rather than saving it: the fact in one line, why the repo or git history does not already carry it, and a recommended destination with the reason.
+Then wait -- never pick the file yourself.
+
+| Destination | Loaded | Fits |
+|---|---|---|
+| `~/.claude/CLAUDE.md` | every session, everywhere | short cross-project rules |
+| `<project>/CLAUDE.md` | every session in that tree | project conventions and protocols |
+| skill under `~/.claude/skills/` | on demand | multi-step procedures |
+| Obsidian vault `Atlas/` | when explicitly read | knowledge, project state, research |
+
+Prefer the cheapest surface that works.
+CLAUDE.md is always-on context, so anything past a few lines belongs in the vault or a skill with a one-line pointer.
+Live state -- ticket status, ownership, open MRs -- goes to Linear or the vault, never a rules file: it goes stale silently.
+
 ## MCP Servers
 
 MCP servers are NOT installed by dotfiles -- the built-in tools (Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch) cover most workflows without the context overhead of MCP tool descriptions. If one is already configured (in settings.local.json or .mcp.json), use it; do not install or configure new servers without explicit user request.
@@ -19,9 +39,10 @@ Security: MCP servers run as child processes with full filesystem and network ac
 
 ## Tool Use Discipline
 
-- NEVER shell out to `rg`, `grep`, or `find` -- use the built-in Grep and Glob tools. Grep IS ripgrep: same engine, same speed, plus no permission prompt, structured output, and a typed log event instead of a raw shell string. There is nothing to "redirect for speed". Steer it with its parameters (`glob`, `type`, `-i`, `-A`/`-B`/`-C`, `output_mode`), not config -- it does not read your shell's ripgrep aliases or rc file.
-- Use Bash only for CLI tools with no built-in equivalent (`sg`, `scc`, `yq`, `shellcheck`).
-- Do not wrap tool calls in Bash `for`/`while` loops -- use a glob pattern in a single Grep or Glob call. A loop's command string starts with `for`, not the inner tool, so `bash(rg:*)` rules never match it.
+- Prefer the built-in Grep and Glob tools over shelling out to `rg`, `grep`, or `find`, when they are available. Grep IS ripgrep: same engine, same speed, plus no permission prompt, structured output, and a typed log event instead of a raw shell string. Steer it with its parameters (`glob`, `type`, `-i`, `-A`/`-B`/`-C`, `output_mode`), not config -- it does not read your shell's ripgrep aliases or rc file.
+- Availability varies by context: background jobs and some subagent profiles ship a reduced tool set, so a rule that assumes Grep exists is unfollowable where it does not. Check what you have rather than assuming. When Grep and Glob are absent, `rg` and `fd` through Bash are the correct fallback, not a rule violation -- the allow list covers them so they run without prompting. Say so once when you fall back, so the choice is visible rather than looking like drift.
+- Use Bash for CLI tools with no built-in equivalent (`sg`, `scc`, `yq`, `shellcheck`) regardless of what else is available.
+- Do not wrap searches in Bash `for`/`while` loops -- one glob pattern in a single Grep/Glob call, or one `rg`/`fd` invocation. A loop's command string starts with `for`, not the inner tool, so `Bash(rg:*)` never matches and every iteration prompts.
 - Keep Bash commands literal so the permission matcher, `pre-security.sh`, and the session log all see what actually runs. Do NOT hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). Length is fine; indirection is not -- the realtime gate and the audit trail share the same blind spot.
 
 ## Preferred CLI Tools

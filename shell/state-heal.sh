@@ -53,7 +53,8 @@ _heal_dotfiles_state() {
         "$HOME/.claude" \
         "$HOME/.codex" \
         "$HOME/.copilot" \
-        "$HOME/.config/gh"
+        "$HOME/.config/gh" \
+        "$HOME/.config/glab-cli"
     do
         # Act only on a dangling symlink: a symlink (-L) whose target does not
         # resolve (-e follows the link).

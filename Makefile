@@ -1,18 +1,31 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers lint-devcontainers lint-settings-drift
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
 
-lint: lint-settings-drift lint-devcontainers
+lint: lint-settings-sync lint-settings-drift lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)
 
-# Verify host vs container settings variants (claude-code, codex) stay in sync
-# on every key outside the per-tier sandbox block. Catches "added a permission
-# to settings.json and forgot settings.container.json" at lint time.
+# Regenerate claude-code/settings.container.json from settings.json. The two
+# differ only in the .sandbox block, so the container variant is derived rather
+# than hand-maintained -- which makes "edited one file, forgot the other"
+# impossible instead of merely detectable. Commit the result.
+sync-settings:
+	@bin/sync-settings.sh
+
+# Fail if the committed container variant no longer matches the generator,
+# i.e. someone hand-edited it or changed settings.json without re-syncing.
+lint-settings-sync:
+	@bin/sync-settings.sh --check
+
+# Two drift classes: host vs container variants (claude-code, codex) on every
+# key outside the per-tier sandbox block, and Read/Write/Edit deny-list parity
+# inside settings.json. Catches "added a permission to settings.json and forgot
+# settings.container.json" and "denied it for Read but not Edit" at lint time.
 lint-settings-drift:
 	@bin/settings-drift.sh --quiet
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -52,6 +65,13 @@ test-hooks:
 # them silently -- which is how the Codex Read|Write|Edit matchers shipped.
 test-matchers:
 	bash tests/test-hook-matchers.sh
+
+# SSH signing key auto-detection: agent vs file-based, ed25519 vs rsa, the
+# devcontainer agent-only carve-out, and allowed_signers resolution. Runs
+# against a fake ssh-add and a throwaway HOME, so it never touches the real
+# agent or gitconfig.
+test-signing:
+	bash tests/test-signing.sh
 
 # Audit the repo's own devcontainer.json files. Exits non-zero on Error-severity
 # findings (Info/Warn are surfaced but do not fail the build). The profile-per-

@@ -229,7 +229,7 @@ if [[ "$TOOL_NAME" == "Bash" ]]; then
     fi
 
     # Check 5: Assignment to a known sensitive env-var. Redirects credential-
-    # using tools (aws, gcloud, kubectl, gpg, gh, npm, pip, docker) at an
+    # using tools (aws, gcloud, kubectl, gpg, gh, glab, npm, pip, docker) at an
     # attacker-chosen file -- the actual access never names a credential path.
     for var in "${SENSITIVE_ASSIGNED_VARS[@]}"; do
         # Match `<VAR>=` either at the start of the command or right after a
