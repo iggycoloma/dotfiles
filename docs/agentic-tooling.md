@@ -7,10 +7,24 @@ For the autonomous-loop harness (`ralph.sh`, unattended profile), see
 
 ## Installation
 
-In devcontainers and Codespaces, Claude Code and Codex CLI are installed
-automatically as **native binaries** -- no devcontainer features, no Node.js
-required. On hosts, users manage their own installs (`brew install
-anthropic-ai/claude/claude`, etc.); this repo just deploys configuration.
+Claude Code and Codex CLI are installed automatically as **native binaries** on
+every environment -- hosts, devcontainers, and Codespaces alike. No devcontainer
+features, no Node.js required. macOS goes through the same path as Linux: Codex
+publishes `codex-ARCH-apple-darwin.tar.gz` and the OS detection maps `Darwin` to
+`apple-darwin`, so there is no brew special-case.
+
+These are developer tools rather than project-dependent ones, so they sit in the
+tier this repo installs (alongside ripgrep and starship), not the config-only
+tier shared with `gh` and `kubectl`. Hosts were devcontainer-only until
+[#71](https://github.com/iggycoloma/dotfiles/pull/71); that was a scope artifact
+of the original devcontainer-features migration rather than a decision, and it
+left Linux hosts installing `bubblewrap` and `socat` -- which exist solely to
+back Claude Code's sandbox -- without installing Claude Code.
+
+Both installers are **install-if-missing, not upgrade**. An existing `claude` or
+`codex` already on `PATH` is left alone, so re-running `install.sh` will not pull
+a newer version; both tools self-update in place. To force a reinstall, remove
+the binary first.
 
 Skip both with `DOTFILES_NO_AI_TOOLS=1`.
 

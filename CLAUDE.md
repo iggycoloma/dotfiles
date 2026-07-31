@@ -85,8 +85,11 @@ By design, Codex CLI and GitHub Copilot CLI get no equivalent Bash deny list -- 
 
 ## Devcontainer Behavior
 
-The installer auto-detects devcontainers and Codespaces. In these environments:
-- Claude Code and Codex CLI are installed as native binaries
+Claude Code and Codex CLI are installed as native binaries everywhere, hosts
+included -- that is not devcontainer-specific.
+
+The installer auto-detects devcontainers and Codespaces. What is specific to
+those environments:
 - AI tool configs are copied fresh from dotfiles on every rebuild
 - Credential state persists via volume mounts or Codespaces storage
 - Shell history, auth tokens, and sessions survive container rebuilds

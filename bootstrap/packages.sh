@@ -1010,13 +1010,25 @@ install_packages() {
         fi
     fi
 
-    # AI coding tools -- native binary installs, devcontainer only
+    # AI coding tools -- native binary installs, every environment
     # (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && is_devcontainer; then
+    #
+    # Hosts included deliberately. These are developer tools, not
+    # project-dependent ones, so they belong in the "this repo installs it"
+    # tier alongside ripgrep and starship rather than the config-only tier
+    # with gh and kubectl (see CLAUDE.md "Design Philosophy"). Hosts already
+    # get bubblewrap and socat above solely to back Claude Code's sandbox;
+    # installing those and not the tool that uses them made no sense.
+    #
+    # macOS resolves through the same path: codex publishes
+    # codex-ARCH-apple-darwin.tar.gz and the OS detection maps Darwin to
+    # apple-darwin, so no brew special-case is needed.
+    #
+    # Both installers are install-if-missing, never upgrade. An existing
+    # claude or codex on PATH is left alone; both self-update in place.
+    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
         log_info "Installing AI coding tools..."
-        if [[ "$pkg_mgr" != "brew" ]]; then
-            install_from_github "codex" "$(get_github_repo codex)"
-        fi
+        install_from_github "codex" "$(get_github_repo codex)"
         install_claude_code
     fi
 
