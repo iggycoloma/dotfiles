@@ -34,6 +34,15 @@ CHECK_ONLY=false
 # docs/sandbox.md "Local devcontainers".
 CONTAINER_SANDBOX='{"enabled": false}'
 
+# CLAUDE_CODE_SUBPROCESS_ENV_SCRUB must NOT reach the container variant. Setting
+# it makes Claude Code "ignore `filesystem.disabled` from every source,
+# including managed settings, and keep filesystem isolation on"
+# (https://code.claude.com/docs/en/sandboxing#which-settings-can-disable-it).
+# In a devcontainer that forces the bwrap machinery on even though
+# sandbox.enabled is false, and bwrap cannot create user namespaces there, so
+# every Bash command dies at startup. Hosts keep it; containers get env scrubbed.
+CONTAINER_ENV_STRIP='CLAUDE_CODE_SUBPROCESS_ENV_SCRUB'
+
 usage() {
     cat <<'HELP'
 Usage: sync-settings.sh [options]
@@ -74,7 +83,11 @@ main() {
 
     local generated
     if ! generated=$(jq --argjson sandbox "$CONTAINER_SANDBOX" \
-        '.sandbox = $sandbox' "$host" 2>&1); then
+        --arg strip "$CONTAINER_ENV_STRIP" \
+        '.sandbox = $sandbox
+         | if has("env") then .env |= del(.[$strip]) else . end
+         | if has("env") and (.env | length) == 0 then del(.env) else . end' \
+        "$host" 2>&1); then
         log_and_return error 2 "host variant is not valid JSON: $generated"
         return 2
     fi

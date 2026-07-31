@@ -317,7 +317,7 @@ main() {
         "claude-code" \
         "$DOTFILES_DIR/claude-code/settings.json" \
         "$DOTFILES_DIR/claude-code/settings.container.json" \
-        ".sandbox"
+        ".sandbox, .env"
 
     check_toml_drift \
         "codex" \

@@ -827,7 +827,29 @@ What replaces it, per tier:
 |------|-------------------------------------|
 | Host | `sandbox.credentials.files` in `claude-code/settings.json`, enforced by bwrap/Seatbelt against every child process |
 | Container | The container boundary; host credential paths are not mounted in |
-| Both | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credential env vars from every subprocess regardless of sandboxing |
+
+### Why `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is host-only
+
+The variable is set in `.env` in `claude-code/settings.json` but is stripped from
+the generated container variant by `bin/sync-settings.sh`
+(`CONTAINER_ENV_STRIP`). It must never reach a devcontainer.
+
+Upstream: *"When `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is set, Claude Code ignores
+`filesystem.disabled` from every source, including managed settings, and keeps
+filesystem isolation on"*
+([sandboxing docs](https://code.claude.com/docs/en/sandboxing#which-settings-can-disable-it)).
+
+Keeping filesystem isolation on means the bwrap machinery starts, and inside a
+devcontainer it cannot: user-namespace creation is blocked, so bwrap aborts and
+**every Bash command fails** with `No permissions to create a new namespace` --
+even though `sandbox.enabled` is `false`. The env var overrides the tier
+posture. On hosts this is exactly what we want, since the sandbox is on there
+anyway; in containers the container is the boundary and the variable only
+breaks the shell.
+
+`bin/settings-drift.sh` therefore excludes `.env` as well as `.sandbox` from the
+host/container parity comparison -- both are legitimately per-tier.
+| Host only | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credential env vars from every subprocess regardless of sandboxing. Host only -- see below |
 
 What the credential list covers
 -------------------------------

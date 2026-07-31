@@ -149,7 +149,7 @@
       "Read(**/*.p12)",
       "Read(~/.claude/.credentials.json)",
       "Read(~/.claude/settings.local.json)",
-       "Edit(.env)",
+      "Edit(.env)",
       "Edit(.env.*)",
       "Edit(**/.env)",
       "Edit(**/.env.*)",
@@ -296,49 +296,135 @@
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": false,
-    "excludedCommands": ["glab *", "gh *", "docker *"],
+    "excludedCommands": [
+      "glab *",
+      "gh *",
+      "docker *"
+    ],
     "credentials": {
       "files": [
-        { "path": "~/.aws", "mode": "deny" },
-        { "path": "~/.gnupg", "mode": "deny" },
-        { "path": "~/.azure", "mode": "deny" },
-        { "path": "~/.config/gcloud", "mode": "deny" },
-        { "path": "~/.config/gh", "mode": "deny" },
-        { "path": "~/.config/glab-cli", "mode": "deny" },
-        { "path": "~/.config/heroku", "mode": "deny" },
-        { "path": "~/.config/doctl", "mode": "deny" },
-        { "path": "~/.stripe", "mode": "deny" },
-        { "path": "~/.git-credentials", "mode": "deny" },
-        { "path": "~/.netrc", "mode": "deny" },
-        { "path": "~/.pgpass", "mode": "deny" },
-        { "path": "~/.my.cnf", "mode": "deny" },
-        { "path": "~/.mongorc.js", "mode": "deny" },
-        { "path": "~/.minikube", "mode": "deny" },
-        { "path": "~/.npmrc", "mode": "deny" },
-        { "path": "~/.pypirc", "mode": "deny" },
-        { "path": "~/.kube/config", "mode": "deny" },
-        { "path": "~/.docker/config.json", "mode": "deny" },
-        { "path": "~/.terraform.d/credentials.tfrc.json", "mode": "deny" },
-        { "path": "~/.m2/settings.xml", "mode": "deny" },
-        { "path": "~/.m2/settings-security.xml", "mode": "deny" },
-        { "path": "~/.gradle/gradle.properties", "mode": "deny" },
-        { "path": "~/.gem/credentials", "mode": "deny" },
-        { "path": "~/.composer/auth.json", "mode": "deny" },
-        { "path": "~/.cargo/credentials.toml", "mode": "deny" },
-        { "path": "~/.claude/.credentials.json", "mode": "deny" },
-        { "path": "~/.claude/settings.local.json", "mode": "deny" },
-        { "path": "~/.claude.json", "mode": "deny" },
-        { "path": "~/.codex/auth.json", "mode": "deny" },
-        { "path": "~/.copilot", "mode": "deny" },
-        { "path": "~/.dotfiles-state", "mode": "deny" },
-        { "path": "~/.bash_history", "mode": "deny" },
-        { "path": "~/.zsh_history", "mode": "deny" },
-        { "path": "~/.local/share/atuin", "mode": "deny" }
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gnupg",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.azure",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gcloud",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/glab-cli",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/heroku",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/doctl",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.stripe",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.netrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.pgpass",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.my.cnf",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.mongorc.js",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.minikube",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.terraform.d/credentials.tfrc.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gem/credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.composer/auth.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.cargo/credentials.toml",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.claude/.credentials.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.claude/settings.local.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.claude.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.codex/auth.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.copilot",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.dotfiles-state",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.bash_history",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.zsh_history",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.local/share/atuin",
+          "mode": "deny"
+        }
       ]
     },
     "filesystem": {
-      "denyRead": ["~/.ssh"],
-      "allowRead": ["~/.ssh/known_hosts"]
+      "denyRead": [
+        "~/.ssh"
+      ],
+      "allowRead": [
+        "~/.ssh/known_hosts",
+        "~/.ssh/config"
+      ]
     },
     "network": {
       "allowedDomains": [

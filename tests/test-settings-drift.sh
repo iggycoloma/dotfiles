@@ -413,9 +413,12 @@ assert_equals 'false' "$(jq -r '.sandbox.enabled' "$tmp/claude-code/settings.con
 assert_equals '1' "$(jq -r '.sandbox | keys | length' "$tmp/claude-code/settings.container.json")" \
     "generated variant carries no other sandbox keys"
 assert_equals \
-    "$(jq -cS 'del(.sandbox)' "$tmp/claude-code/settings.json")" \
-    "$(jq -cS 'del(.sandbox)' "$tmp/claude-code/settings.container.json")" \
-    "generated variant matches the host on every non-sandbox key"
+    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.json")" \
+    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.container.json")" \
+    "generated variant matches the host on every key outside .sandbox and .env"
+assert_equals "null" \
+    "$(jq -c '.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$tmp/claude-code/settings.container.json")" \
+    "generated variant strips CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (it forces filesystem isolation on)"
 rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------

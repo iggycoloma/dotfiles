@@ -290,9 +290,6 @@
     "padding": 0
   },
   "alwaysThinkingEnabled": true,
-  "env": {
-    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
-  },
   "sandbox": {
     "enabled": false
   },
