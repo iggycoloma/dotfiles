@@ -6,11 +6,9 @@ set -e
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 
-# Shared logging and detection functions
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
-# Backup existing file or directory
 backup_if_exists() {
     local target=$1
     if [[ -e "$target" ]] && [[ ! -L "$target" ]]; then
@@ -19,12 +17,10 @@ backup_if_exists() {
         cp -a "$target" "$BACKUP_DIR/"
         rm -rf "$target"
     elif [[ -L "$target" ]]; then
-        # Remove existing symlink
         rm "$target"
     fi
 }
 
-# Create symlink with backup
 create_symlink() {
     local source=$1
     local target=$2
@@ -34,26 +30,27 @@ create_symlink() {
         return 1
     fi
 
-    # Create parent directory if needed
     local target_dir
     target_dir=$(dirname "$target")
     mkdir -p "$target_dir"
 
-    # Backup and create symlink
     backup_if_exists "$target"
     ln -sf "$source" "$target"
     log_success "Linked $(basename "$source") -> $target"
 }
 
-# Ensure a directory symlink points to the volume, migrating any existing
-# contents. If target is a real directory, its contents are merged into the
-# volume first. Idempotent.
+_link_if_present() {
+    [[ -e "$1" ]] || return 0
+    create_symlink "$1" "$2"
+}
+
+# Idempotent. A target that is still a real directory has its contents merged
+# into the volume before it is replaced by the link.
 setup_volume_dir() {
     local vol_path="$1"
     local target_path="$2"
     mkdir -p "$vol_path"
     if [[ -d "$target_path" ]] && [[ ! -L "$target_path" ]]; then
-        # Merge existing contents into volume, then replace with symlink
         if ! cp -a "$target_path"/. "$vol_path"/ 2>&1; then
             log_warn "Failed to migrate $target_path to volume; leaving in place"
             return 1
@@ -65,13 +62,13 @@ setup_volume_dir() {
     ln -snf "$vol_path" "$target_path"
 }
 
-# Force-copy config files and directories from dotfiles into a target dir.
-# Directories are removed first to avoid stale files from previous versions.
+# Directories are removed before copying so files deleted upstream do not
+# survive as stale leftovers in the target.
 stomp_configs() {
     local source_dir="$1"
     local target_dir="$2"
     shift 2
-    # Remaining args: files and directories to copy
+    local item
     for item in "$@"; do
         local src="$source_dir/$item"
         local dst="$target_dir/$item"
@@ -80,34 +77,32 @@ stomp_configs() {
             rm -rf "$dst"
             cp -rf "$src" "$dst"
         else
-            # Remove symlink if present (migration from old setup)
+            # Older installs symlinked these; drop the link before copying.
             [[ -L "$dst" ]] && rm -f "$dst"
             cp -f "$src" "$dst"
         fi
     done
 }
 
-# Ensure the user's git config includes the dotfiles git settings.
-# Uses [include] so ~/.config/git/config stays writable for personal settings
-# (signing keys) without dirtying the repo. Converts old symlink on migration.
+# [include] rather than a symlink so ~/.config/git/config stays a real writable
+# file: `git config --global` writes and the host identity VS Code copies into
+# devcontainers both land there without dirtying the repo.
 _ensure_git_include() {
     local dotfiles_gitconfig="$1"
     local xdg_config="$HOME/.config/git/config"
     mkdir -p "$(dirname "$xdg_config")"
 
-    # Migrate from old symlink to real file
     if [[ -L "$xdg_config" ]]; then
         log_info "Migrating git config from symlink to [include] pattern"
         rm -f "$xdg_config"
     fi
 
-    # Check if include already present
     if [[ -f "$xdg_config" ]] && grep -qF "$dotfiles_gitconfig" "$xdg_config" 2>/dev/null; then
         log_success "Git config already includes dotfiles settings"
         return 0
     fi
 
-    # Prepend include (dotfiles = defaults, user settings override)
+    # Prepended, so dotfiles are defaults and user settings below override.
     local tmp
     tmp=$(mktemp)
     printf '[include]\n\tpath = %s\n' "$dotfiles_gitconfig" > "$tmp"
@@ -118,8 +113,6 @@ _ensure_git_include() {
     log_success "Added [include] for dotfiles git settings"
 }
 
-# Wire up state persistence based on detect_state_tier() result.
-# Creates directories, symlinks, and sets permissions.
 setup_state_persistence() {
     detect_state_tier
 
@@ -150,9 +143,7 @@ setup_state_persistence() {
     esac
 }
 
-# Wire up the target directory for a tool's config in devcontainers.
-# If state persistence is available, uses a volume-backed directory symlink.
-# Otherwise creates a plain directory.
+# No-op on hosts: only devcontainers need the config dir redirected to a volume.
 _wire_tool_dir() {
     local state_subdir="$1" target_dir="$2"
     if is_devcontainer && [[ -d "$HOME/.dotfiles-state" ]]; then
@@ -163,7 +154,6 @@ _wire_tool_dir() {
     fi
 }
 
-# Make all .sh files in a directory executable.
 _chmod_hooks() {
     local dir="$1"
     for f in "$dir"/*.sh; do
@@ -171,11 +161,8 @@ _chmod_hooks() {
     done
 }
 
-# Deploy one of two variant files (host vs container) to a single target.
-# In devcontainers: copy the container variant. On hosts: symlink the host
-# variant. preserve_existing=1 leaves an existing real file in place for
-# configs the user may have tweaked locally.
-# Args: source_dir host_name container_name target_path [preserve_existing]
+# Containers get a copy so a rebuild always refreshes it; hosts get a symlink
+# so edits in the repo take effect live.
 _deploy_variant_file() {
     local source_dir="$1"
     local host_name="$2"
@@ -212,16 +199,11 @@ _deploy_variant_file() {
     fi
 }
 
-# Deploy config files and directories from dotfiles source to target.
-# In devcontainers: force-copies (stomp) so configs refresh every boot.
-# On host: creates symlinks to dotfiles repo for live editing.
-# Args: source_dir target_dir files... -- directories...
-#   files and directories are separated by "--"
+# Usage: _deploy_configs source_dir target_dir files... -- directories...
 _deploy_configs() {
     local source_dir="$1" target_dir="$2"
     shift 2
 
-    # Split args into files and directories at "--"
     local files=() dirs=()
     local in_dirs=false
     for arg in "$@"; do
@@ -323,7 +305,6 @@ _setup_claude_code() {
 
     _wire_tool_dir "claude" "$HOME/.claude"
 
-    # Migrate legacy ~/.claude.json -> ~/.claude/config.json
     if [[ -f "$HOME/.claude.json" ]] && [[ ! -L "$HOME/.claude.json" ]] && [[ ! -f "$HOME/.claude/config.json" ]]; then
         mv "$HOME/.claude.json" "$HOME/.claude/config.json"
         log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
@@ -343,7 +324,6 @@ _setup_claude_code() {
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
         CLAUDE.md statusline.sh -- hooks agents commands
 
-    # Notify hook needs the shared Pushover lib alongside it.
     _deploy_notify_lib "$HOME/.claude/hooks"
 
     log_success "Claude Code configuration complete"
@@ -363,7 +343,6 @@ _setup_unattended() {
     # Vendor logging.sh so deployed ralph can source it without DOTFILES_DIR.
     cp -f "$DOTFILES_DIR/bootstrap/logging.sh" "$HOME/.unattended/lib/logging.sh"
 
-    # Ensure scripts are executable.
     if [[ -d "$HOME/.unattended/scripts" ]]; then
         chmod +x "$HOME/.unattended/scripts"/*.sh 2>/dev/null || true
     fi
@@ -377,7 +356,6 @@ _setup_unattended() {
 _setup_codex() {
     log_info "Setting up Codex configuration..."
 
-    # Migrate from old whole-directory symlink (local only)
     if ! is_devcontainer && [[ -L "$HOME/.codex" ]]; then
         log_warn "Removing old whole-directory symlink ~/.codex (migrating to managed files)"
         rm "$HOME/.codex"
@@ -388,7 +366,6 @@ _setup_codex() {
     _deploy_configs "$DOTFILES_DIR/codex" "$HOME/.codex" \
         AGENTS.md hooks.json -- hooks
 
-    # Notify hook needs the shared Pushover lib alongside it.
     _deploy_notify_lib "$HOME/.codex/hooks"
 
     # Skills: copy subdirectories individually (preserves .system in devcontainer)
@@ -420,7 +397,6 @@ _setup_codex() {
         config.toml config.container.toml \
         "$HOME/.codex/config.toml"
 
-    # Ensure notify hook is wired in config.toml
     _setup_codex_notify
 
     log_success "Codex configuration complete"
@@ -441,7 +417,6 @@ _setup_codex_notify() {
     [[ -f "$HOME/.codex/hooks/notify.sh" ]] || return 0
 
     if [[ -f "$HOME/.codex/config.toml" ]]; then
-        # Fix legacy string format -> array format
         if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
             log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
             if has_tool sd; then
@@ -460,21 +435,18 @@ _setup_codex_notify() {
     fi
 }
 
-# Main symlink creation
 create_symlinks() {
     log_info "Creating symlinks..."
 
-    # Set up state persistence tier (devcontainers only)
-    # Opt-out via DOTFILES_NO_STATE_PERSISTENCE=1
     if is_devcontainer && [[ "${DOTFILES_NO_STATE_PERSISTENCE:-}" != "1" ]]; then
         setup_state_persistence
     elif [[ "${DOTFILES_NO_STATE_PERSISTENCE:-}" == "1" ]]; then
         log_info "DOTFILES_NO_STATE_PERSISTENCE=1, skipping state persistence setup"
     fi
 
-    # Fix ownership and permissions. Named volumes are created root-owned on
-    # first mount; without write access here, every state-backed tool config
-    # (gh, claude, codex) silently fails to persist.
+    # Named volumes mount root-owned on first use; without write access here,
+    # every state-backed tool config (gh, claude, codex) silently fails to
+    # persist.
     if [[ -d "$HOME/.dotfiles-state" ]]; then
         if [[ ! -w "$HOME/.dotfiles-state" ]]; then
             if has_tool sudo; then
@@ -489,23 +461,17 @@ create_symlinks() {
         [[ -O "$HOME/.dotfiles-state" ]] && chmod 700 "$HOME/.dotfiles-state"
     fi
 
-    # Shell configurations
     create_symlink "$DOTFILES_DIR/shell/.bashrc" "$HOME/.bashrc"
     create_symlink "$DOTFILES_DIR/shell/.bash_profile" "$HOME/.bash_profile"
     create_symlink "$DOTFILES_DIR/shell/.zshrc" "$HOME/.zshrc"
     create_symlink "$DOTFILES_DIR/shell/.zprofile" "$HOME/.zprofile"
 
-    # Git configurations
-    # Include dotfiles git settings via [include] in the XDG config.
-    # VS Code copies host ~/.gitconfig (identity) into devcontainers.
-    # The XDG config is a real file so git config --global writes are safe.
     _ensure_git_include "$DOTFILES_DIR/git/.gitconfig"
     create_symlink "$DOTFILES_DIR/git/.gitignore_global" "$HOME/.gitignore_global"
     create_symlink "$DOTFILES_DIR/git/.gitmessage" "$HOME/.gitmessage"
-    # Global Git hooks (applies to all repos via core.hooksPath)
-    # Opt-out via DOTFILES_NO_GIT_HOOKS=1
+
+    # This path is what git/.gitconfig sets core.hooksPath to.
     if [[ "${DOTFILES_NO_GIT_HOOKS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
-        # Ensure hooks are executable
         for file in "$DOTFILES_DIR/git/hooks"/*; do
             [ -f "$file" ] || continue
             chmod +x "$file" || true
@@ -513,50 +479,18 @@ create_symlinks() {
         create_symlink "$DOTFILES_DIR/git/hooks" "$HOME/.config/git/hooks"
     fi
 
-    # Vim configuration
-    if [[ -f "$DOTFILES_DIR/vim/.vimrc" ]]; then
-        create_symlink "$DOTFILES_DIR/vim/.vimrc" "$HOME/.vimrc"
-    fi
+    _link_if_present "$DOTFILES_DIR/vim/.vimrc" "$HOME/.vimrc"
 
-    # XDG config directory
     mkdir -p "$HOME/.config"
+    _link_if_present "$DOTFILES_DIR/config/starship.toml" "$HOME/.config/starship.toml"
+    for cfg in bat bottom lazygit yazi ripgrep; do
+        _link_if_present "$DOTFILES_DIR/config/$cfg" "$HOME/.config/$cfg"
+    done
 
-    # Starship configuration
-    if [[ -f "$DOTFILES_DIR/config/starship.toml" ]]; then
-        create_symlink "$DOTFILES_DIR/config/starship.toml" "$HOME/.config/starship.toml"
-    fi
-
-    # Bat configuration
-    if [[ -d "$DOTFILES_DIR/config/bat" ]]; then
-        create_symlink "$DOTFILES_DIR/config/bat" "$HOME/.config/bat"
-    fi
-
-    # Bottom configuration
-    if [[ -d "$DOTFILES_DIR/config/bottom" ]]; then
-        create_symlink "$DOTFILES_DIR/config/bottom" "$HOME/.config/bottom"
-    fi
-
-    # Lazygit configuration
-    if [[ -d "$DOTFILES_DIR/config/lazygit" ]]; then
-        create_symlink "$DOTFILES_DIR/config/lazygit" "$HOME/.config/lazygit"
-    fi
-
-    # Yazi configuration
-    if [[ -d "$DOTFILES_DIR/config/yazi" ]]; then
-        create_symlink "$DOTFILES_DIR/config/yazi" "$HOME/.config/yazi"
-    fi
-
-    # Ripgrep configuration
-    if [[ -d "$DOTFILES_DIR/config/ripgrep" ]]; then
-        create_symlink "$DOTFILES_DIR/config/ripgrep" "$HOME/.config/ripgrep"
-    fi
-
-    # Shared agent hooks (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
         _setup_agent_hooks
     fi
 
-    # Claude Code configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/claude-code" ]]; then
         _setup_claude_code
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
@@ -565,33 +499,26 @@ create_symlinks() {
         log_info "Claude Code directory not found, skipping Claude Code setup"
     fi
 
-    # Codex configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/codex" ]]; then
         _setup_codex
     elif [[ "${DOTFILES_NO_AI_TOOLS:-}" == "1" ]]; then
         log_info "DOTFILES_NO_AI_TOOLS=1, skipping Codex setup"
     fi
 
-    # Copilot CLI configuration (opt-out via DOTFILES_NO_AI_TOOLS=1)
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/copilot" ]]; then
         _setup_copilot
     fi
 
-    # Unattended coding harness (opt-in via DOTFILES_INSTALL_UNATTENDED=1).
-    # Default is off so terminal-QoL installs do not deploy ralph, the rubric,
-    # templates, or unattended bootstrap scripts. The unattended devcontainer
-    # profile sets this env var in containerEnv so it always installs there.
+    # Opt-in, so terminal-QoL installs never see ralph in their home. The
+    # unattended devcontainer profile sets this in containerEnv.
     if [[ "${DOTFILES_INSTALL_UNATTENDED:-0}" == "1" ]] && [[ -d "$DOTFILES_DIR/unattended" ]]; then
         _setup_unattended
     fi
 
-    # Forge CLI credentials (devcontainer persistence only). Without this,
-    # `gh auth login` / `glab auth login` have to be repeated on every rebuild.
-    #
-    # Report per-tool rather than unconditionally: setup_volume_dir returns 1
-    # when it cannot migrate an existing directory, leaving no symlink behind.
-    # A success line printed anyway tells the user their credentials persist
-    # when they are about to be lost on the next rebuild.
+    # Persists forge credentials across rebuilds. Reported per-tool because
+    # setup_volume_dir returns 1 when it cannot migrate an existing directory,
+    # and an unconditional success line would promise persistence that is about
+    # to be lost.
     if is_devcontainer && [[ -d "$HOME/.dotfiles-state" ]]; then
         if setup_volume_dir "$HOME/.dotfiles-state/gh" "$HOME/.config/gh"; then
             log_success "$HOME/.config/gh -> volume"
@@ -605,17 +532,11 @@ create_symlinks() {
         fi
     fi
 
-    # Tmux configuration (skip in containers)
-    if [[ -f "$DOTFILES_DIR/tmux/.tmux.conf" ]]; then
-        if ! is_minimal_install; then
-            create_symlink "$DOTFILES_DIR/tmux/.tmux.conf" "$HOME/.tmux.conf"
-        fi
+    if ! is_minimal_install; then
+        _link_if_present "$DOTFILES_DIR/tmux/.tmux.conf" "$HOME/.tmux.conf"
     fi
 
-    # Custom bin directory
-    if [[ -d "$DOTFILES_DIR/bin" ]]; then
-        create_symlink "$DOTFILES_DIR/bin" "$HOME/.local/bin/dotfiles-bin"
-    fi
+    _link_if_present "$DOTFILES_DIR/bin" "$HOME/.local/bin/dotfiles-bin"
 
     log_success "Symlinks created successfully!"
     if [[ -d "$BACKUP_DIR" ]]; then
@@ -623,7 +544,6 @@ create_symlinks() {
     fi
 }
 
-# If run directly (not sourced), execute
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     create_symlinks
 fi

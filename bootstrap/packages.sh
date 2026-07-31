@@ -4,10 +4,8 @@
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
-# Shared logging functions
 source "$DOTFILES_DIR/bootstrap/logging.sh"
 
-# Helper: choose a SHA256 tool
 _sha256() {
     if has_tool sha256sum; then
         sha256sum "$1" | awk '{print $1}'
@@ -18,7 +16,6 @@ _sha256() {
     fi
 }
 
-# Helper: safe JSON selection using jq if available, else grep fallback
 _select_asset_url() {
     local api_json="$1"; shift
     local pattern="$1"; shift
@@ -38,8 +35,10 @@ _select_checksum_url() {
     fi
 }
 
-# Helper: verify checksum if checksums file is available
-# Returns: 0=verified, 1=mismatch (ABORT), 2=unavailable (WARN)
+CHECKSUM_VERIFIED=0
+CHECKSUM_MISMATCH=1
+CHECKSUM_UNAVAILABLE=2
+
 _verify_checksum() {
     local file="$1"
     local checksums_file="$2"
@@ -47,7 +46,7 @@ _verify_checksum() {
     base=$(basename "$file")
     if [[ -s "$checksums_file" ]]; then
         local expected
-        # Handle common checksum formats: "hash  filename" and "filename  hash ..." (yq-style)
+        # Both "hash  filename" and yq's "filename  hash ..." are in the wild
         expected=$(awk -v file="$base" '
             $2 == file || $2 == "./"file || $2 == "*"file {print $1; exit}
             $1 == file {print $2; exit}
@@ -56,17 +55,35 @@ _verify_checksum() {
             local actual
             actual=$(_sha256 "$file")
             if [[ -n "$actual" && "$actual" == "$expected" ]]; then
-                return 0  # Verified successfully
-            else
-                log_error "Checksum mismatch for ${base}!"
-                log_error "  Expected: $expected"
-                log_error "  Got:      ${actual:-unknown}"
-                return 1  # Mismatch - should abort
+                return $CHECKSUM_VERIFIED
             fi
+            log_error "Checksum mismatch for ${base}!"
+            log_error "  Expected: $expected"
+            log_error "  Got:      ${actual:-unknown}"
+            return $CHECKSUM_MISMATCH
         fi
     fi
-    # Checksum unavailable
-    return 2
+    return $CHECKSUM_UNAVAILABLE
+}
+
+# Fails only on a genuine mismatch. A checksums file that is missing, empty, or
+# does not list this asset downgrades to a warning -- several upstreams publish
+# releases without one, and refusing to install those is worse than the risk.
+_verify_asset() {
+    local tool="$1" sums_url="$2" asset_file="$3" tmp_dir="$4"
+    local sums_file="$tmp_dir/checksums.txt"
+    curl -fsSL "$sums_url" -o "$sums_file" || true
+
+    local rc=0
+    _verify_checksum "$asset_file" "$sums_file" || rc=$?
+    case $rc in
+        "$CHECKSUM_VERIFIED")
+            log_success "Checksum verified for $tool" ;;
+        "$CHECKSUM_MISMATCH")
+            log_error "Aborting $tool install due to checksum mismatch"; return 1 ;;
+        "$CHECKSUM_UNAVAILABLE")
+            log_warn "Checksum unavailable for $tool (proceeding with caution)" ;;
+    esac
 }
 
 # Tool configuration table for GitHub release downloads.
@@ -207,8 +224,6 @@ _tool_config() {
     esac
 }
 
-# Generic tool installer driven by _tool_config.
-# Handles all archive formats, checksum styles, arch remapping, and OS fallbacks.
 _install_tool() {
     local tool="$1" api_json="$2" repo="$3" install_dir="$4" arch="$5" os="$6"
 
@@ -281,42 +296,26 @@ _install_tool() {
     esac
     curl -fsSL "$download_url" -o "$asset_file" || { rm -rf "$tmp_dir"; log_error "Failed to download $tool"; return 1; }
 
-    # Checksum verification
     case "$_tc_checksum" in
         standard)
-            local sums_url sums_file
+            local sums_url
             sums_url=$(_select_checksum_url "$api_json")
-            # Fallback checksums URL for lazygit API fallback path
+            # $tag is set only on the lazygit API-fallback path above, which
+            # never reaches the assets list the URL would normally come from.
             if [[ -z "$sums_url" && -n "${tag:-}" ]]; then
                 sums_url="https://github.com/$repo/releases/download/${tag}/checksums.txt"
             fi
-            if [[ -n "$sums_url" ]]; then
-                sums_file="$tmp_dir/checksums.txt"
-                curl -fsSL "$sums_url" -o "$sums_file" || true
-                local verify_rc=0
-                _verify_checksum "$asset_file" "$sums_file" || verify_rc=$?
-                case $verify_rc in
-                    0) log_success "Checksum verified for $tool" ;;
-                    1) log_error "Aborting $tool install due to checksum mismatch"; rm -rf "$tmp_dir"; return 1 ;;
-                    2) log_warn "Checksum unavailable for $tool (proceeding with caution)" ;;
-                esac
-            else
+            if [[ -z "$sums_url" ]]; then
                 log_warn "No checksum asset found for $tool"
+            elif ! _verify_asset "$tool" "$sums_url" "$asset_file" "$tmp_dir"; then
+                rm -rf "$tmp_dir"; return 1
             fi
             ;;
         sha256sums)
-            local sums_url sums_file
+            local sums_url
             sums_url=$(echo "$api_json" | jq -r '.assets[].browser_download_url' 2>/dev/null | grep -F 'SHA256SUMS' | head -n1)
-            if [[ -n "$sums_url" ]]; then
-                sums_file="$tmp_dir/checksums.txt"
-                curl -fsSL "$sums_url" -o "$sums_file" || true
-                local verify_rc=0
-                _verify_checksum "$asset_file" "$sums_file" || verify_rc=$?
-                case $verify_rc in
-                    0) log_success "Checksum verified for $tool" ;;
-                    1) log_error "Aborting $tool install due to checksum mismatch"; rm -rf "$tmp_dir"; return 1 ;;
-                    2) log_warn "Checksum unavailable for $tool (proceeding with caution)" ;;
-                esac
+            if [[ -n "$sums_url" ]] && ! _verify_asset "$tool" "$sums_url" "$asset_file" "$tmp_dir"; then
+                rm -rf "$tmp_dir"; return 1
             fi
             ;;
         bsd)
@@ -397,10 +396,9 @@ _install_tool() {
     rm -rf "$tmp_dir"
 }
 
-# Set -u for error on undefined variables
 set -u
 
-# Get GitHub repo for a tool (bash 3.2 compatible - no associative arrays)
+# case, not an associative array -- macOS ships bash 3.2.
 get_github_repo() {
     case "$1" in
         eza) echo "eza-community/eza" ;;
@@ -429,53 +427,16 @@ get_github_repo() {
     esac
 }
 
-# ----------------------------------------------------------------------------
-# "Is this installed?" check patterns
-# ----------------------------------------------------------------------------
-# Three patterns, each answering a different question. Use the right one for
-# the situation; do NOT collapse them into a single helper.
-#
-#   _apt_installed / _apk_installed / _brew_installed
-#       "Is this package recorded in the package manager's database?"
-#       Use when filtering a list of packages we're about to pass to
-#       `apt-get install` / `apk add` / `brew install`. Avoids invoking sudo
-#       (or, for brew, the install command itself + its implicit update) when
-#       nothing is missing.
-#
-#   has_tool <name>     (defined in bootstrap/detect.sh)
-#       "Is this tool functionally available on PATH right now?"
-#       Use when deciding whether to ATTEMPT an install at all. A user who
-#       already has lazygit from cargo or carapace from a tarball does not
-#       need us to try installing it via apt -- the functional check
-#       short-circuits. Also correct for `install_from_github`'s entry check.
-#
-#   _managed_install_exists <name> [install_dir]
-#       "Did our managed install succeed?"
-#       Use for POST-install verification of installers that drop a binary at
-#       a known path. Unlike `has_tool`, this is unaffected by PATH state in
-#       the current shell session, so it gives an honest answer immediately
-#       after a download + extract.
-# ----------------------------------------------------------------------------
-
-# Check whether an apt package is installed (the dpkg database is the source
-# of truth). Used by install_apt / install_system_basics to skip update +
-# install when nothing is missing -- avoids loud sudo failures on hardened
-# containers and respects the idempotency requirement on re-run.
 _apt_installed() {
     dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
 }
 
-# Check whether an apk package is installed (apk's own DB is the source of truth).
 _apk_installed() {
     apk info -e "$1" >/dev/null 2>&1
 }
 
-# Check whether a Homebrew formula is installed. Caches the full formula
-# list on first call to avoid spawning brew once per package -- a single
-# `brew list --formula` is far cheaper than N invocations of `brew --prefix
-# --installed`. Membership test is a bash string-match against the cached
-# list (delimited with leading/trailing newlines so we match whole names,
-# not substrings).
+# One `brew list` beats N invocations of `brew --prefix --installed`. Newline
+# delimiters on both ends keep the match to whole names, not substrings.
 _BREW_LIST_CACHE=""
 _brew_installed() {
     if [[ -z "$_BREW_LIST_CACHE" ]]; then
@@ -484,14 +445,33 @@ _brew_installed() {
     [[ "$_BREW_LIST_CACHE" == *$'\n'"$1"$'\n'* ]]
 }
 
-# Check whether a binary we manage exists at its install path. Use this
-# instead of `has_tool` for *post-install verification* of GitHub-release /
-# curl-piped installers -- `has_tool` consults bash's command cache + PATH,
-# which may not have been re-evaluated since the binary was dropped on disk
-# in the same shell session. File-path check is unaffected by PATH state.
+# Post-install verification, where has_tool would lie: bash's command cache and
+# PATH are not re-evaluated after a binary lands on disk mid-session.
 _managed_install_exists() {
     local tool="$1" install_dir="${2:-$HOME/.local/bin}"
     [[ -x "$install_dir/$tool" ]]
+}
+
+# Sets MISSING_PACKAGES to the subset of "$@" that $1 reports as not installed.
+# Callers skip the install step outright when it comes back empty: that keeps
+# re-runs idempotent and avoids loud sudo failures on hardened containers
+# (--security-opt=no-new-privileges), plus brew's implicit update on install.
+# bwrap unshares the network namespace and socat bridges it to the egress proxy,
+# together backing Claude Code's Linux/WSL2 host sandbox. Devcontainers are
+# excluded: the container boundary is the sandbox there, and bwrap inside a
+# container hits known seccomp/userns incompatibilities. See docs/sandbox.md.
+_wants_sandbox_deps() {
+    [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer
+}
+
+MISSING_PACKAGES=()
+_find_missing_packages() {
+    local is_installed="$1"; shift
+    MISSING_PACKAGES=()
+    local pkg
+    for pkg in "$@"; do
+        "$is_installed" "$pkg" || MISSING_PACKAGES+=("$pkg")
+    done
 }
 
 # Upgrade git via ppa:git-core/ppa when stock apt git < 2.35. Required for
@@ -546,53 +526,34 @@ _ensure_modern_git_apt() {
     fi
 }
 
-# Install via apt (Debian/Ubuntu)
 install_apt() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("curl" "wget" "git" "build-essential")
+    local packages=("curl" "wget" "git" "build-essential" \
+                    "ripgrep" "fd-find" "bat" "jq" "shellcheck")
 
-    # Add core tools
-    packages+=("ripgrep" "fd-find" "bat" "jq" "shellcheck")
-
-    # fzf is available in Ubuntu 20.04+
     if ! has_tool fzf; then
         packages+=("fzf")
     fi
 
-    # AI agent sandbox dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
-    # bwrap + socat back the Linux/WSL2 host sandbox for Claude Code: bwrap
-    # unshares the network namespace, socat bridges it to the egress proxy.
-    # Skip in devcontainers -- the container boundary is the sandbox there,
-    # and bwrap inside containers has known seccomp/userns incompatibilities
-    # (see docs/sandbox.md "Why three tiers").
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
+    if _wants_sandbox_deps; then
         packages+=("bubblewrap" "socat")
     fi
 
-    # Add host-specific tools
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "direnv")
     fi
 
-    # Filter to packages dpkg reports as not installed. Skips apt-get update +
-    # install entirely when nothing is missing -- avoids noisy sudo failures
-    # on hardened containers (no-new-privileges) and respects the idempotency
-    # requirement for re-runs.
-    local missing=()
-    local pkg
-    for pkg in "${packages[@]}"; do
-        _apt_installed "$pkg" || missing+=("$pkg")
-    done
+    _find_missing_packages _apt_installed "${packages[@]}"
 
-    if [[ ${#missing[@]} -eq 0 ]]; then
+    if [[ ${#MISSING_PACKAGES[@]} -eq 0 ]]; then
         log_info "All core apt packages already installed, skipping update + install"
     else
         log_info "Updating apt repositories..."
         run_sudo apt-get update -qq
-        log_info "Installing: ${missing[*]}"
-        if run_sudo apt-get install -y "${missing[@]}"; then
+        log_info "Installing: ${MISSING_PACKAGES[*]}"
+        if run_sudo apt-get install -y "${MISSING_PACKAGES[@]}"; then
             log_success "APT packages installed successfully"
         else
             log_error "Some APT packages failed to install"
@@ -600,20 +561,13 @@ install_apt() {
         fi
     fi
 
-    # Upgrade git to >= 2.35 on Ubuntu when the stock package is older.
-    # Required for `user.signingkey = key::<literal-pubkey>` (ssh-agent-based
-    # signing); the parser landed in 2.35 (Ubuntu 22.04 ships 2.34.1). Skipped
-    # on Debian -- bookworm has 2.39, and bullseye users can opt into
-    # backports manually.
     _ensure_modern_git_apt
 
-    # Create bat symlink if needed (Ubuntu calls it batcat)
     if has_tool batcat && ! has_tool bat; then
         mkdir -p "$HOME/.local/bin"
         ln -sf "$(which batcat)" "$HOME/.local/bin/bat"
     fi
 
-    # Create fd symlink if needed (Ubuntu calls it fdfind)
     if has_tool fdfind && ! has_tool fd; then
         mkdir -p "$HOME/.local/bin"
         ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
@@ -679,41 +633,24 @@ install_apt() {
     fi
 }
 
-# Install via apk (Alpine)
 install_apk() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("curl" "wget" "git" "bash" "build-base")
+    local packages=("curl" "wget" "git" "bash" "build-base" \
+                    "fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
 
-    # Add core tools - check availability in Alpine repos
-    # Note: Some tools may have different names or not be available
-    packages+=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck")
-
-    # AI agent sandbox dependencies (opt-out via DOTFILES_NO_AI_TOOLS=1).
-    # bwrap + socat back the Linux host sandbox for Claude Code: bwrap
-    # unshares the network namespace, socat bridges it to the egress proxy.
-    # Skip in devcontainers -- the container boundary is the sandbox there,
-    # and bwrap inside containers has known seccomp/userns incompatibilities
-    # (see docs/sandbox.md "Why three tiers").
-    if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]] && ! is_devcontainer; then
+    if _wants_sandbox_deps; then
         packages+=("bubblewrap" "socat")
     fi
 
-    # Add host-specific tools
     if [[ "$minimal" != "true" ]]; then
         packages+=("tmux" "htop" "ncdu" "lazygit")
     fi
 
-    # Filter to packages not yet installed per apk's database. Skips apk
-    # update + per-pkg install when nothing is missing.
-    local missing=()
-    local pkg
-    for pkg in "${packages[@]}"; do
-        _apk_installed "$pkg" || missing+=("$pkg")
-    done
+    _find_missing_packages _apk_installed "${packages[@]}"
 
-    if [[ ${#missing[@]} -eq 0 ]]; then
+    if [[ ${#MISSING_PACKAGES[@]} -eq 0 ]]; then
         log_info "All core apk packages already installed, skipping update + install"
         return 0
     fi
@@ -721,9 +658,11 @@ install_apk() {
     log_info "Updating apk repositories..."
     run_sudo apk update
 
-    # Install missing packages (some may not exist, so don't fail).
-    log_info "Installing: ${missing[*]}"
-    for pkg in "${missing[@]}"; do
+    # One at a time: not every name exists in every Alpine release, and a
+    # single missing package would fail the whole batch.
+    log_info "Installing: ${MISSING_PACKAGES[*]}"
+    local pkg
+    for pkg in "${MISSING_PACKAGES[@]}"; do
         if run_sudo apk add "$pkg" 2>/dev/null; then
             log_info "Installed $pkg"
         else
@@ -734,7 +673,6 @@ install_apk() {
     log_success "APK packages installation complete"
 }
 
-# Install via Homebrew (macOS)
 install_brew() {
     local minimal=$1
 
@@ -755,21 +693,13 @@ install_brew() {
         packages+=("tmux" "htop" "ncdu" "direnv" "coreutils" "gnu-sed" "lazygit" "bottom")
     fi
 
-    # Filter to formulas brew reports as not installed. Skips `brew install`
-    # entirely when nothing is missing -- removes the per-package "already
-    # installed" noise and avoids the implicit `brew update` brew triggers on
-    # install. Mirrors install_apt / install_apk semantics.
-    local missing=()
-    local pkg
-    for pkg in "${packages[@]}"; do
-        _brew_installed "$pkg" || missing+=("$pkg")
-    done
+    _find_missing_packages _brew_installed "${packages[@]}"
 
-    if [[ ${#missing[@]} -eq 0 ]]; then
+    if [[ ${#MISSING_PACKAGES[@]} -eq 0 ]]; then
         log_info "All core brew formulas already installed, skipping install"
     else
-        log_info "Installing: ${missing[*]}"
-        brew install "${missing[@]}"
+        log_info "Installing: ${MISSING_PACKAGES[*]}"
+        brew install "${MISSING_PACKAGES[@]}"
         log_success "Homebrew packages installed"
     fi
 
@@ -798,7 +728,6 @@ _release_version() {
     printf '%s' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
 }
 
-# Install tool from GitHub releases
 install_from_github() {
     local tool=$1
     local repo=$2
@@ -876,45 +805,32 @@ install_from_github() {
     fi
 }
 
-# Install system-level prerequisites needed for basic operation.
-# Idempotent: queries the package database (dpkg / apk) for each prereq and
-# only invokes sudo when something is actually missing. Avoids loud sudo
-# failures on hardened containers (e.g. --security-opt=no-new-privileges) and
-# cuts re-run time.
 install_system_basics() {
     local pkg_mgr
     pkg_mgr=$(detect_package_manager)
 
     case "$pkg_mgr" in
         apt)
-            local prereqs=(curl wget git ca-certificates build-essential unzip xz-utils file)
-            local missing=()
-            local pkg
-            for pkg in "${prereqs[@]}"; do
-                _apt_installed "$pkg" || missing+=("$pkg")
-            done
-            if [[ ${#missing[@]} -eq 0 ]]; then
+            _find_missing_packages _apt_installed \
+                curl wget git ca-certificates build-essential unzip xz-utils file
+            if [[ ${#MISSING_PACKAGES[@]} -eq 0 ]]; then
                 log_info "System prerequisites already installed, skipping apt"
                 return 0
             fi
-            log_info "Installing system prerequisites via apt (missing: ${missing[*]})..."
+            log_info "Installing system prerequisites via apt (missing: ${MISSING_PACKAGES[*]})..."
             run_sudo apt-get update -qq
-            run_sudo apt-get install -y "${missing[@]}"
+            run_sudo apt-get install -y "${MISSING_PACKAGES[@]}"
             ;;
         apk)
-            local prereqs=(curl wget git bash ca-certificates build-base unzip xz file)
-            local missing=()
-            local pkg
-            for pkg in "${prereqs[@]}"; do
-                _apk_installed "$pkg" || missing+=("$pkg")
-            done
-            if [[ ${#missing[@]} -eq 0 ]]; then
+            _find_missing_packages _apk_installed \
+                curl wget git bash ca-certificates build-base unzip xz file
+            if [[ ${#MISSING_PACKAGES[@]} -eq 0 ]]; then
                 log_info "System prerequisites already installed, skipping apk"
                 return 0
             fi
-            log_info "Installing system prerequisites via apk (missing: ${missing[*]})..."
+            log_info "Installing system prerequisites via apk (missing: ${MISSING_PACKAGES[*]})..."
             run_sudo apk update
-            run_sudo apk add "${missing[@]}"
+            run_sudo apk add "${MISSING_PACKAGES[@]}"
             ;;
         brew)
             # Homebrew handles its own dependencies
@@ -951,15 +867,11 @@ install_bash_preexec() {
     fi
 }
 
-# Install Claude Code via native installer (no Node.js required).
-# Downloads to a temp file first so download and execution failures are
-# distinguishable. No pinnable checksum -- this is Anthropic's official
-# installer and is a moving target.
+# No pinnable checksum -- Anthropic's installer is a moving target.
 install_claude_code() {
-    # Already present: use the built-in updater rather than re-running the
-    # install script. It is the supported upgrade path, needs no download when
-    # already current, and leaves the existing installation method alone
-    # (a brew- or npm-managed claude is not silently replaced by a native one).
+    # `claude update` rather than re-running the installer: it leaves the
+    # existing installation method alone, so a brew- or npm-managed claude is
+    # not silently replaced by a native one.
     if has_tool claude; then
         local before after
         before=$(_installed_version claude)
@@ -976,7 +888,7 @@ install_claude_code() {
         return 0
     fi
     log_info "Installing Claude Code via native installer..."
-    # Ensure ~/.cache is writable (Docker volumes may mount it as root-owned)
+    # Docker volumes may mount ~/.cache as root-owned; the installer needs it.
     mkdir -p "$HOME/.cache"
     if [[ ! -w "$HOME/.cache" ]] && has_tool sudo; then
         sudo chown -R "$(id -u):$(id -g)" "$HOME/.cache"
@@ -1002,7 +914,6 @@ install_claude_code() {
     rm -f "$tmp_script"
 }
 
-# Main installation function
 install_packages() {
     local env os pkg_mgr minimal
     env=$(detect_environment)
@@ -1012,13 +923,10 @@ install_packages() {
 
     log_info "Environment: $env | OS: $os | Minimal: $minimal"
 
-    # Install system-level prerequisites (curl, git, ca-certificates)
     install_system_basics
 
-    # Ensure ~/.local/bin is in PATH for current session
     export PATH="$HOME/.local/bin:$PATH"
 
-    # Install base packages via package manager
     case "$pkg_mgr" in
         apt)
             install_apt "$minimal"
@@ -1035,7 +943,6 @@ install_packages() {
             ;;
     esac
 
-    # Install additional tools from GitHub (skip if using Homebrew)
     if [[ "$pkg_mgr" != "brew" ]]; then
         log_info "Installing core tools from GitHub releases..."
 
@@ -1055,19 +962,16 @@ install_packages() {
         install_from_github "yazi" "$(get_github_repo yazi)"
         install_from_github "carapace" "$(get_github_repo carapace)"
 
-        # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
         if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then
             install_bash_preexec
             install_from_github "atuin" "$(get_github_repo atuin)"
         fi
 
-        # AI-adjacent tools (opt-out via DOTFILES_NO_AI_TOOLS=1)
         if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
             install_from_github "difft" "$(get_github_repo difft)"
             install_from_github "sg" "$(get_github_repo sg)"
         fi
 
-        # Host-only GitHub tools
         if [[ "$minimal" != "true" ]]; then
             install_from_github "lazygit" "$(get_github_repo lazygit)"
             install_from_github "bottom" "$(get_github_repo bottom)"
@@ -1075,23 +979,8 @@ install_packages() {
         fi
     fi
 
-    # AI coding tools -- native binary installs, every environment
-    # (opt-out via DOTFILES_NO_AI_TOOLS=1)
-    #
-    # Hosts included deliberately. These are developer tools, not
-    # project-dependent ones, so they belong in the "this repo installs it"
-    # tier alongside ripgrep and starship rather than the config-only tier
-    # with gh and kubectl (see CLAUDE.md "Design Philosophy"). Hosts already
-    # get bubblewrap and socat above solely to back Claude Code's sandbox;
-    # installing those and not the tool that uses them made no sense.
-    #
-    # macOS resolves through the same path: codex publishes
-    # codex-ARCH-apple-darwin.tar.gz and the OS detection maps Darwin to
-    # apple-darwin, so no brew special-case is needed.
-    #
-    # Both upgrade on re-run rather than skipping when present: codex compares
-    # against the latest release tag, Claude Code delegates to `claude update`.
-    # Everything else in this file stays install-once.
+    # Hosts included, unlike the GitHub-release block above: these are developer
+    # tools, not project-dependent ones. See docs/agentic-tooling.md.
     if [[ "${DOTFILES_NO_AI_TOOLS:-}" != "1" ]]; then
         log_info "Installing AI coding tools..."
         install_from_github "codex" "$(get_github_repo codex)"
@@ -1101,7 +990,6 @@ install_packages() {
     log_success "Package installation complete!"
 }
 
-# If run directly, execute
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     install_packages
 fi
