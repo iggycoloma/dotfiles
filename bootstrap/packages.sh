@@ -103,7 +103,6 @@ _tool_config() {
     _tc_binary_name="$tool"       # binary name in archive
     _tc_api_fallback=""           # "lazygit" for special HTTP redirect fallback
     _tc_binary_rename=""          # glob pattern to find + rename binary (e.g. "codex-*" -> "$tool")
-    _tc_upgrade=""                # "true" to reinstall when a newer release exists
 
     case "$tool" in
         starship)
@@ -176,9 +175,6 @@ _tool_config() {
             # Archive contains "codex-ARCH-OS" not "codex"; _tc_binary_rename
             # tells _install_tool to find by glob and rename to "codex"
             _tc_binary_rename="codex-*"
-            # Agentic CLI: track upstream rather than pinning to whatever
-            # version happened to be current at first install.
-            _tc_upgrade="true"
             ;;
         duf)
             _tc_arch_remap="arm64"
@@ -708,26 +704,6 @@ install_brew() {
     _BREW_LIST_CACHE=""
 }
 
-# Extract a bare semver from a tool's --version output.
-#
-# Formats vary and are not worth special-casing per tool:
-#   claude --version  ->  "2.1.220 (Claude Code)"
-#   codex  --version  ->  "codex-cli 0.136.0"
-# Taking the first x.y.z match handles both, and anything that prints no
-# version at all yields "" so callers fall back to reinstalling.
-_installed_version() {
-    local tool="$1"
-    command -v "$tool" >/dev/null 2>&1 || return 0
-    "$tool" --version 2>/dev/null | head -1 |
-        grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
-}
-
-# Normalize a release tag to a bare semver. Upstream prefixes vary
-# ("v0.146.0", codex's "rust-v0.146.0"), so strip everything up to the digits.
-_release_version() {
-    printf '%s' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
-}
-
 install_from_github() {
     local tool=$1
     local repo=$2
@@ -735,16 +711,10 @@ install_from_github() {
 
     mkdir -p "$install_dir"
 
-    # Tools default to install-once. Only those flagged _tc_upgrade="true"
-    # pay the extra GitHub API call to check for a newer release -- doing it
-    # for every tool would add ~20 unauthenticated API calls per run against
-    # a 60/hour limit, and re-download tools that have no reason to move.
-    local want_upgrade=""
-    if _tool_config "$tool" 2>/dev/null; then
-        want_upgrade="$_tc_upgrade"
-    fi
-
-    if has_tool "$tool" && [[ "$want_upgrade" != "true" ]]; then
+    # Install-once. Staying current is the tool's own job: `codex update` and
+    # `claude update` do it in place, without install.sh spending an
+    # unauthenticated GitHub API call per run against a 60/hour limit.
+    if has_tool "$tool"; then
         log_info "$tool already installed, skipping"
         return 0
     fi
@@ -780,20 +750,6 @@ install_from_github() {
         # only a first install is a real failure.
         has_tool "$tool" && return 0
         return 1
-    fi
-
-    # Upgrade path: skip the download when the installed version already
-    # matches the latest release. An unparseable version on either side falls
-    # through to reinstalling, which is the safe direction.
-    if has_tool "$tool" && [[ "$want_upgrade" == "true" ]]; then
-        local current latest
-        current=$(_installed_version "$tool")
-        latest=$(_release_version "$(echo "$api_json" | jq -r '.tag_name // empty')")
-        if [[ -n "$current" && -n "$latest" && "$current" == "$latest" ]]; then
-            log_info "$tool $current is current, skipping"
-            return 0
-        fi
-        log_info "Upgrading $tool ${current:-unknown} -> ${latest:-latest}"
     fi
 
     _install_tool "$tool" "$api_json" "$repo" "$install_dir" "$arch" "$os"
@@ -869,22 +825,11 @@ install_bash_preexec() {
 
 # No pinnable checksum -- Anthropic's installer is a moving target.
 install_claude_code() {
-    # `claude update` rather than re-running the installer: it leaves the
-    # existing installation method alone, so a brew- or npm-managed claude is
-    # not silently replaced by a native one.
+    # Install-once, like every other tool. `claude update` is the supported way
+    # to move an existing install forward, and running it from here would also
+    # risk swapping the binary under a live session.
     if has_tool claude; then
-        local before after
-        before=$(_installed_version claude)
-        if claude update >/dev/null 2>&1; then
-            after=$(_installed_version claude)
-            if [[ -n "$before" && -n "$after" && "$before" != "$after" ]]; then
-                log_success "Claude Code upgraded $before -> $after"
-            else
-                log_info "Claude Code ${before:-} is current"
-            fi
-        else
-            log_warn "Claude Code update failed (non-fatal); existing install left in place"
-        fi
+        log_info "Claude Code already installed, skipping"
         return 0
     fi
     log_info "Installing Claude Code via native installer..."

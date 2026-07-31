@@ -21,24 +21,29 @@ of the original devcontainer-features migration rather than a decision, and it
 left Linux hosts installing `bubblewrap` and `socat` -- which exist solely to
 back Claude Code's sandbox -- without installing Claude Code.
 
-Both **upgrade** on re-run, unlike the rest of the toolchain. Re-running
-`install.sh` pulls the current release:
+Both are **install-once**, like every other tool in the toolchain.
+`install.sh` puts the current release on a machine that lacks one and then
+leaves it alone.
 
-- **Codex** compares `codex --version` against the latest GitHub release tag and
-  reinstalls only when they differ. Tags carry a `rust-v` prefix upstream, which
-  is normalized before comparison.
-- **Claude Code** delegates to its own `claude update`. That is the supported
-  upgrade path, it needs no download when already current, and it leaves the
-  existing installation method intact -- a brew- or npm-managed `claude` is not
-  silently replaced by a native one.
+Staying current is the tool's own job -- both ship a first-party in-place
+updater, and neither needs `install.sh` to reimplement it:
 
-Everything else stays install-once. Upgrade is opt-in per tool via
-`_tc_upgrade="true"` in `_tool_config`, set only for `codex`, because checking
-every tool would add roughly 20 unauthenticated GitHub API calls per run against
-a 60/hour limit and re-download tools with no reason to move.
+```bash
+claude update
+codex update
+```
 
-Failures here are non-fatal. An unreachable GitHub API or a failed
-`claude update` leaves the existing binary in place and the install continues.
+That split is deliberate rather than a gap. An updater in `install.sh` would
+spend an unauthenticated GitHub API call per run against a 60/hour limit, could
+swap a binary out from under a live session, and would silently move the version
+every time a devcontainer rebuilt -- so the same dotfiles commit would produce
+different tool versions a week apart. Running the updater by hand keeps that
+choice explicit.
+
+Devcontainers get the current release for free anyway: `~/.local/bin` is
+container-local, so a rebuild starts empty and reinstalls from scratch. Only
+`~/.claude`, `~/.codex`, and `~/.copilot` persist, via the `~/.dotfiles-state`
+volume -- state, not binaries.
 
 Skip both with `DOTFILES_NO_AI_TOOLS=1`.
 
