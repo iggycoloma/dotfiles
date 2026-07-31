@@ -117,7 +117,7 @@ cat > "$tmp/claude-code/settings.json" <<'JSON'
 {
   "permissions": {
     "allow": ["Read", "Write"],
-    "deny": ["Read(a)", "Write(a)", "Edit(a)"]
+    "deny": ["Read(a)", "Edit(a)"]
   },
   "hooks": {"PreToolUse": [{"matcher": "Bash"}]},
   "sandbox": {
@@ -130,7 +130,7 @@ cat > "$tmp/claude-code/settings.container.json" <<'JSON'
 {
   "permissions": {
     "allow": ["Read", "Write"],
-    "deny": ["Read(a)", "Write(a)", "Edit(a)"]
+    "deny": ["Read(a)", "Edit(a)"]
   },
   "hooks": {"PreToolUse": [{"matcher": "Bash"}]},
   "sandbox": {"enabled": false}
@@ -159,10 +159,10 @@ test_suite "settings-drift: key order is insensitive"
 tmp=$(setup_fixture)
 # Same content, keys in different order.
 cat > "$tmp/claude-code/settings.json" <<'JSON'
-{"sandbox": {"enabled": true}, "permissions": {"allow": ["Read", "Write"], "deny": ["Read(a)", "Write(a)", "Edit(a)"]}}
+{"sandbox": {"enabled": true}, "permissions": {"allow": ["Read", "Write"], "deny": ["Read(a)", "Edit(a)"]}}
 JSON
 cat > "$tmp/claude-code/settings.container.json" <<'JSON'
-{"permissions": {"deny": ["Read(a)", "Write(a)", "Edit(a)"], "allow": ["Read", "Write"]}, "sandbox": {"enabled": false}}
+{"permissions": {"deny": ["Read(a)", "Edit(a)"], "allow": ["Read", "Write"]}, "sandbox": {"enabled": false}}
 JSON
 # Skip codex (use real repo via symlinks would complicate; just point to
 # valid in-sync codex stubs).
@@ -252,7 +252,7 @@ rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------
 
-test_suite "settings-drift: Read/Write/Edit deny parity"
+test_suite "settings-drift: Read/Edit deny parity"
 
 # A synthetic pair whose only interesting content is the deny list. The
 # container variant mirrors the host so class-1 drift never fires and we are
@@ -274,22 +274,32 @@ TOML
     printf '%s' "$tmp"
 }
 
-# Baseline: three identical blocks in identical order.
-tmp=$(parity_fixture '["Read(a)","Read(b)","Write(a)","Write(b)","Edit(a)","Edit(b)"]')
+# Baseline: two identical blocks in identical order.
+tmp=$(parity_fixture '["Read(a)","Read(b)","Edit(a)","Edit(b)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
-assert_equals 0 "$rc" "exits 0 when the three deny blocks match"
+assert_equals 0 "$rc" "exits 0 when the two deny blocks match"
 assert_contains "$out" "deny lists in parity" "logs the parity pass"
 rm -rf "$tmp"
 
-# A path denied for Read and Write but forgotten in Edit -- the bug this check
-# exists to catch, since Edit is a write path just like Write.
-tmp=$(parity_fixture '["Read(a)","Read(b)","Write(a)","Write(b)","Edit(a)"]')
+# Write(...) entries are themselves drift: the permission check never consults
+# them and Claude Code warns about each at startup.
+tmp=$(parity_fixture '["Read(a)","Write(a)","Edit(a)"]')
+out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
+rc=$?
+assert_equals 1 "$rc" "exits 1 when a Write() deny entry is present"
+assert_contains "$out" "Write(...) deny entries present" "names Write() as the problem"
+assert_contains "$out" "fold them into Edit" "says what to do about it"
+rm -rf "$tmp"
+
+# A path denied for Read but forgotten in Edit -- the bug this check exists to
+# catch, since Edit is the write path for every file-editing tool.
+tmp=$(parity_fixture '["Read(a)","Read(b)","Edit(a)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
 assert_equals 1 "$rc" "exits 1 when a path is missing from Edit"
 assert_contains "$out" "out of parity" "names the parity failure"
-assert_contains "$out" "only in Write" "reports which block holds the orphan"
+assert_contains "$out" "only in Read" "reports which block holds the orphan"
 rm -rf "$tmp"
 
 # Same membership, different order. Order carries meaning here: the blocks are
@@ -297,30 +307,30 @@ rm -rf "$tmp"
 # jq's array `-` is set difference and reports nothing for a pure reorder, so
 # assert the message actually names the diverging entries -- a message that
 # merely says "differs" is unactionable on a 130-line list.
-tmp=$(parity_fixture '["Read(a)","Read(b)","Write(b)","Write(a)","Edit(b)","Edit(a)"]')
+tmp=$(parity_fixture '["Read(a)","Read(b)","Edit(b)","Edit(a)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
 assert_equals 1 "$rc" "exits 1 when blocks share members but differ in order"
 assert_contains "$out" "different order" "identifies the failure as a reordering"
 assert_contains "$out" "index 0" "names the first diverging index"
-assert_contains "$out" "Write/Edit has b" "names the entry on the write side"
+assert_contains "$out" "Edit has b" "names the entry on the edit side"
 assert_contains "$out" "Read has a" "names the entry on the read side"
 assert_not_contains "$out" "[]" "does not emit empty set-difference brackets"
 rm -rf "$tmp"
 
-# The declared Write/Edit-only exemption must not be reported.
-tmp=$(parity_fixture '["Read(a)","Write(a)","Write(~/.claude/projects/*/memory/**)","Edit(a)","Edit(~/.claude/projects/*/memory/**)"]')
+# The declared Edit-only exemption must not be reported.
+tmp=$(parity_fixture '["Read(a)","Edit(a)","Edit(~/.claude/projects/*/memory/**)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
-assert_equals 0 "$rc" "exits 0 for the declared Write/Edit-only exemption"
+assert_equals 0 "$rc" "exits 0 for the declared Edit-only exemption"
 rm -rf "$tmp"
 
-# An *undeclared* Write/Edit-only path is still a finding -- the exemption list
-# is an allowlist, not a blanket pass for Read-side omissions.
-tmp=$(parity_fixture '["Read(a)","Write(a)","Write(~/.config/undeclared/**)","Edit(a)","Edit(~/.config/undeclared/**)"]')
+# An *undeclared* Edit-only path is still a finding -- the exemption list is an
+# allowlist, not a blanket pass for Read-side omissions.
+tmp=$(parity_fixture '["Read(a)","Edit(a)","Edit(~/.config/undeclared/**)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
 rc=$?
-assert_equals 1 "$rc" "exits 1 for an undeclared Write/Edit-only path"
+assert_equals 1 "$rc" "exits 1 for an undeclared Edit-only path"
 assert_contains "$out" "undeclared" "names the offending path in the message"
 rm -rf "$tmp"
 
@@ -353,7 +363,7 @@ assert_equals 1 "$rc" "exits 1 when permissions.deny[] is present but empty"
 rm -rf "$tmp"
 
 # --json mode carries the parity result too.
-tmp=$(parity_fixture '["Read(a)","Write(a)","Edit(a)","Edit(b)"]')
+tmp=$(parity_fixture '["Read(a)","Edit(a)","Edit(b)"]')
 out=$(DOTFILES_DIR="$tmp" "$DRIFT" --json 2>&1)
 if printf '%s\n' "$out" | jq -e 'select(.check == "deny-parity" and .status == "drift")' >/dev/null 2>&1; then
     test_pass "--json reports deny-parity drift"
@@ -403,9 +413,12 @@ assert_equals 'false' "$(jq -r '.sandbox.enabled' "$tmp/claude-code/settings.con
 assert_equals '1' "$(jq -r '.sandbox | keys | length' "$tmp/claude-code/settings.container.json")" \
     "generated variant carries no other sandbox keys"
 assert_equals \
-    "$(jq -cS 'del(.sandbox)' "$tmp/claude-code/settings.json")" \
-    "$(jq -cS 'del(.sandbox)' "$tmp/claude-code/settings.container.json")" \
-    "generated variant matches the host on every non-sandbox key"
+    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.json")" \
+    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.container.json")" \
+    "generated variant matches the host on every key outside .sandbox and .env"
+assert_equals "null" \
+    "$(jq -c '.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$tmp/claude-code/settings.container.json")" \
+    "generated variant strips CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (it forces filesystem isolation on)"
 rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------
