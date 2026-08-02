@@ -24,7 +24,19 @@ wt_bin="${WT_BIN:-$HOME/.local/bin/dotfiles-bin/wt}"
 fallback_add() {
     local dest="${base_path:-$cwd/.claude/worktrees}/$name"
     mkdir -p "$(dirname "$dest")" 2>/dev/null || true
-    if git -C "$cwd" worktree add --relative-paths -b "worktree-$name" "$dest" 1>&2; then
+    # --relative-paths needs git >= 2.48; older git errors on the flag.
+    local rel=""
+    if [[ "$(printf '%s\n2.48.0\n' "$(git --version | awk '{print $3}')" | sort -V | head -1)" == "2.48.0" ]]; then
+        rel="--relative-paths"
+    fi
+    # A branch left over from an earlier worktree (removed without
+    # deleting its branch) must not abort creation; uniquify instead.
+    local branch="worktree-$name"
+    if git -C "$cwd" show-ref --verify --quiet "refs/heads/$branch"; then
+        branch="$branch-$$"
+    fi
+    # shellcheck disable=SC2086  # rel is deliberately word-split
+    if git -C "$cwd" worktree add $rel -b "$branch" "$dest" 1>&2; then
         printf '%s\n' "$dest"
         exit 0
     fi

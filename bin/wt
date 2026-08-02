@@ -82,6 +82,21 @@ version_at_least() {
     [[ "$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -1)" == "$want" ]]
 }
 
+# --relative-paths landed in git 2.48; older git errors on the flag. The
+# packages layer keeps git current (git-core PPA); this guard keeps wt
+# usable when it is not: pointers degrade to absolute, per-worktree
+# containers stop working (doctor flags it), everything else survives.
+# Sets WT_REL_FLAG once and warns once on the degraded path.
+ensure_rel_flag() {
+    [[ -z "${WT_REL_FLAG+x}" ]] || return 0
+    if version_at_least "$(git --version | awk '{print $3}')" "2.48.0"; then
+        WT_REL_FLAG="--relative-paths"
+    else
+        WT_REL_FLAG=""
+        log "warning: git < 2.48 -- creating worktree with an absolute pointer (per-worktree containers need relative paths)"
+    fi
+}
+
 normalize_slug() {
     printf '%s' "${1:?}" \
         | tr '[:upper:]' '[:lower:]' \
@@ -116,10 +131,14 @@ worktree_dest() {
 
 # Resolve an EXISTING worktree by name. Unlike worktree_dest (the creation
 # mapping), this also resolves the stable main/ checkout, which is simply
-# one worktree and gets synced like any other.
+# one worktree and gets synced like any other, and accepts an absolute
+# path -- needed for worktrees created outside wt whose directory name is
+# not a slug (the post-checkout hook passes the path for exactly that).
 resolve_worktree() {
     local name="$1"
-    if [[ "$WT_MODE" == "orchestration" && "$name" == "main" ]]; then
+    if [[ "$name" == /* && -d "$name" ]]; then
+        printf '%s\n' "$name"
+    elif [[ "$WT_MODE" == "orchestration" && "$name" == "main" ]]; then
         printf '%s\n' "$WT_ROOT/main"
     else
         worktree_dest "$name"
@@ -215,6 +234,14 @@ allocate_port() {
     local start end registry lockdir existing port
     start="$(read_conf "$conf" PORT_RANGE_START 3100)"
     end="$(read_conf "$conf" PORT_RANGE_END 3999)"
+    # The conf is checkout-controlled; a non-numeric or inverted range must
+    # not abort mid-add (set -e turns a bad arithmetic test into an exit).
+    case "$start" in ''|*[!0-9]*) log "warning: invalid PORT_RANGE_START in $conf; using 3100"; start=3100 ;; esac
+    case "$end" in ''|*[!0-9]*) log "warning: invalid PORT_RANGE_END in $conf; using 3999"; end=3999 ;; esac
+    if [[ "$start" -gt "$end" ]]; then
+        log "warning: PORT_RANGE_START > PORT_RANGE_END in $conf; using 3100-3999"
+        start=3100 end=3999
+    fi
     registry="$root/state/ports.tsv"
     lockdir="$root/state/ports.lock.d"
     mkdir -p "$root/state"
@@ -294,6 +321,9 @@ write_worktree_env() {
 # ----------------------------------------------------------- containers ----
 
 require_host_docker() {
+    # /.dockerenv detects Docker only; podman/containerd containers lack it
+    # (bootstrap/detect.sh's is_devcontainer is richer, but wt stays
+    # standalone). Worst case there: devcontainer-CLI absence catches it.
     [[ ! -f /.dockerenv ]] || die "container commands are host-only: containers never launch containers"
     command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI not installed (run install.sh)"
 }
@@ -313,6 +343,8 @@ dc_common_flags() {
 dotfiles_repo() {
     if [[ -n "${WT_DOTFILES_REPOSITORY:-}" ]]; then
         printf '%s\n' "$WT_DOTFILES_REPOSITORY"
+    elif [[ -n "${DOTFILES_DIR:-}" ]] && git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null; then
+        : # non-standard checkout location (e.g. /workspaces/.dotfiles)
     else
         git -C "$HOME/.dotfiles" remote get-url origin 2>/dev/null || true
     fi
@@ -321,11 +353,11 @@ dotfiles_repo() {
 cmd_container_up() {
     local name="${1:-}"
     [[ -n "$name" ]] || die "usage: wt container-up <name>"
-    require_host_docker
     detect_mode
     local dest slug repo
-    dest="$(worktree_dest "$name")"
+    dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
+    require_host_docker
     slug="$(basename "$dest")"
 
     local flags=()
@@ -342,11 +374,11 @@ cmd_exec() {
     shift
     [[ "${1:-}" == "--" ]] && shift
     [[ $# -gt 0 ]] || die "usage: wt exec <name> -- <command...>"
-    require_host_docker
     detect_mode
     local dest slug
-    dest="$(worktree_dest "$name")"
+    dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
+    require_host_docker
     slug="$(basename "$dest")"
 
     local flags=()
@@ -388,13 +420,25 @@ cmd_init() {
 
     mkdir -p "$root/local/shared" "$root/local/template" "$root/state" "$root/wt"
     chmod 700 "$root/local"
-    git clone --bare "$url" "$root/repo.git"
+
+    # Transactional: a failed clone or main checkout removes repo.git so a
+    # re-run does not hit "already initialized" on a half-built dir. The
+    # scaffolding dirs stay -- they may already hold user-seeded local/.
+    if ! git clone --bare "$url" "$root/repo.git"; then
+        rm -rf "$root/repo.git"
+        die "clone failed; nothing initialized at $root"
+    fi
     git --git-dir="$root/repo.git" config worktree.useRelativePaths true
 
     local default_branch
     default_branch="$(git --git-dir="$root/repo.git" symbolic-ref --short HEAD 2>/dev/null || true)"
     default_branch="${default_branch:-main}"
-    git --git-dir="$root/repo.git" worktree add --relative-paths "$root/main" "$default_branch" >&2
+    ensure_rel_flag
+    # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
+    if ! git --git-dir="$root/repo.git" worktree add $WT_REL_FLAG "$root/main" "$default_branch" >&2; then
+        rm -rf "$root/repo.git" "$root/main"
+        die "could not check out '$default_branch' (empty remote?); rolled back -- push an initial commit and re-run"
+    fi
 
     log "initialized $root (default branch: $default_branch)"
     printf '%s\n' "$root"
@@ -419,11 +463,14 @@ cmd_add() {
     [[ ! -e "$dest" ]] || die "already exists: $dest"
     mkdir -p "$(dirname "$dest")"
 
+    ensure_rel_flag
     if git --git-dir="$WT_GIT_DIR" show-ref --verify --quiet "refs/heads/$branch"; then
-        git --git-dir="$WT_GIT_DIR" worktree add --relative-paths "$dest" "$branch" >&2
+        # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
+        git --git-dir="$WT_GIT_DIR" worktree add $WT_REL_FLAG "$dest" "$branch" >&2
     else
         [[ -n "$base" ]] || base="$(default_base "$WT_GIT_DIR")"
-        git --git-dir="$WT_GIT_DIR" worktree add --relative-paths -b "$branch" "$dest" "$base" >&2
+        # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
+        git --git-dir="$WT_GIT_DIR" worktree add $WT_REL_FLAG -b "$branch" "$dest" "$base" >&2
     fi
 
     if [[ "$WT_MODE" == "orchestration" ]]; then

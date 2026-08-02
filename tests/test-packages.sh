@@ -157,6 +157,19 @@ assert_contains "$(declare -f install_devcontainer_cli)" "devcontainers/cli/main
     "install_devcontainer_cli falls back to the upstream installer script"
 
 # ============================================================
+# Test Suite: git version floor
+# ============================================================
+test_suite "git version floor"
+
+# 2.48 is the worktree --relative-paths floor that per-worktree dev
+# containers depend on; no supported LTS ships it stock, so the PPA
+# upgrade path must target it.
+assert_contains "$(declare -f _ensure_modern_git_apt)" 'minimum="2.48"' \
+    "git upgrade floor is 2.48 (worktree relative paths)"
+assert_contains "$(declare -f _ensure_modern_git_apt)" "relative-paths" \
+    "non-Ubuntu warning names the worktree feature"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary

@@ -470,16 +470,18 @@ _find_missing_packages() {
     done
 }
 
-# Upgrade git via ppa:git-core/ppa when stock apt git < 2.35. Required for
-# `user.signingkey = key::<literal-pubkey>` -- the parser for that prefix
-# landed in git 2.35 (Ubuntu 22.04 jammy ships 2.34.1, where the value is
-# passed straight to ssh-keygen as a file path and signing fails). Ubuntu
-# only -- the PPA does not publish for Debian; bookworm has 2.39 in stock.
-# Idempotent: re-running with git >= 2.35 already installed is a no-op.
+# Upgrade git via ppa:git-core/ppa when stock apt git < 2.48. Two features
+# set the floor: `user.signingkey = key::<literal-pubkey>` needs 2.35, and
+# `git worktree add --relative-paths` / worktree.useRelativePaths -- which
+# per-worktree dev containers depend on (bin/wt, --mount-git-worktree-
+# common-dir) -- landed in 2.48. No supported LTS ships 2.48 stock
+# (Ubuntu 24.04: 2.43, Debian bookworm: 2.39), so the PPA is the primary
+# path on Ubuntu; other distros get a loud warning and wt degrades to
+# absolute worktree pointers. Idempotent: a no-op at >= 2.48.
 _ensure_modern_git_apt() {
     has_tool git || return 0
 
-    local current minimum="2.35"
+    local current minimum="2.48"
     current=$(git --version 2>/dev/null | awk '{print $3}')
     [[ -n "$current" ]] || return 0
     if dpkg --compare-versions "$current" ge "$minimum"; then
@@ -493,7 +495,7 @@ _ensure_modern_git_apt() {
         codename="${VERSION_CODENAME:-}"
     fi
     if [[ "$distro_id" != "ubuntu" && "$distro_id" != "pop" ]]; then
-        log_warn "git ${current} < ${minimum} (key:: signingkey needs >= ${minimum}); upgrade git manually on this distro"
+        log_warn "git ${current} < ${minimum} (worktree --relative-paths needs 2.48, key:: signingkey needs 2.35); upgrade git manually on this distro -- wt falls back to absolute worktree pointers until then"
         return 0
     fi
 

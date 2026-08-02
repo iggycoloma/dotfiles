@@ -53,6 +53,36 @@ assert_equals "no"  "$(vcheck 0.80.9 0.81.0)" "0.80.9 fails the 0.81.0 floor"
 assert_equals "no"  "$(vcheck '' 0.81.0)"     "empty version fails the floor"
 assert_equals "yes" "$(vcheck 2.55.0 2.48.0)" "git 2.55 satisfies the 2.48 floor"
 
+# ensure_rel_flag degrades on old git instead of passing an unknown flag.
+relflag_for() {
+    bash -c "
+        source '$WT'
+        git() { if [[ \"\$1\" == \"--version\" ]]; then echo \"git version $1\"; else command git \"\$@\"; fi; }
+        ensure_rel_flag 2>/dev/null
+        printf '%s' \"\$WT_REL_FLAG\""
+}
+assert_equals "--relative-paths" "$(relflag_for 2.48.0)" "git 2.48 gets --relative-paths"
+assert_equals "" "$(relflag_for 2.43.0)" "git 2.43 gets no flag instead of an unknown-option failure"
+warn=$(bash -c "
+    source '$WT'
+    git() { if [[ \"\$1\" == \"--version\" ]]; then echo \"git version 2.43.0\"; else command git \"\$@\"; fi; }
+    ensure_rel_flag 2>&1 >/dev/null")
+assert_contains "$warn" "absolute pointer" "degraded path warns about absolute pointers"
+
+# dotfiles_repo precedence: explicit override, then DOTFILES_DIR, then ~/.dotfiles.
+GIT_REL_OK=0
+bash -c "source '$WT' && version_at_least \"\$(command git --version | awk '{print \$3}')\" 2.48.0" && GIT_REL_OK=1
+
+# Pointer assertions must hold on new git and degrade with old git.
+assert_rel_pointer() {
+    local gitfile="$1" label="$2"
+    if [[ "$GIT_REL_OK" -eq 1 ]]; then
+        assert_contains "$(cat "$gitfile")" "gitdir: ../" "$label"
+    else
+        assert_file_exists "$gitfile" "$label (absolute-pointer fallback on old git)"
+    fi
+}
+
 # ============================================================
 # Test Suite: slug normalization
 # ============================================================
@@ -73,8 +103,7 @@ assert_file_exists "$dest/.git" "worktree created at normalized path"
 # ============================================================
 test_suite "clone mode"
 
-pointer=$(cat "$dest/.git")
-assert_contains "$pointer" "gitdir: ../../" "clone-mode worktree pointer is relative"
+assert_rel_pointer "$dest/.git" "clone-mode worktree pointer is relative"
 
 cd "$dest" || exit 1
 dest2=$("$WT" add second 2>/dev/null)
@@ -113,14 +142,28 @@ assert_equals "true" "$rel" "init sets worktree.useRelativePaths on repo.git"
 cd "$TMP/proj" || exit 1
 dest=$("$WT" add issue-123 2>/dev/null)
 assert_equals "$TMP/proj/wt/issue-123" "$dest" "orchestration worktrees land in wt/"
-pointer=$(cat "$dest/.git")
-assert_contains "$pointer" "gitdir: ../../repo.git/worktrees/" \
-    "orchestration pointer is relative into repo.git"
+assert_rel_pointer "$dest/.git" "orchestration pointer is relative into repo.git"
 
 cd "$TMP/proj/wt/issue-123" || exit 1
 nested=$("$WT" add from-inside 2>/dev/null)
 assert_equals "$TMP/proj/wt/from-inside" "$nested" \
     "mode detection walks up: add from inside a worktree stays in wt/"
+
+# init against an empty remote (unborn HEAD) fails cleanly and rolls back.
+cd "$TMP" || exit 1
+git init -q --bare "$TMP/empty.git"
+output=$("$WT" init "$TMP/empty.git" "$TMP/proj2" 2>&1)
+assert_not_equals 0 $? "init fails on an empty remote"
+assert_contains "$output" "rolled back" "failure explains the rollback"
+assert_file_not_exists "$TMP/proj2/repo.git/HEAD" "failed init leaves no repo.git"
+
+# After the remote gains a commit, init succeeds in the same directory.
+git clone -q "$TMP/empty.git" "$TMP/seed2" 2>/dev/null
+git -C "$TMP/seed2" commit -q --allow-empty -m init
+git -C "$TMP/seed2" push -q origin HEAD
+rm -rf "$TMP/seed2"
+root2=$("$WT" init "$TMP/empty.git" "$TMP/proj2" 2>/dev/null)
+assert_equals "$TMP/proj2" "$root2" "re-run init succeeds after rollback"
 
 # ============================================================
 # Test Suite: provisioning and the ignore-validation invariant
@@ -225,6 +268,11 @@ assert_equals "yes" "$released" "remove releases the allocated port"
 # ============================================================
 test_suite "container gating"
 
+# Name resolution precedes any docker/CLI requirement, in every environment.
+output=$("$WT" exec nonexistent -- true 2>&1)
+assert_not_equals 0 $? "exec fails on an unknown worktree"
+assert_contains "$output" "no such worktree" "exec resolves the name before the docker check"
+
 if [[ -f /.dockerenv ]]; then
     output=$("$WT" container-up provisioned 2>&1)
     status=$?
@@ -232,6 +280,10 @@ if [[ -f /.dockerenv ]]; then
     assert_contains "$output" "host-only" "refusal explains containers never launch containers"
     output=$("$WT" exec provisioned -- true 2>&1)
     assert_not_equals 0 $? "exec refuses to run inside a container"
+    # main resolves (would otherwise be "no such worktree") and then hits
+    # the host-only gate -- proving container commands accept main.
+    output=$("$WT" exec main -- true 2>&1)
+    assert_contains "$output" "host-only" "exec resolves main before the host-only refusal"
 else
     output=$("$WT" container-up 2>&1)
     assert_not_equals 0 $? "container-up requires a name"
@@ -281,7 +333,9 @@ export WT_BIN="$WT"
 NULL_REF="0000000000000000000000000000000000000000"
 
 # A worktree created OUTSIDE wt (plain git) gets provisioned by the hook.
-git --git-dir="$TMP/proj/repo.git" worktree add -q --relative-paths \
+# No explicit --relative-paths: the global useRelativePaths config covers
+# new git, and old git must not fail on an unknown flag here.
+git --git-dir="$TMP/proj/repo.git" worktree add -q \
     -b outside "$TMP/proj/wt/outside" main 2>/dev/null
 head_ref=$(git -C "$TMP/proj/wt/outside" rev-parse HEAD)
 assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
@@ -301,6 +355,15 @@ assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
 (cd "$TMP/proj/wt/outside" && bash "$HOOK" "$NULL_REF" "$head_ref" 0)
 assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
     "hook ignores file checkouts"
+
+# A non-slug directory name still round-trips: the hook passes the path
+# and resolve_worktree accepts absolute paths.
+git --git-dir="$TMP/proj/repo.git" worktree add -q \
+    -b feature-x "$TMP/proj/wt/Feature_X" main 2>/dev/null
+fx_ref=$(git -C "$TMP/proj/wt/Feature_X" rev-parse HEAD)
+(cd "$TMP/proj/wt/Feature_X" && bash "$HOOK" "$NULL_REF" "$fx_ref" 1)
+assert_file_exists "$TMP/proj/wt/Feature_X/.env.shared" \
+    "hook provisions worktrees whose directory name is not a slug"
 
 # Clone-mode worktrees (no orchestration local/) exit silently.
 output=$(cd "$TMP/slugproj" && bash "$HOOK" "$NULL_REF" "$head_ref" 1 2>&1)
@@ -343,8 +406,12 @@ rm -f "$TMP/proj/local/shared/bad.txt"
 # Degrade: wt unavailable falls back to plain git worktree add at the base path.
 path=$(shim_json "$TMP/slugproj/.claude/worktrees" "claude-fb" "$TMP/slugproj" | WT_BIN=/nonexistent/wt bash "$CREATE_SHIM" 2>/dev/null)
 assert_equals "$TMP/slugproj/.claude/worktrees/claude-fb" "$path" "shim degrades to git worktree add at the suggested base"
-pointer=$(cat "$path/.git")
-assert_contains "$pointer" "gitdir: ../" "fallback worktree still gets a relative pointer"
+assert_rel_pointer "$path/.git" "fallback worktree still gets a relative pointer"
+
+# A leftover branch from an earlier worktree must not abort the fallback.
+git -C "$TMP/slugproj" branch worktree-claude-fb2 2>/dev/null
+path=$(shim_json "$TMP/slugproj/.claude/worktrees" "claude-fb2" "$TMP/slugproj" | WT_BIN=/nonexistent/wt bash "$CREATE_SHIM" 2>/dev/null)
+assert_equals "$TMP/slugproj/.claude/worktrees/claude-fb2" "$path" "fallback uniquifies a colliding branch instead of aborting"
 
 # Remove shim: tears down a clean wt-managed worktree, always exits 0.
 printf '%s' "{\"worktree_path\": \"$TMP/proj/wt/claude-abc\"}" | bash "$REMOVE_SHIM" >/dev/null 2>&1
@@ -357,6 +424,15 @@ printf 'wip\n' > "$dirty/wip.txt"
 printf '%s' "{\"worktree_path\": \"$dirty\"}" | bash "$REMOVE_SHIM" >/dev/null 2>&1
 assert_equals 0 $? "remove shim exits 0 even when removal is refused"
 assert_file_exists "$dirty/wip.txt" "refused removal preserves uncommitted work"
+
+# dotfiles_repo precedence: explicit override, then DOTFILES_DIR, then ~/.dotfiles.
+out=$(DOTFILES_DIR="$TMP/slugproj" bash -c "source '$WT' && dotfiles_repo")
+assert_contains "$out" "remote-slug.git" "dotfiles_repo honors DOTFILES_DIR checkouts"
+out=$(WT_DOTFILES_REPOSITORY="https://example.com/df.git" DOTFILES_DIR="$TMP/slugproj" \
+    bash -c "source '$WT' && dotfiles_repo")
+assert_equals "https://example.com/df.git" "$out" "explicit WT_DOTFILES_REPOSITORY wins over DOTFILES_DIR"
+out=$(DOTFILES_DIR='' WT_DOTFILES_REPOSITORY='' bash -c "source '$WT' && dotfiles_repo")
+assert_equals "" "$out" "no dotfiles checkout yields an empty repo (flag omitted)"
 
 unset WT_BIN
 
@@ -401,6 +477,14 @@ printf 'PROJECT_ID=renamed\n' > "$dest/.dev/worktree.conf"
 "$WT" sync hooked >/dev/null 2>&1
 assert_contains "$(cat "$dest/.env.worktree")" "COMPOSE_PROJECT_NAME=renamed-hooked" \
     "sync regenerates env when project config changes"
+
+# A checkout-controlled conf with a bad port range must warn, not abort.
+printf 'PORT_RANGE_START=abc\nPORT_RANGE_END=99xx\n' > "$dest/.dev/worktree.conf"
+output=$("$WT" sync hooked 2>&1)
+assert_equals 0 $? "garbage PORT_RANGE values do not abort sync"
+assert_contains "$output" "invalid PORT_RANGE_START" "bad range is reported"
+port_kept=$(sed -n 's/^APP_PORT=//p' "$dest/.env.worktree")
+assert_equals "$port_before" "$port_kept" "existing allocation survives a bad range"
 
 # ============================================================
 # Summary
