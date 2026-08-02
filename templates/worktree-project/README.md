@@ -24,3 +24,8 @@ Machine-local files go under `~/code/example/local/`:
 `shared/` is refreshed into worktrees by `wt sync` (overwrites),
 `template/` is copied only when a file is absent (worktree-customizable).
 Every destination must be gitignored by the project or provisioning fails.
+
+Optional lifecycle hooks live in `local/hooks/` (user-owned, never sourced from the checkout):
+`post-add` runs once after a new worktree is provisioned,
+`post-sync` after every re-provision.
+Each receives the worktree path as `$1`; a failing hook warns but never fails the command.
