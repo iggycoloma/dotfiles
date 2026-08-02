@@ -88,7 +88,9 @@ It belongs in `bootstrap/packages.sh`.
 
 Resolved (2026-08-02): the GitHub-release path **does not exist** -- devcontainers/cli publishes no GitHub releases at all. The install script downloads Node.js from `nodejs.org/dist` and the CLI from `registry.npmjs.org/@devcontainers/cli/-/cli-${CLI_VERSION}.tgz`, and **performs no checksum or signature verification on either**.
 
-So the Debian/Ubuntu choices are: (a) vendor a pinned-version install into `bootstrap/packages.sh` that fetches the npm tgz directly and verifies it against the registry packument's published `dist.integrity`/`dist.shasum` -- consistent with this repo's verify-everything posture; or (b) run the upstream script as-is and accept unverified downloads for this one tool. Prefer (a); the npm registry provides the checksum material the script ignores.
+So the Debian/Ubuntu choices were: (a) vendor a pinned-version install into `bootstrap/packages.sh` that fetches the npm tgz directly and verifies it against the registry packument's published `dist.integrity`/`dist.shasum`; or (b) run the upstream script and accept unverified downloads for this one tool.
+
+**Implemented (Phase 2, 2026-08-02): (b), deliberately.** `install_claude_code` set the precedent -- AI developer tools already install via unverified vendor scripts (`claude.ai/install.sh` piped to bash), so (a) would have held the devcontainer CLI to a stricter standard than the tool launching it. macOS uses the Homebrew formula. The vendored npm-integrity install remains a worthwhile hardening enhancement, filed for both installers together.
 
 ### 3.2 The sandbox posture flips from container tier to host tier
 

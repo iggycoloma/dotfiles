@@ -859,6 +859,51 @@ install_claude_code() {
     rm -f "$tmp_script"
 }
 
+# Dev Containers CLI: launches per-worktree containers from the host
+# (docs/agentic-worktree-dev-environment.md). Host-only by design --
+# containers never launch containers, so inside one it is dead weight.
+# Homebrew ships a formula; apt/apk have no package, so Linux hosts use
+# the upstream installer, which bundles its own Node.js runtime into
+# ~/.devcontainers (same vendor-script pattern as install_claude_code).
+# Version floor for worktree common-dir mounting is CLI 0.81.0; the
+# installer resolves latest, and `wt doctor` owns the floor check.
+install_devcontainer_cli() {
+    if is_devcontainer; then
+        return 0
+    fi
+    if has_tool devcontainer; then
+        log_info "Dev Containers CLI already installed, skipping"
+        return 0
+    fi
+    if [[ "$(detect_package_manager)" == "brew" ]]; then
+        log_info "Installing Dev Containers CLI via Homebrew..."
+        if brew install devcontainer; then
+            log_success "Dev Containers CLI installed"
+        else
+            log_warn "Failed to install Dev Containers CLI via Homebrew (non-fatal)"
+        fi
+        return 0
+    fi
+    log_info "Installing Dev Containers CLI via upstream installer..."
+    local tmp_script
+    tmp_script=$(mktemp) || { log_warn "Failed to create temp file for Dev Containers CLI installer"; return 1; }
+    if curl -fsSL https://raw.githubusercontent.com/devcontainers/cli/main/scripts/install.sh -o "$tmp_script"; then
+        if sh "$tmp_script" 2>&1; then
+            export PATH="$HOME/.devcontainers/bin:$PATH"
+            if _managed_install_exists devcontainer "$HOME/.devcontainers/bin"; then
+                log_success "Dev Containers CLI installed"
+            else
+                log_warn "Dev Containers CLI installer ran but 'devcontainer' not found in expected path"
+            fi
+        else
+            log_warn "Failed to run Dev Containers CLI installer (non-fatal)"
+        fi
+    else
+        log_warn "Failed to download Dev Containers CLI installer (non-fatal)"
+    fi
+    rm -f "$tmp_script"
+}
+
 install_packages() {
     local env os pkg_mgr minimal
     env=$(detect_environment)
@@ -930,6 +975,7 @@ install_packages() {
         log_info "Installing AI coding tools..."
         install_from_github "codex" "$(get_github_repo codex)"
         install_claude_code
+        install_devcontainer_cli
     fi
 
     log_success "Package installation complete!"
