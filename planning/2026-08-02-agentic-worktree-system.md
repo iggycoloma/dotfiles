@@ -441,8 +441,8 @@ Each phase is independently shippable, and carries tests -- merges gate on `make
 **Execution status (2026-08-02, branch `feat/agentic-worktree-system`):**
 Phases 0, 2, 3, and 6 are implemented and committed; Phase 5 is implemented except the Compose passthrough (`wt compose`, profiles), which waits on a proving project with a `compose.yaml` (open question 4).
 Phase 1's spikes are executed (both mount topologies, write-through, relative paths).
-**Phase 4 remains parked** on the in-flight `claude-code/settings.json` rework: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion.
-Also outstanding: macOS/Seatbelt parity checks, the `EnterWorktree`-hook-routing question, and host-bwrap behavior for orchestration-dir writes (open question 5).
+**Phase 4 implemented (2026-08-02):** the settings blocker turned out to be a pure key-reorder by the settings writer (jq -S byte-identical), committed as-is; the `WorktreeCreate`/`WorktreeRemove` shims (`claude-code/hooks/worktree-{create,remove}.sh`) route Claude Code worktrees through `wt` with the degrade-vs-abort policy tested, and `devcontainer *` joined `sandbox.excludedCommands`.
+Also outstanding: macOS/Seatbelt parity checks, the `EnterWorktree`-hook-routing question (test recipe in Phase 1; if it bypasses the hook, the `post-checkout` safety net still provisions), and host-bwrap behavior for orchestration-dir writes (open question 5).
 
 ### Phase 0 -- land the doc, fix the orphaned hooks path
 

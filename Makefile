@@ -1,7 +1,10 @@
 .PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
 
-# Find all shell scripts in the repo (excluding hidden dirs like .git)
-SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
+# Find all shell scripts in the repo (excluding hidden dirs like .git).
+# .claude is excluded because Claude Code nests worktrees at
+# .claude/worktrees/<name>/ -- full repo copies at other commits, whose
+# stale scripts would otherwise be linted as if they were ours.
+SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*')
 
 lint: lint-settings-sync lint-settings-drift lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)

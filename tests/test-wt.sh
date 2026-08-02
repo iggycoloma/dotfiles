@@ -270,6 +270,57 @@ assert_equals "" "$output" "hook is silent outside orchestration layout"
 unset WT_BIN
 
 # ============================================================
+# Test Suite: WorktreeCreate / WorktreeRemove shims
+# ============================================================
+test_suite "harness shims"
+
+CREATE_SHIM="$DOTFILES_DIR/claude-code/hooks/worktree-create.sh"
+REMOVE_SHIM="$DOTFILES_DIR/claude-code/hooks/worktree-remove.sh"
+export WT_BIN="$WT"
+
+shim_json() {
+    jq -n -c --arg base "$1" --arg suffix "$2" --arg cwd "$3" \
+        '{worktree_base_path: $base, worktree_suffix: $suffix, cwd: $cwd}'
+}
+
+# Orchestration repo: shim routes through wt, path lands in wt/.
+path=$(shim_json "$TMP/proj/.claude/worktrees" "claude-abc" "$TMP/proj" | bash "$CREATE_SHIM" 2>/dev/null)
+assert_equals 0 $? "create shim exits 0 via wt"
+assert_equals "$TMP/proj/wt/claude-abc" "$path" "shim redirects creation into wt/, not .claude/worktrees"
+assert_file_exists "$path/.env.shared" "shim-created worktree is provisioned"
+
+# Reuse: same suffix returns the existing worktree.
+path2=$(shim_json "$TMP/proj/.claude/worktrees" "claude-abc" "$TMP/proj" | bash "$CREATE_SHIM" 2>/dev/null)
+assert_equals "$path" "$path2" "shim is idempotent for an existing name"
+
+# Security abort: non-ignored local file must abort creation, not degrade.
+printf 'oops\n' > "$TMP/proj/local/shared/bad.txt"
+shim_json "$TMP/proj/.claude/worktrees" "claude-sec" "$TMP/proj" | bash "$CREATE_SHIM" >/dev/null 2>&1
+assert_not_equals 0 $? "create shim aborts on ignore-validation failure"
+assert_file_not_exists "$TMP/proj/wt/claude-sec/.git" "aborted creation leaves no worktree"
+rm -f "$TMP/proj/local/shared/bad.txt"
+
+# Degrade: wt unavailable falls back to plain git worktree add at the base path.
+path=$(shim_json "$TMP/slugproj/.claude/worktrees" "claude-fb" "$TMP/slugproj" | WT_BIN=/nonexistent/wt bash "$CREATE_SHIM" 2>/dev/null)
+assert_equals "$TMP/slugproj/.claude/worktrees/claude-fb" "$path" "shim degrades to git worktree add at the suggested base"
+pointer=$(cat "$path/.git")
+assert_contains "$pointer" "gitdir: ../" "fallback worktree still gets a relative pointer"
+
+# Remove shim: tears down a clean wt-managed worktree, always exits 0.
+printf '%s' "{\"worktree_path\": \"$TMP/proj/wt/claude-abc\"}" | bash "$REMOVE_SHIM" >/dev/null 2>&1
+assert_equals 0 $? "remove shim exits 0"
+assert_file_not_exists "$TMP/proj/wt/claude-abc/.git" "remove shim removes the worktree"
+
+# Dirty worktree: refused by wt, shim still exits 0 and preserves work.
+dirty=$("$WT" add dirty-one 2>/dev/null)
+printf 'wip\n' > "$dirty/wip.txt"
+printf '%s' "{\"worktree_path\": \"$dirty\"}" | bash "$REMOVE_SHIM" >/dev/null 2>&1
+assert_equals 0 $? "remove shim exits 0 even when removal is refused"
+assert_file_exists "$dirty/wip.txt" "refused removal preserves uncommitted work"
+
+unset WT_BIN
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
