@@ -47,6 +47,9 @@ Desktop.ini
 .direnv/
 .envrc
 
+# wt worktree orchestration: generated per-worktree runtime identity
+.env.worktree
+
 # ctags
 tags
 TAGS

@@ -208,7 +208,9 @@ assert_contains "$env_content" "APP_PORT=$port1" "worktree gets a port from the 
 
 dest2=$("$WT" add second-id 2>/dev/null)
 port2=$(sed -n 's/^APP_PORT=//p' "$dest2/.env.worktree")
-assert_equals "$((port1 + 1))" "$port2" "next worktree gets the next free port"
+assert_not_equals "$port1" "$port2" "each worktree gets a distinct port"
+dupes=$(awk -F'\t' 'seen[$2]++ { print $2 }' "$TMP/proj/state/ports.tsv")
+assert_equals "" "$dupes" "port registry has no duplicate allocations"
 
 "$WT" remove second-id --branch >/dev/null 2>&1
 if grep -q "second-id" "$TMP/proj/state/ports.tsv"; then
@@ -357,6 +359,48 @@ assert_equals 0 $? "remove shim exits 0 even when removal is refused"
 assert_file_exists "$dirty/wip.txt" "refused removal preserves uncommitted work"
 
 unset WT_BIN
+
+# ============================================================
+# Test Suite: lifecycle hooks and env idempotency
+# ============================================================
+test_suite "lifecycle hooks and env idempotency"
+
+cd "$TMP/proj" || exit 1
+mkdir -p local/hooks
+# shellcheck disable=SC2016  # $1 is for the hook script, not this shell
+printf '#!/usr/bin/env bash\necho "added:$1" >> "%s/state/hooklog"\n' "$TMP/proj" > local/hooks/post-add
+# shellcheck disable=SC2016  # $1 is for the hook script, not this shell
+printf '#!/usr/bin/env bash\necho "synced:$1" >> "%s/state/hooklog"\n' "$TMP/proj" > local/hooks/post-sync
+chmod +x local/hooks/post-add local/hooks/post-sync
+
+dest=$("$WT" add hooked 2>/dev/null)
+assert_contains "$(cat state/hooklog 2>/dev/null)" "added:$dest" "post-add hook runs after provisioning"
+
+"$WT" sync hooked >/dev/null 2>&1
+assert_contains "$(cat state/hooklog 2>/dev/null)" "synced:$dest" "post-sync hook runs after sync"
+
+# A failing hook warns but never fails the command.
+printf '#!/usr/bin/env bash\nexit 1\n' > local/hooks/post-sync
+chmod +x local/hooks/post-sync
+"$WT" sync hooked >/dev/null 2>&1
+assert_equals 0 $? "sync succeeds despite a failing post-sync hook"
+
+# Idempotent env write: unchanged content is not rewritten (a read-only
+# file would make a rewrite fail, so success proves the skip).
+port_before=$(sed -n 's/^APP_PORT=//p' "$dest/.env.worktree")
+chmod 444 "$dest/.env.worktree"
+"$WT" sync hooked >/dev/null 2>&1
+assert_equals 0 $? "no-change sync does not rewrite .env.worktree"
+chmod 600 "$dest/.env.worktree"
+port_after=$(sed -n 's/^APP_PORT=//p' "$dest/.env.worktree")
+assert_equals "$port_before" "$port_after" "sync preserves the allocated port"
+
+# Content change is picked up on sync.
+mkdir -p "$dest/.dev"
+printf 'PROJECT_ID=renamed\n' > "$dest/.dev/worktree.conf"
+"$WT" sync hooked >/dev/null 2>&1
+assert_contains "$(cat "$dest/.env.worktree")" "COMPOSE_PROJECT_NAME=renamed-hooked" \
+    "sync regenerates env when project config changes"
 
 # ============================================================
 # Summary
