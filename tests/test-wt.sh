@@ -170,6 +170,30 @@ assert_equals "CUSTOMIZED=1" "$customized" "sync leaves customized template file
 output=$("$WT" diff-local provisioned 2>&1)
 assert_equals 0 $? "diff-local passes after sync"
 
+# The stable main/ checkout syncs like any other worktree.
+"$WT" sync main >/dev/null 2>&1
+assert_equals 0 $? "wt sync main succeeds"
+assert_file_exists "$TMP/proj/main/.env.shared" "sync main provisions the stable checkout"
+main_path=$("$WT" path main 2>/dev/null)
+assert_equals "$TMP/proj/main" "$main_path" "wt path main resolves the stable checkout"
+
+# main is protected from add and remove.
+output=$("$WT" add main 2>&1)
+assert_not_equals 0 $? "wt add main is refused"
+assert_contains "$output" "reserved" "add-main refusal explains why"
+output=$("$WT" remove main 2>&1)
+assert_not_equals 0 $? "wt remove main is refused"
+assert_file_exists "$TMP/proj/main/.git" "main survives the refused remove"
+
+# sync --all refreshes main and every task worktree in one pass.
+printf 'SANDBOX_KEY=rotated\n' > local/shared/.env.shared
+"$WT" sync --all >/dev/null 2>&1
+assert_equals 0 $? "wt sync --all succeeds"
+assert_equals "SANDBOX_KEY=rotated" "$(cat "$TMP/proj/main/.env.shared")" \
+    "sync --all refreshes main"
+assert_equals "SANDBOX_KEY=rotated" "$(cat "$dest/.env.shared")" \
+    "sync --all refreshes task worktrees"
+
 # ============================================================
 # Test Suite: runtime identity and port registry
 # ============================================================

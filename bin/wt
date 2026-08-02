@@ -22,7 +22,7 @@ Usage: wt <command> [args]
   add <name> [base]     create a worktree (+ provision local files in orchestration mode)
   list                  list worktrees for the current project
   path <name>           print the worktree's path
-  sync <name>           refresh local/shared into a worktree (template files untouched)
+  sync <name|--all>     refresh local/shared into a worktree, 'main', or all (templates untouched)
   diff-local <name>     show drift between local/shared and a worktree's copies
   container-up <name>   start the worktree's dev container (host only)
   exec <name> -- <cmd>  run a command in the worktree's dev container (host only)
@@ -111,6 +111,18 @@ worktree_dest() {
         local repo
         repo="$(basename "$WT_ROOT")"
         printf '%s\n' "$(dirname "$WT_ROOT")/${repo}-worktrees/$slug"
+    fi
+}
+
+# Resolve an EXISTING worktree by name. Unlike worktree_dest (the creation
+# mapping), this also resolves the stable main/ checkout, which is simply
+# one worktree and gets synced like any other.
+resolve_worktree() {
+    local name="$1"
+    if [[ "$WT_MODE" == "orchestration" && "$name" == "main" ]]; then
+        printf '%s\n' "$WT_ROOT/main"
+    else
+        worktree_dest "$name"
     fi
 }
 
@@ -363,6 +375,8 @@ cmd_add() {
     local name="${1:-}" base="${2:-}"
     [[ -n "$name" ]] || die "usage: wt add <name> [base]"
     detect_mode
+    [[ "$WT_MODE" != "orchestration" || "$name" != "main" ]] \
+        || die "'main' is reserved for the stable checkout (use 'wt sync main' to provision it)"
 
     local dest branch
     # The name doubles as the branch when it is a legal ref (slashes fine,
@@ -409,18 +423,37 @@ cmd_path() {
     [[ -n "$name" ]] || die "usage: wt path <name>"
     detect_mode
     local dest
-    dest="$(worktree_dest "$name")"
+    dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
     printf '%s\n' "$dest"
 }
 
 cmd_sync() {
     local name="${1:-}"
-    [[ -n "$name" ]] || die "usage: wt sync <name>"
+    [[ -n "$name" ]] || die "usage: wt sync <name|--all>"
     detect_mode
     [[ "$WT_MODE" == "orchestration" ]] || die "sync requires an orchestration dir (clone mode has no local/ source)"
+
+    if [[ "$name" == "--all" ]]; then
+        # Every registered worktree: main/ plus everything under wt/.
+        local wt_path failures=0
+        while IFS= read -r wt_path; do
+            [[ -n "$wt_path" && -d "$wt_path" ]] || continue
+            # worktree list includes the bare repo itself; it has no tree.
+            [[ "$wt_path" != "$WT_GIT_DIR" ]] || continue
+            if provision_local_files "$WT_ROOT" "$wt_path"; then
+                log "synced local/ into $wt_path"
+            else
+                log "WARNING: sync failed validation for $wt_path; nothing copied there"
+                failures=$((failures + 1))
+            fi
+        done < <(git --git-dir="$WT_GIT_DIR" worktree list --porcelain | sed -n 's/^worktree //p')
+        [[ "$failures" -eq 0 ]] || die "sync --all: $failures worktree(s) failed validation"
+        return 0
+    fi
+
     local dest
-    dest="$(worktree_dest "$name")"
+    dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
     provision_local_files "$WT_ROOT" "$dest" || die "sync failed validation; nothing copied"
     log "synced local/ into $dest"
@@ -432,7 +465,7 @@ cmd_diff_local() {
     detect_mode
     [[ "$WT_MODE" == "orchestration" ]] || die "diff-local requires an orchestration dir"
     local dest shared src rel drift=0
-    dest="$(worktree_dest "$name")"
+    dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
     shared="$WT_ROOT/local/shared"
     [[ -d "$shared" ]] || { log "no local/shared to compare"; return 0; }
@@ -465,6 +498,8 @@ cmd_remove() {
     done
     [[ -n "$name" ]] || die "usage: wt remove <name> [--branch]"
     detect_mode
+    [[ "$WT_MODE" != "orchestration" || "$name" != "main" ]] \
+        || die "refusing to remove the stable main/ checkout"
     local dest branch slug
     dest="$(worktree_dest "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
