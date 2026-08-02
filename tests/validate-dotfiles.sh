@@ -169,17 +169,23 @@ else
     log_fail "Git aliases not configured"
 fi
 
-# Check git hooks directory
+# Check git hooks directory. A configured-but-missing path is a hard fail:
+# git runs no hooks and raises no error, so gitleaks and commit-msg
+# enforcement vanish silently (seen with a stale absolute path in
+# .git/config that predated the ~/.config/git/hooks symlink scheme).
 if git config --get core.hooksPath &>/dev/null; then
     hooks_path=$(git config --get core.hooksPath)
-    log_pass "Git hooks directory configured: $hooks_path"
-
-    # Verify hooks are executable
-    if [[ -d "$hooks_path" ]]; then
-        hooks_count=$(find "$hooks_path" -type f -name "*.sh" | wc -l)
+    hooks_path_expanded="${hooks_path/#\~/$HOME}"
+    if [[ -d "$hooks_path_expanded" ]]; then
+        log_pass "Git hooks directory configured and present: $hooks_path"
+        hooks_count=$(find -L "$hooks_path_expanded" -maxdepth 1 -type f | wc -l)
         if [[ $hooks_count -gt 0 ]]; then
             log_pass "Found $hooks_count hook script(s)"
+        else
+            log_warn "Hooks directory is empty: $hooks_path"
         fi
+    else
+        log_fail "core.hooksPath points to a missing directory: $hooks_path (hooks are silently disabled)"
     fi
 else
     log_warn "Git hooks directory not configured"

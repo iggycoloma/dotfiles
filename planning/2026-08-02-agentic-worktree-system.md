@@ -339,6 +339,23 @@ Costs of nesting and mitigations: recursive tools and Docker build contexts see 
 **Residual risk.** `WorktreeCreate` aborts creation on non-zero exit, making `wt` a single point of failure where it is missing or broken.
 The shim must **degrade** -- fall back to `git worktree add "$worktree_base_path/$worktree_suffix"` -- and exit non-zero **only** when ignore-validation rejects a destination, where aborting is correct. This distinction gets a test.
 
+### 4.1 Reconciliation with the existing `wt` shell function (PR #80)
+
+Discovered at execution time: `shell/functions.sh:444-497` already ships a `wt` function (merged 2026-08-01, PR #80) that creates **sibling** worktrees at `<parent>/<repo>-worktrees/<leaf>`, cd's into them, and defaults the base to `origin/HEAD` matching Claude Code's `worktree.baseRef=fresh`. PR #80 also added sandbox `excludedCommands` for `git worktree *` / `git checkout *` to permit sibling-directory writes (currently being reworked in uncommitted local changes).
+
+Its header comment argues *for* siblings on three hazards of nesting. Assessed:
+
+- **`git clean -fdx` in the parent deletes nested worktrees** -- **disproven** (dry-run test, 2026-08-02): git skips nested repositories, and a worktree's `.git` file counts (`Would skip repository .worktrees/feat`). Only a deliberate double-force `git clean -ffdx` removes them.
+- **Node upward module resolution** -- **stands**. A nested worktree missing its own `node_modules` silently resolves imports to the parent checkout's `node_modules`. Real hazard for host-side work in Node projects; does not apply in per-worktree containers (deps installed in-container per worktree) and does not apply to sibling layouts.
+- **Watcher/crawler noise (tsc, jest, eslint)** -- partial. Tools that honour gitignore are fine; tools with their own include globs need `.worktrees/` excludes (already a Phase 5/6 item).
+
+Resolution path for Phase 3, in order of preference:
+
+1. Keep the nested decision; mitigate Node resolution by having `wt add` verify the worktree installs its own deps before host-side toolchain use (or simply document that host-side Node work uses the container). Update the `wt` function to the nested layout and fold it into `bin/wt`.
+2. If Node resolution proves disqualifying in practice, re-run the devcontainer mount-topology spike (section 9) against a *sibling* relative-path worktree before switching: the CLI's mount reconstruction was only verified for the nested case, and sibling relocatability requires the repo and worktree tree to move together, which sibling directories do not guarantee.
+
+Either way the existing function's UX (create + cd, `origin/HEAD` default, leaf-name slugging) carries into `bin/wt`, and the superseded header comment gets corrected -- its `git clean` claim is wrong for worktrees.
+
 **Open sub-decision.** `local/` and `state/` must sit outside every checkout, hence outside the sandbox workspace under any layout.
 Proposal: `${XDG_DATA_HOME:-~/.local/share}/wt/<project-id>/{local,state}/`, decided deliberately against `docs/future-workspace-local-state.md` so AI-tool state and project local-dev state do not silently merge.
 

@@ -41,6 +41,15 @@
 [init]
 	defaultBranch = main
 
+[worktree]
+	# Relative .git pointers make worktrees relocatable across bind-mount
+	# boundaries (host path vs /workspaces/... in devcontainers) and are
+	# required by `devcontainer up --mount-git-worktree-common-dir`.
+	# Applies to every creator: claude --worktree, plain git worktree add.
+	# Git < 2.48 ignores this key silently and keeps absolute pointers;
+	# migrate pre-existing worktrees with `git worktree repair`.
+	useRelativePaths = true
+
 [commit]
 	# Use a conventional-commit friendly template
 	template = ~/.gitmessage
