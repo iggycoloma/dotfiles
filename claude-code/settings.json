@@ -344,17 +344,62 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
-  "alwaysThinkingEnabled": true,
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": false,
-    "excludedCommands": [
-      "glab *",
-      "gh *",
-      "docker *",
-      "git worktree *",
-      "git checkout *"
-    ],
+    "network": {
+      "allowedDomains": [
+        "api.anthropic.com",
+        "console.anthropic.com",
+        "statsig.anthropic.com",
+        "github.com",
+        "api.github.com",
+        "raw.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "codeload.github.com",
+        "ghcr.io",
+        "gitlab.com",
+        "registry.gitlab.com",
+        "registry.npmjs.org",
+        "registry.yarnpkg.com",
+        "pypi.org",
+        "files.pythonhosted.org",
+        "crates.io",
+        "static.crates.io",
+        "index.crates.io",
+        "proxy.golang.org",
+        "sum.golang.org",
+        "developer.mozilla.org",
+        "stackoverflow.com",
+        "stackexchange.com",
+        "*.stackexchange.com",
+        "docs.python.org",
+        "nodejs.org",
+        "doc.rust-lang.org",
+        "docs.rs",
+        "pkg.go.dev",
+        "go.dev",
+        "golang.org",
+        "www.typescriptlang.org",
+        "learn.microsoft.com",
+        "developer.apple.com",
+        "kubernetes.io",
+        "man7.org",
+        "linux.die.net"
+      ],
+      "allowUnixSockets": [
+        "/private/tmp/com.apple.launchd.*/Listeners"
+      ]
+    },
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh"
+      ],
+      "allowRead": [
+        "~/.ssh/known_hosts",
+        "~/.ssh/config"
+      ]
+    },
     "credentials": {
       "files": [
         {
@@ -471,60 +516,15 @@
         }
       ]
     },
-    "filesystem": {
-      "denyRead": [
-        "~/.ssh"
-      ],
-      "allowRead": [
-        "~/.ssh/known_hosts",
-        "~/.ssh/config"
-      ]
-    },
-    "network": {
-      "allowedDomains": [
-        "api.anthropic.com",
-        "console.anthropic.com",
-        "statsig.anthropic.com",
-        "github.com",
-        "api.github.com",
-        "raw.githubusercontent.com",
-        "objects.githubusercontent.com",
-        "codeload.github.com",
-        "ghcr.io",
-        "gitlab.com",
-        "registry.gitlab.com",
-        "registry.npmjs.org",
-        "registry.yarnpkg.com",
-        "pypi.org",
-        "files.pythonhosted.org",
-        "crates.io",
-        "static.crates.io",
-        "index.crates.io",
-        "proxy.golang.org",
-        "sum.golang.org",
-        "developer.mozilla.org",
-        "stackoverflow.com",
-        "stackexchange.com",
-        "*.stackexchange.com",
-        "docs.python.org",
-        "nodejs.org",
-        "doc.rust-lang.org",
-        "docs.rs",
-        "pkg.go.dev",
-        "go.dev",
-        "golang.org",
-        "www.typescriptlang.org",
-        "learn.microsoft.com",
-        "developer.apple.com",
-        "kubernetes.io",
-        "man7.org",
-        "linux.die.net"
-      ],
-      "allowUnixSockets": [
-        "/private/tmp/com.apple.launchd.*/Listeners"
-      ]
-    }
+    "excludedCommands": [
+      "glab *",
+      "gh *",
+      "docker *",
+      "git worktree *",
+      "git checkout *"
+    ]
   },
+  "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
   "theme": "dark"
 }
