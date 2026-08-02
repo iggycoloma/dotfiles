@@ -69,3 +69,7 @@ Project tooling wins: if `.editorconfig`, `.prettierrc`, or markdownlint configu
 - Layouts are auto-detected: an orchestration dir (bare `repo.git` + `local/` + `state/` + `wt/`) provisions local dev files and `.env.worktree`; a plain clone gets a sibling `<repo>-worktrees/` tree.
 - Run project builds and tests in the project's dev container -- `wt exec <name> -- <command>` from the host -- and keep the host toolchain-free. When the project provides `./dev verify`, it is the pre-handoff gate.
 - Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks.
+- Reach for a worktree for any task expected to produce commits; quick reads and answers need none. One task, one worktree, one branch -- never switch branches inside a worktree, and never touch another worktree's files.
+- Publication policy: commit locally in the worktree; the human reviews, pushes, and opens the PR. Push or open PRs yourself only when explicitly granted for the task.
+- In an orchestration dir, `main/` is for review and integration only -- never develop there.
+- Start by checking `wt diff-local <name>` and sync if local files drifted; hand off by committing everything, running `./dev verify` in the container, and leaving the worktree in place for review rather than removing it.
