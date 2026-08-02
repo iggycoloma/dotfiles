@@ -126,8 +126,7 @@ test_hook_handles_multiline_json() {
 # (measured: 19 of 60 ordinary dev commands) while missing any non-literal
 # access. Credential reads from Bash are now blocked by `sandbox.credentials` in
 # claude-code/settings.json, enforced by bwrap/Seatbelt against every child
-# process, and by the container boundary plus CLAUDE_CODE_SUBPROCESS_ENV_SCRUB
-# in devcontainers.
+# process, and by the container boundary in devcontainers.
 #
 # These assertions exist so re-adding a Bash branch is a deliberate act with a
 # failing test attached, not a quiet drift back.

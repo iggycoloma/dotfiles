@@ -40,7 +40,9 @@ CONTAINER_SANDBOX='{"enabled": false}'
 # (https://code.claude.com/docs/en/sandboxing#which-settings-can-disable-it).
 # In a devcontainer that forces the bwrap machinery on even though
 # sandbox.enabled is false, and bwrap cannot create user namespaces there, so
-# every Bash command dies at startup. Hosts keep it; containers get env scrubbed.
+# every Bash command dies at startup. The var is no longer set anywhere
+# (docs/sandbox.md "Why CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is not set"); this
+# strip stays as a backstop in case it is ever reintroduced on hosts.
 CONTAINER_ENV_STRIP='CLAUDE_CODE_SUBPROCESS_ENV_SCRUB'
 
 usage() {

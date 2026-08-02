@@ -423,8 +423,9 @@ What that means in practice:
 
 - `~/.ssh`, `~/.aws`, etc. on the host are unreachable from inside the
   container (Docker's filesystem boundary). The deny-glob entries in
-  `permissions.deny[]` still gate Claude Code's own file tools against in-project
-  secret patterns (`**/*.pem`, `**/credentials*`, `.env*`).
+  `permissions.deny[]` still gate Claude Code's own file tools against the
+  enumerated in-project secret names (`**/*.pem`, `**/.env`,
+  `**/credentials.json`, `**/secrets.yaml`, and the rest of the list).
 - ssh-agent is reachable normally (no seccomp filter installed), so signed
   commits work in-session.
 - Network egress is unrestricted by default. The container itself has the
@@ -618,7 +619,7 @@ Claude Code
 Host vs container variant lives at `claude-code/settings.json` and
 `claude-code/settings.container.json`. The container variant is *generated* from
 the host one by `bin/sync-settings.sh` (`make sync-settings`), so the two are
-identical on `permissions`, `hooks`, `statusLine`, `env`, etc. by construction.
+identical on `permissions`, `hooks`, `statusLine`, etc. by construction.
 Edit `settings.json` only. Only the `sandbox` block differs:
 
 - Host: `sandbox.enabled: true`, full filesystem/network config.
@@ -626,7 +627,8 @@ Edit `settings.json` only. Only the `sandbox` block differs:
 
 The `permissions.deny[Read|Write|Edit]` glob list applies in both variants --
 that gates Claude Code's own file tools, independent of the OS sandbox. The
-in-project secret-pattern globs (`**/*.pem`, `**/credentials*`, `.env*`) still
+enumerated in-project secret names (`**/*.pem`, `**/.env`,
+`**/credentials.json`, `**/secrets.yaml`, and the rest of the list) still
 catch interpreter bypasses there.
 
 Codex CLI
@@ -828,28 +830,21 @@ What replaces it, per tier:
 | Host | `sandbox.credentials.files` in `claude-code/settings.json`, enforced by bwrap/Seatbelt against every child process |
 | Container | The container boundary; host credential paths are not mounted in |
 
-### Why `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is host-only
+### Why `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set
 
-The variable is set in `.env` in `claude-code/settings.json` but is stripped from
-the generated container variant by `bin/sync-settings.sh`
-(`CONTAINER_ENV_STRIP`). It must never reach a devcontainer.
+The variable was set on hosts for a while and has been retired.
+The feature is not mature enough to keep on:
+its scrub list has holes, it is over-aggressive about vars that legitimate subprocesses need, and setting it prevents using Claude Code's Auto mode entirely.
 
-Upstream: *"When `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is set, Claude Code ignores
-`filesystem.disabled` from every source, including managed settings, and keeps
-filesystem isolation on"*
+It also overrides the tier posture.
+Upstream: *"When `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is set, Claude Code ignores `filesystem.disabled` from every source, including managed settings, and keeps filesystem isolation on"*
 ([sandboxing docs](https://code.claude.com/docs/en/sandboxing#which-settings-can-disable-it)).
+Keeping filesystem isolation on means the bwrap machinery starts, and inside a devcontainer it cannot:
+user-namespace creation is blocked, so bwrap aborts and **every Bash command fails** with `No permissions to create a new namespace` -- even though `sandbox.enabled` is `false`.
 
-Keeping filesystem isolation on means the bwrap machinery starts, and inside a
-devcontainer it cannot: user-namespace creation is blocked, so bwrap aborts and
-**every Bash command fails** with `No permissions to create a new namespace` --
-even though `sandbox.enabled` is `false`. The env var overrides the tier
-posture. On hosts this is exactly what we want, since the sandbox is on there
-anyway; in containers the container is the boundary and the variable only
-breaks the shell.
-
-`bin/settings-drift.sh` therefore excludes `.env` as well as `.sandbox` from the
-host/container parity comparison -- both are legitimately per-tier.
-| Host only | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips credential env vars from every subprocess regardless of sandboxing. Host only -- see below |
+`bin/sync-settings.sh` keeps its `CONTAINER_ENV_STRIP` guard as a backstop:
+if the variable is ever reintroduced on hosts, the generated container variant still scrubs it, because it must never reach a devcontainer.
+`bin/settings-drift.sh` likewise still excludes `.env` as well as `.sandbox` from the host/container parity comparison -- both are legitimately per-tier.
 
 What the credential list covers
 -------------------------------
