@@ -167,6 +167,33 @@ sandbox. That fallback is an *environment* condition, not a permission-mode
 one -- it triggers regardless of auto vs. interactive mode. The deny-list
 and pre-security hook still apply in that fallback.
 
+### The `/sandbox` toggle crosses the host/container boundary
+
+Observed 2026-08-02, worth knowing before touching the `/sandbox` panel:
+its mode selection saves to the **project's** `.claude/settings.local.json`,
+not to a per-machine scope. When the same repo is open both on the host and
+as a bind-mounted devcontainer workspace, that file is shared -- so toggling
+`/sandbox` in a host session hot-applies `sandbox.enabled: true` to every
+in-container session on the same project.
+
+Inside a container, bwrap cannot create namespaces (the whole reason the
+container tier sets `sandbox.enabled: false`), so each Bash command in those
+sessions then fails with `bwrap: No permissions to create a new namespace`.
+Two sharp edges compound it:
+
+- The tier selection (`is_devcontainer()` choosing `settings.container.json`)
+  operates on the deployed `~/.claude/settings.json`; a project-scope
+  `settings.local.json` overrides it on both sides of the mount at once.
+- `failIfUnavailable: false` did **not** rescue the in-container sessions:
+  the graceful unsandboxed fallback is a startup-time behavior, and a
+  mid-session enable produced hard per-command failures instead.
+
+Recovery: run `/sandbox` again (either side) and disable, or delete the
+`sandbox` block from the project's `.claude/settings.local.json`. If host
+sessions of a shared checkout need the sandbox, prefer enabling it in the
+host's *user* settings (`~/.claude/settings.json`) rather than the panel,
+which keeps the scope per-machine.
+
 Why three tiers
 ---------------
 
