@@ -75,6 +75,13 @@ detect_mode() {
     WT_GIT_DIR="$clone_root/.git"
 }
 
+# True when $1 is a version >= $2 (sort -V; empty $1 is never enough).
+version_at_least() {
+    local have="$1" want="$2"
+    [[ -n "$have" ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -1)" == "$want" ]]
+}
+
 normalize_slug() {
     printf '%s' "${1:?}" \
         | tr '[:upper:]' '[:lower:]' \
@@ -498,11 +505,12 @@ cmd_doctor() {
     log "root: $WT_ROOT"
 
     git_version="$(git --version | awk '{print $3}')"
-    case "$(printf '%s\n2.48.0\n' "$git_version" | sort -V | head -1)" in
-        2.48.0) log "git $git_version (>= 2.48: relative worktree paths available)" ;;
-        *)      log "WARNING: git $git_version < 2.48 -- worktrees get absolute pointers; per-worktree containers will not work"
-                failures=$((failures + 1)) ;;
-    esac
+    if version_at_least "$git_version" "2.48.0"; then
+        log "git $git_version (>= 2.48: relative worktree paths available)"
+    else
+        log "WARNING: git $git_version < 2.48 -- worktrees get absolute pointers; per-worktree containers will not work"
+        failures=$((failures + 1))
+    fi
 
     if [[ "$(git --git-dir="$WT_GIT_DIR" config worktree.useRelativePaths 2>/dev/null)" == "true" ]] \
         || [[ "$(git config --global worktree.useRelativePaths 2>/dev/null)" == "true" ]]; then
@@ -526,7 +534,14 @@ cmd_doctor() {
 
     if [[ ! -f /.dockerenv ]]; then
         if command -v devcontainer >/dev/null 2>&1; then
-            log "devcontainer CLI: $(devcontainer --version 2>/dev/null)"
+            local dc_version
+            dc_version="$(devcontainer --version 2>/dev/null)"
+            if version_at_least "$dc_version" "0.81.0"; then
+                log "devcontainer CLI $dc_version (>= 0.81.0: worktree common-dir mounting available)"
+            else
+                log "WARNING: devcontainer CLI ${dc_version:-unknown} < 0.81.0 -- --mount-git-worktree-common-dir unavailable; update the CLI"
+                failures=$((failures + 1))
+            fi
         else
             log "note: devcontainer CLI not installed; per-worktree containers unavailable"
         fi
@@ -546,6 +561,11 @@ cmd_doctor() {
 }
 
 # ------------------------------------------------------------------ main ----
+
+# Source-guard so tests can load the functions without dispatching.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
 
 command_name="${1:-}"
 [[ -n "$command_name" ]] || usage

@@ -40,6 +40,20 @@ make_remote() {
 }
 
 # ============================================================
+# Test Suite: version floor helper
+# ============================================================
+test_suite "version_at_least"
+
+vcheck() {
+    bash -c "source '$WT' && version_at_least '$1' '$2'" && echo yes || echo no
+}
+assert_equals "yes" "$(vcheck 0.88.0 0.81.0)" "0.88.0 satisfies the 0.81.0 floor"
+assert_equals "yes" "$(vcheck 0.81.0 0.81.0)" "exact floor version satisfies"
+assert_equals "no"  "$(vcheck 0.80.9 0.81.0)" "0.80.9 fails the 0.81.0 floor"
+assert_equals "no"  "$(vcheck '' 0.81.0)"     "empty version fails the floor"
+assert_equals "yes" "$(vcheck 2.55.0 2.48.0)" "git 2.55 satisfies the 2.48 floor"
+
+# ============================================================
 # Test Suite: slug normalization
 # ============================================================
 test_suite "slug normalization"

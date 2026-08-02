@@ -8,6 +8,7 @@ Files a project adopts to work with the `wt` orchestration layout
 | `worktree.conf.example` | `.dev/worktree.conf` (tracked) | project id and port range for `.env.worktree` generation |
 | `gitignore.snippet` | append to `.gitignore` | required ignore entries; `wt` refuses to provision non-ignored destinations |
 | `post-checkout.local.example` | `<repo>/.git/hooks/post-checkout.local` (per-machine, executable) | repo-specific hook the global post-checkout delegates to |
+| `devcontainer.json.example` | `.devcontainer/devcontainer.json` (tracked) | worktree-compatible container spec (no custom workspaceMount, devcontainerId-scoped volumes) |
 
 Initialize a project:
 

@@ -119,6 +119,12 @@ output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.js
 assert_not_contains "$output" "fixed-volume-name-shared" \
     "no fixed-volume finding without volume mounts"
 
+# The shipped template example must audit clean at every severity.
+output=$("$DC_AUDIT" --profile attended --strict --rubric "$RUBRIC" \
+    "$DOTFILES_DIR/templates/worktree-project/devcontainer.json.example" 2>&1)
+status=$?
+assert_equals 0 "$status" "worktree-project devcontainer example passes strict audit"
+
 # =================================================================
 # Clean fixture
 # =================================================================
