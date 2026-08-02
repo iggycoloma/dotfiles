@@ -147,7 +147,7 @@ $ git worktree list
 
 This is a direct argument for the nested layout that survives everything in 3.3. The relative pointer and the mount reconstruction are the same shape only because the worktree lives inside the repo. A sibling layout would require the CLI to invent a mount topology for an arbitrary relative path.
 
-*(r7 note: the demonstrated behavior -- resolve the relative pointer, mount both endpoints so the relationship is preserved -- plausibly generalizes to the orchestration layout's `wt/x -> ../../repo.git/worktrees/x`, which stays within one parent directory. That generalization is exactly what the section 9 spike must confirm before Phase 5 relies on it.)*
+*(r7 note: **confirmed by the section 9 bare-sibling spike, 2026-08-02** -- the CLI resolves the relative pointer and mounts both endpoints for the orchestration layout too: `/workspaces/wt/feat` + `/workspaces/repo.git`. The generalization holds; per-worktree containers work for both shapes.)*
 
 Two caveats the test surfaced:
 
@@ -361,7 +361,7 @@ Costs, accepted knowingly:
 - **Per-project migration** -- each adopted project is re-cloned bare into an orchestration dir (`wt init`). One-time, and adoption is per-project opt-in; unmigrated repos use clone mode (below).
 - **The `WorktreeCreate` shim becomes load-bearing** for Claude Code rather than defense-in-depth: without it, native `--worktree` creates `.claude/worktrees/` inside whichever checkout the session is in. Acceptable: the shim ships in `settings.json`, which this repo deploys and drift-lints everywhere.
 - **`EnterWorktree` approval friction** -- Claude Code prompts when entering a worktree outside `.claude/worktrees/`, unsuppressable except in `bypassPermissions`. Accepted as a one-tap cost per session.
-- **The mount-topology spike must be re-run for this shape** before Phase 5 relies on it (section 9); only the nested variant has been executed.
+- ~~The mount-topology spike must be re-run for this shape~~ **Done -- passed 2026-08-02** (section 9): the CLI reconstructs `wt/feat` + `repo.git` under `/workspaces/` and in-container commits reach the shared object database.
 
 ### Clone mode: unmigrated repos and Codespaces
 
@@ -526,7 +526,7 @@ Delivers harness-agnosticism.
 ## 8. Open questions
 
 1. ~~`local/`/`state/` location~~ **Resolved by r7**: they live in the orchestration directory (4.1).
-2. **Bare-sibling mount-topology spike (section 9) -- the gating verification for r7's layout.** Until it passes, Phase 5's per-worktree containers rest on a plausible-but-unproven generalization of the nested result.
+2. ~~Bare-sibling mount-topology spike~~ **Resolved -- executed and passed 2026-08-02** (section 9), including the identity-injected write test. Phase 5 is de-risked.
 3. Credential profiles (`--profile no-secrets`) in Phase 3, or defer until a second consumer?
 4. Proving ground: this repo has no `compose.yaml`, so Phase 5 needs a real project.
 5. Sandbox concession if the Phase 1 spike shows the `local/`/`state/` root (now the orchestration dir) is blocked for host-tier writes. PR #80's `git worktree *` exclusions cover creation; provisioning writes to `local/`/`state/` still need checking under bwrap.
@@ -536,7 +536,20 @@ Delivers harness-agnosticism.
 
 **Nested variant executed 2026-08-02, pass** (findings in 3.3): the CLI preserves the relative relationship by mounting deeper -- worktree at `/workspaces/.worktrees/feat`, common dir at `/workspaces/.git`.
 
-**Bare-sibling variant (r7's layout): NOT yet executed -- this is the gating spike for Phase 5.** Must run on the **host**; a devcontainer has no Docker access. It answers whether the CLI's relative-structure reconstruction generalizes to `wt/x -> ../../repo.git/worktrees/x`, plus the follow-up write test with injected identity.
+**Bare-sibling variant (r7's layout): executed 2026-08-02. Full pass.** The CLI's relative-structure reconstruction generalizes exactly as hoped:
+
+```
+--mount source=~/wtprobe4/wt/feat,  target=/workspaces/wt/feat
+--mount source=~/wtprobe4/repo.git, target=/workspaces/repo.git
+
+toplevel:   /workspaces/wt/feat
+common-dir: /workspaces/repo.git
+git worktree list: /workspaces/repo.git (bare) + /workspaces/wt/feat [main]
+WRITE OK                                # with -c user.name/-c user.email injected
+host: git --git-dir=repo.git log -> 018615b write-test   # container commit in shared DB
+```
+
+This simultaneously closed the identity-injected write test: in-container commits with `--remote-env`-style identity land in the shared object database and are immediately visible from the host. Phase 5's per-worktree containers are fully de-risked for the orchestration layout. The script is retained below as a regression check for CLI upgrades.
 
 ```bash
 export PATH="$HOME/.devcontainers/bin:$PATH"
@@ -637,7 +650,9 @@ Compact record of every fact this plan rests on, with how it was established, so
 | Relative worktrees survive relocating the whole tree | Host test (absolute-survival result contaminated by prior repair -- shows repair works, not that absolute survives) |
 | `devcontainer up` without common-dir flag: in-container git fails `fatal: not a git repository: (null)` | Host test, CLI 0.88.0 |
 | With `--mount-git-worktree-common-dir`: two binds, worktree at `/workspaces/.worktrees/feat`, common dir at `/workspaces/.git` -- relative structure reconstructed, not flattened; `toplevel`/`common-dir`/`status`/`worktree list` all resolve | Host test |
-| In-container `git commit` aborts on unknown author identity -- CLI does not copy host `.gitconfig` (VS Code extension does). Write-to-object-store still unconfirmed | Host test, pending identity-injected rerun |
+| In-container `git commit` aborts on unknown author identity -- CLI does not copy host `.gitconfig` (VS Code extension does) | Host test |
+| With `-c user.name/-c user.email` injected, in-container commit succeeds and is immediately visible from the host via `--git-dir=repo.git log` -- container writes reach the shared object DB | Host test, bare-sibling spike |
+| Bare-sibling topology: CLI mounts `wt/feat -> /workspaces/wt/feat` and `repo.git -> /workspaces/repo.git`, preserving the relative pointer `../../repo.git/worktrees/feat`; toplevel/common-dir/status/worktree list all resolve | Host test, CLI 0.88.0 |
 | CLI auto-builds an `updateUID.Dockerfile` variant aligning container UID with host user (Linux) | Host test output |
 | Nested worktree inside the *repo-root* mount: git fully works in-container with zero config | Container test -- this session |
 | In a linked worktree, `--git-dir` returns the per-worktree admin dir; `--git-common-dir` returns the shared `.git` | Container test |
