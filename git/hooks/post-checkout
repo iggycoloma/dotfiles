@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Global post-checkout hook: worktree provisioning safety net
+#
+# Fires only on the initial checkout of a new worktree (null old ref,
+# branch checkout) and provisions local-development files via wt. This
+# covers worktrees created outside `wt add` -- Codex CLI, Copilot CLI,
+# Claude Code's native --worktree, or a bare `git worktree add` -- so
+# every harness gets the same provisioning without harness-specific hooks.
+#
+# Safety-net rules: warn, never fail (a broken hook must not make git
+# unusable); never start containers; never install dependencies.
+# Applied globally via core.hooksPath = ~/.config/git/hooks
+
+old_ref="${1:-}"
+new_ref="${2:-}"
+checkout_kind="${3:-}"
+
+# git-lfs generates a post-checkout hook with this exact name; since this
+# tracked hook occupies the slot, chain LFS explicitly so LFS repos keep
+# working without `git lfs install` rewriting the file.
+if command -v git-lfs >/dev/null 2>&1; then
+    git lfs post-checkout "$@" || exit $?
+fi
+
+# Run repo-level post-checkout.local first (if present). --git-common-dir,
+# not --git-dir: repo-local hooks are a property of the repository, and in
+# a linked worktree --git-dir names the per-worktree admin dir instead.
+repo_hook="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/hooks/post-checkout.local"
+if [[ -x "$repo_hook" ]]; then
+    "$repo_hook" "$@" || exit $?
+fi
+
+# Only the initial worktree checkout: old ref is all zeros and this is a
+# branch checkout (kind 1), not a file checkout (kind 0).
+[[ "$old_ref" =~ ^0+$ ]] || exit 0
+[[ "$checkout_kind" == "1" ]] || exit 0
+[[ -n "$new_ref" ]] || exit 0
+
+worktree="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
+
+# Provision only for orchestration-layout worktrees (shared bare repo.git
+# with a local/ source of truth beside it). Ordinary clones have no local/
+# source, and wt add already provisioned anything it created itself --
+# provisioning is idempotent, so double-running is harmless.
+[[ "$(basename "$common_dir")" == "repo.git" ]] || exit 0
+project_root="$(dirname "$common_dir")"
+[[ -d "$project_root/local" ]] || exit 0
+
+wt_bin="${WT_BIN:-$HOME/.local/bin/dotfiles-bin/wt}"
+[[ -x "$wt_bin" ]] || exit 0
+
+if ! (cd "$worktree" && "$wt_bin" sync "$(basename "$worktree")") >/dev/null 2>&1; then
+    echo "warning: worktree local-file provisioning failed (run 'wt sync $(basename "$worktree")')" >&2
+fi
+exit 0

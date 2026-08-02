@@ -232,6 +232,44 @@ assert_contains "$output" "mode: orchestration" "doctor reports orchestration mo
 assert_contains "$output" "useRelativePaths: true" "doctor confirms relative paths config"
 
 # ============================================================
+# Test Suite: post-checkout safety-net hook
+# ============================================================
+test_suite "post-checkout hook"
+
+HOOK="$DOTFILES_DIR/git/hooks/post-checkout"
+export WT_BIN="$WT"
+NULL_REF="0000000000000000000000000000000000000000"
+
+# A worktree created OUTSIDE wt (plain git) gets provisioned by the hook.
+git --git-dir="$TMP/proj/repo.git" worktree add -q --relative-paths \
+    -b outside "$TMP/proj/wt/outside" main 2>/dev/null
+head_ref=$(git -C "$TMP/proj/wt/outside" rev-parse HEAD)
+assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
+    "plain git worktree add does not provision by itself"
+(cd "$TMP/proj/wt/outside" && bash "$HOOK" "$NULL_REF" "$head_ref" 1)
+assert_equals 0 $? "hook exits 0 on initial checkout"
+assert_file_exists "$TMP/proj/wt/outside/.env.shared" \
+    "hook provisions local/shared into an externally created worktree"
+
+# Ordinary branch switch (non-null old ref) must be a no-op.
+rm -f "$TMP/proj/wt/outside/.env.shared"
+(cd "$TMP/proj/wt/outside" && bash "$HOOK" "$head_ref" "$head_ref" 1)
+assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
+    "hook ignores ordinary branch switches"
+
+# File checkout (kind 0) must be a no-op.
+(cd "$TMP/proj/wt/outside" && bash "$HOOK" "$NULL_REF" "$head_ref" 0)
+assert_file_not_exists "$TMP/proj/wt/outside/.env.shared" \
+    "hook ignores file checkouts"
+
+# Clone-mode worktrees (no orchestration local/) exit silently.
+output=$(cd "$TMP/slugproj" && bash "$HOOK" "$NULL_REF" "$head_ref" 1 2>&1)
+assert_equals 0 $? "hook exits 0 outside orchestration layout"
+assert_equals "" "$output" "hook is silent outside orchestration layout"
+
+unset WT_BIN
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
