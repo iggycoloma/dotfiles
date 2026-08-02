@@ -103,6 +103,23 @@ assert_contains "$output" "runargs-cap-sys-admin"      "flags --cap-add=SYS_ADMI
 assert_contains "$output" "runargs-seccomp-unconfined" "flags --security-opt=seccomp=unconfined"
 
 # =================================================================
+# Worktree-container rules
+# =================================================================
+
+test_suite "dc-audit: Detects worktree-hostile configuration"
+
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/worktree-hostile.json" 2>&1)
+assert_contains "$output" "workspace-mount-worktree-hostile" \
+    "flags custom workspaceMount (breaks --mount-git-worktree-common-dir)"
+assert_contains "$output" "fixed-volume-name-shared" \
+    "flags fixed volume name as shared across per-worktree containers"
+
+# The ${devcontainerId}-scoped mount alone must not fire the rule.
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.json" 2>&1)
+assert_not_contains "$output" "fixed-volume-name-shared" \
+    "no fixed-volume finding without volume mounts"
+
+# =================================================================
 # Clean fixture
 # =================================================================
 

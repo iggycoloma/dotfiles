@@ -1,0 +1,10 @@
+{
+  "name": "worktree-hostile",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/custom,type=bind",
+  "workspaceFolder": "/custom",
+  "mounts": [
+    "source=fixed-shared-state,target=/home/vscode/.state,type=volume",
+    "source=${devcontainerId}-scoped,target=/home/vscode/.scoped,type=volume"
+  ]
+}
