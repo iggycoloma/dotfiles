@@ -7,9 +7,8 @@
 # one, and cannot model quoting or expansion, so it produced steady false
 # prompts while missing any non-literal access. On hosts that job belongs to
 # `sandbox.credentials` in claude-code/settings.json, which bwrap and Seatbelt
-# enforce against every child process; in containers the container boundary and
-# CLAUDE_CODE_SUBPROCESS_ENV_SCRUB cover it. See docs/sandbox.md
-# "Why there is no Bash scan".
+# enforce against every child process; in containers the container boundary
+# covers it. See docs/sandbox.md "Why there is no Bash scan".
 
 # Validate jq is available. Security hooks must fail closed: Codex treats
 # ordinary hook failures as non-blocking, so emit a deny decision instead of
@@ -44,8 +43,12 @@ SENSITIVE_PATHS=(
     # The agent CLIs' own OAuth tokens. `*/credentials.json` does not reach
     # these: the leading dot means the char before the match is not a `/`.
     "*/.credentials.json"
+    "*/credentials.yaml"
+    "*/credentials.yml"
     "*/secrets.yaml"
+    "*/secrets.yml"
     "*/secrets.json"
+    "*/client_secret*.json"
     "*/.aws/credentials"
     "*/.ssh/id_rsa"
     "*/.ssh/id_ed25519"
