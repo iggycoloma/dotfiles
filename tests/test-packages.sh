@@ -131,6 +131,45 @@ assert_not_contains "$(declare -f install_claude_code)" "claude update" \
     "install_claude_code does not self-invoke claude update"
 
 # ============================================================
+# Test Suite: devcontainer CLI install gating
+# ============================================================
+test_suite "devcontainer CLI install gating"
+
+# Host-only: containers never launch containers, so the function must
+# bail before any download when running inside one.
+assert_contains "$(declare -f install_devcontainer_cli)" "is_devcontainer" \
+    "install_devcontainer_cli gates on is_devcontainer"
+
+# In-container invocation is a silent no-op (no download, no log noise)
+is_devcontainer() { return 0; }
+output=$(install_devcontainer_cli 2>&1)
+assert_equals "" "$output" "install_devcontainer_cli is a no-op inside containers"
+unset -f is_devcontainer
+
+# Install-once like every other tool; no upgrade path
+assert_not_contains "$(declare -f install_devcontainer_cli)" "--update" \
+    "install_devcontainer_cli carries no upgrade opt-in"
+
+# brew formula on macOS, upstream installer elsewhere
+assert_contains "$(declare -f install_devcontainer_cli)" "brew install devcontainer" \
+    "install_devcontainer_cli uses the Homebrew formula when brew is the package manager"
+assert_contains "$(declare -f install_devcontainer_cli)" "devcontainers/cli/main/scripts/install.sh" \
+    "install_devcontainer_cli falls back to the upstream installer script"
+
+# ============================================================
+# Test Suite: git version floor
+# ============================================================
+test_suite "git version floor"
+
+# 2.48 is the worktree --relative-paths floor that per-worktree dev
+# containers depend on; no supported LTS ships it stock, so the PPA
+# upgrade path must target it.
+assert_contains "$(declare -f _ensure_modern_git_apt)" 'minimum="2.48"' \
+    "git upgrade floor is 2.48 (worktree relative paths)"
+assert_contains "$(declare -f _ensure_modern_git_apt)" "relative-paths" \
+    "non-Ubuntu warning names the worktree feature"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary

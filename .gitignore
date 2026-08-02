@@ -49,7 +49,9 @@ config/ripgrep/ripgrep
 git/hooks/hooks
 
 # git-lfs hooks (if using git-lfs, these are generated and should not be committed)
-git/hooks/post-checkout
+# post-checkout is deliberately NOT ignored: the tracked worktree-provisioning
+# hook chains `git lfs post-checkout` itself, so `git lfs install` is not
+# needed for that hook (and would show as a tracked-file modification if run).
 git/hooks/post-commit
 git/hooks/post-merge
 git/hooks/pre-push

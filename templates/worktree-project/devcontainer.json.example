@@ -1,0 +1,26 @@
+{
+  // Worktree-compatible devcontainer: copy to .devcontainer/devcontainer.json.
+  // The constraints that matter for per-worktree containers:
+  //  - NO custom workspaceMount: it silently disables the CLI's
+  //    --mount-git-worktree-common-dir (devcontainers/cli#1243) and git
+  //    breaks inside the container.
+  //  - Volume names that must be per-container use ${devcontainerId};
+  //    a fixed name is shared by every worktree's container.
+  //  - No fixed host ports here or in compose: worktrees collide on them.
+  "name": "example",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "updateRemoteUserUID": true,
+  "shutdownAction": "stopContainer",
+  "runArgs": [
+    "--security-opt=no-new-privileges",
+    "--pids-limit=2048"
+  ],
+  "mounts": [
+    "source=${devcontainerId}-state,target=/home/vscode/.state,type=volume"
+  ],
+  "postCreateCommand": "./dev setup",
+  "waitFor": "postCreateCommand"
+}

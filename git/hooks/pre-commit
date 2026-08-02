@@ -7,8 +7,11 @@
 #
 # Bypass (emergency): git commit --no-verify
 
-# Run repo-level pre-commit.local hook first (if present)
-repo_hook="$(git rev-parse --git-dir 2>/dev/null)/hooks/pre-commit.local"
+# Run repo-level pre-commit.local hook first (if present).
+# --git-common-dir, not --git-dir: in a linked worktree --git-dir is the
+# per-worktree admin dir (.git/worktrees/<name>), so a repo's local hook
+# would run from the main checkout but silently not from its worktrees.
+repo_hook="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/hooks/pre-commit.local"
 if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" || exit $?
 fi

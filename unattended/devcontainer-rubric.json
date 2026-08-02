@@ -173,6 +173,22 @@
       "check": "(.postCreateCommand // null) != null and (.waitFor // null) == null",
       "fixable": true,
       "fix": ". + {waitFor: \"postCreateCommand\"}"
+    },
+    {
+      "id": "workspace-mount-worktree-hostile",
+      "profile": "all",
+      "severity": "warn",
+      "message": "Custom `workspaceMount` silently disables `--mount-git-worktree-common-dir` (devcontainers/cli#1243), so git breaks inside per-worktree containers. Prefer the default workspace mount.",
+      "check": "(.workspaceMount // null) != null",
+      "fixable": false
+    },
+    {
+      "id": "fixed-volume-name-shared",
+      "profile": "all",
+      "severity": "info",
+      "message": "Fixed volume name is shared by every container of this config, including per-worktree containers. Verify sharing is intended (credentials tolerate it; append-heavy state does not) or scope with ${devcontainerId}.",
+      "check": "(.mounts // []) | map(if type == \"string\" then . else ((\"source=\" + (.source // \"\")) + \",type=\" + (.type // \"\")) end) | map(select(test(\"type=volume\") and (test(\"\\\\$\\\\{devcontainerId\\\\}|\\\\$\\\\{localWorkspaceFolder\") | not))) | length > 0",
+      "fixable": false
     }
   ]
 }

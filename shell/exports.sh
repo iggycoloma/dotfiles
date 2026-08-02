@@ -61,6 +61,8 @@ fi
 # Path additions (with dedup guard)
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
 [[ ":$PATH:" != *":$HOME/bin:"* ]] && export PATH="$HOME/bin:$PATH"
+# Dev Containers CLI standalone install prefix (hosts only; dir absent in containers)
+[[ -d "$HOME/.devcontainers/bin" && ":$PATH:" != *":$HOME/.devcontainers/bin:"* ]] && export PATH="$HOME/.devcontainers/bin:$PATH"
 
 # FZF configuration
 export FZF_DEFAULT_OPTS="

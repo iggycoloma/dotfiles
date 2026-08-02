@@ -470,16 +470,18 @@ _find_missing_packages() {
     done
 }
 
-# Upgrade git via ppa:git-core/ppa when stock apt git < 2.35. Required for
-# `user.signingkey = key::<literal-pubkey>` -- the parser for that prefix
-# landed in git 2.35 (Ubuntu 22.04 jammy ships 2.34.1, where the value is
-# passed straight to ssh-keygen as a file path and signing fails). Ubuntu
-# only -- the PPA does not publish for Debian; bookworm has 2.39 in stock.
-# Idempotent: re-running with git >= 2.35 already installed is a no-op.
+# Upgrade git via ppa:git-core/ppa when stock apt git < 2.48. Two features
+# set the floor: `user.signingkey = key::<literal-pubkey>` needs 2.35, and
+# `git worktree add --relative-paths` / worktree.useRelativePaths -- which
+# per-worktree dev containers depend on (bin/wt, --mount-git-worktree-
+# common-dir) -- landed in 2.48. No supported LTS ships 2.48 stock
+# (Ubuntu 24.04: 2.43, Debian bookworm: 2.39), so the PPA is the primary
+# path on Ubuntu; other distros get a loud warning and wt degrades to
+# absolute worktree pointers. Idempotent: a no-op at >= 2.48.
 _ensure_modern_git_apt() {
     has_tool git || return 0
 
-    local current minimum="2.35"
+    local current minimum="2.48"
     current=$(git --version 2>/dev/null | awk '{print $3}')
     [[ -n "$current" ]] || return 0
     if dpkg --compare-versions "$current" ge "$minimum"; then
@@ -493,7 +495,7 @@ _ensure_modern_git_apt() {
         codename="${VERSION_CODENAME:-}"
     fi
     if [[ "$distro_id" != "ubuntu" && "$distro_id" != "pop" ]]; then
-        log_warn "git ${current} < ${minimum} (key:: signingkey needs >= ${minimum}); upgrade git manually on this distro"
+        log_warn "git ${current} < ${minimum} (worktree --relative-paths needs 2.48, key:: signingkey needs 2.35); upgrade git manually on this distro -- wt falls back to absolute worktree pointers until then"
         return 0
     fi
 
@@ -859,6 +861,51 @@ install_claude_code() {
     rm -f "$tmp_script"
 }
 
+# Dev Containers CLI: launches per-worktree containers from the host
+# (docs/agentic-worktree-dev-environment.md). Host-only by design --
+# containers never launch containers, so inside one it is dead weight.
+# Homebrew ships a formula; apt/apk have no package, so Linux hosts use
+# the upstream installer, which bundles its own Node.js runtime into
+# ~/.devcontainers (same vendor-script pattern as install_claude_code).
+# Version floor for worktree common-dir mounting is CLI 0.81.0; the
+# installer resolves latest, and `wt doctor` owns the floor check.
+install_devcontainer_cli() {
+    if is_devcontainer; then
+        return 0
+    fi
+    if has_tool devcontainer; then
+        log_info "Dev Containers CLI already installed, skipping"
+        return 0
+    fi
+    if [[ "$(detect_package_manager)" == "brew" ]]; then
+        log_info "Installing Dev Containers CLI via Homebrew..."
+        if brew install devcontainer; then
+            log_success "Dev Containers CLI installed"
+        else
+            log_warn "Failed to install Dev Containers CLI via Homebrew (non-fatal)"
+        fi
+        return 0
+    fi
+    log_info "Installing Dev Containers CLI via upstream installer..."
+    local tmp_script
+    tmp_script=$(mktemp) || { log_warn "Failed to create temp file for Dev Containers CLI installer"; return 1; }
+    if curl -fsSL https://raw.githubusercontent.com/devcontainers/cli/main/scripts/install.sh -o "$tmp_script"; then
+        if sh "$tmp_script" 2>&1; then
+            export PATH="$HOME/.devcontainers/bin:$PATH"
+            if _managed_install_exists devcontainer "$HOME/.devcontainers/bin"; then
+                log_success "Dev Containers CLI installed"
+            else
+                log_warn "Dev Containers CLI installer ran but 'devcontainer' not found in expected path"
+            fi
+        else
+            log_warn "Failed to run Dev Containers CLI installer (non-fatal)"
+        fi
+    else
+        log_warn "Failed to download Dev Containers CLI installer (non-fatal)"
+    fi
+    rm -f "$tmp_script"
+}
+
 install_packages() {
     local env os pkg_mgr minimal
     env=$(detect_environment)
@@ -930,6 +977,7 @@ install_packages() {
         log_info "Installing AI coding tools..."
         install_from_github "codex" "$(get_github_repo codex)"
         install_claude_code
+        install_devcontainer_cli
     fi
 
     log_success "Package installation complete!"

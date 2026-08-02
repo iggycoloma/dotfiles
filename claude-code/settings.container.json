@@ -337,6 +337,28 @@
           }
         ]
       }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/worktree-create.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/worktree-remove.sh",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -344,10 +366,10 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
-  "alwaysThinkingEnabled": true,
   "sandbox": {
     "enabled": false
   },
+  "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
   "theme": "dark"
 }

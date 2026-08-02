@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Repo-local post-checkout hook, called by the global post-checkout before
+# its worktree provisioning. Install per-machine (never tracked):
+#   cp post-checkout.local.example <repo>/.git/hooks/post-checkout.local
+#   chmod +x <repo>/.git/hooks/post-checkout.local
+#
+# Args are git's post-checkout args: <old-ref> <new-ref> <flag>.
+# Keep it idempotent and fast; never start containers or install deps here.
+
+exit 0
