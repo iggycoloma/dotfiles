@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git)
 SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*')
@@ -25,7 +25,7 @@ lint-settings-sync:
 lint-settings-drift:
 	@bin/settings-drift.sh --quiet
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -54,6 +54,9 @@ test-drift:
 # The agent-hook guards themselves (sensitive paths, no-emoji, commit-msg).
 # These suites existed but were wired into neither `make test` nor CI, so 180
 # assertions covering the security guards never ran on a change.
+test-wt:
+	bash tests/test-wt.sh
+
 test-hooks:
 	bash tests/test-security-hook.sh
 	bash tests/test-emoji-hook.sh

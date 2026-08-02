@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# wt -- worktree operations for the agentic dev environment.
+#
+# Two layouts, detected automatically (docs/agentic-worktree-dev-environment.md,
+# planning/2026-08-02-agentic-worktree-system.md):
+#
+#   orchestration mode   <root>/repo.git (bare) + local/ + state/ + main/ + wt/<slug>
+#   clone mode           ordinary clone; worktrees at <parent>/<repo>-worktrees/<leaf>
+#
+# Machine-readable output (paths) goes to stdout; all logging goes to stderr,
+# so wrappers can `cd "$(wt add x)"`. Bash 3.2 compatible; single file for
+# now -- split into bootstrap/lib/wt/ when the devcontainer/compose commands
+# land (Phase 5).
+
+usage() {
+    cat >&2 <<'HELP'
+Usage: wt <command> [args]
+
+  init <url> <dir>      create an orchestration dir (bare clone + local/ state/ main/ wt/)
+  add <name> [base]     create a worktree (+ provision local files in orchestration mode)
+  list                  list worktrees for the current project
+  path <name>           print the worktree's path
+  remove <name> [--branch]  remove a worktree (refuses dirty; --branch also deletes branch)
+  prune                 clean up stale worktree administrative entries
+  doctor                check layout, git version, pointers, and tooling
+HELP
+    exit 2
+}
+
+log()  { printf 'wt: %s\n' "$*" >&2; }
+die()  { printf 'wt: error: %s\n' "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------- layout ----
+
+# Walk up from $PWD looking for an orchestration root (a dir containing a
+# bare repo.git). Prints the root or nothing.
+find_orchestration_root() {
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -d "$dir/repo.git" ]] \
+            && [[ "$(git --git-dir="$dir/repo.git" rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
+            printf '%s\n' "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    return 1
+}
+
+# In clone mode: print the main worktree root of the enclosing repository.
+find_clone_root() {
+    git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'
+}
+
+# Sets globals: WT_MODE, WT_GIT_DIR, WT_ROOT (orchestration dir or clone parent).
+detect_mode() {
+    local orch_root
+    if orch_root="$(find_orchestration_root)"; then
+        WT_MODE="orchestration"
+        WT_ROOT="$orch_root"
+        WT_GIT_DIR="$orch_root/repo.git"
+        return 0
+    fi
+    local clone_root
+    clone_root="$(find_clone_root)"
+    [[ -n "$clone_root" ]] || die "not inside a git repository or orchestration directory"
+    WT_MODE="clone"
+    WT_ROOT="$clone_root"
+    WT_GIT_DIR="$clone_root/.git"
+}
+
+normalize_slug() {
+    printf '%s' "${1:?}" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -e 's/[^a-z0-9._-]\{1,\}/-/g' -e 's/^[-.]*//' -e 's/[-.]*$//' \
+        | cut -c1-48
+}
+
+# Base ref for new branches: origin's default branch, degrading to HEAD.
+# Matches Claude Code's worktree.baseRef=fresh and the former shell function.
+default_base() {
+    local git_dir="$1" base
+    base="$(git --git-dir="$git_dir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    if [[ -n "$base" ]] && git --git-dir="$git_dir" rev-parse --verify --quiet "${base}^{commit}" >/dev/null 2>&1; then
+        printf '%s\n' "$base"
+    else
+        printf 'HEAD\n'
+    fi
+}
+
+worktree_dest() {
+    local name="$1" slug
+    slug="$(normalize_slug "${name##*/}")"
+    [[ -n "$slug" ]] || die "name '$name' produced an empty slug"
+    if [[ "$WT_MODE" == "orchestration" ]]; then
+        printf '%s\n' "$WT_ROOT/wt/$slug"
+    else
+        local repo
+        repo="$(basename "$WT_ROOT")"
+        printf '%s\n' "$(dirname "$WT_ROOT")/${repo}-worktrees/$slug"
+    fi
+}
+
+# ---------------------------------------------------------- provisioning ----
+
+# Refuse to copy any local/ file whose destination the project does not
+# gitignore. This is the security invariant: "we intended to ignore secrets"
+# becomes enforced, not hoped.
+validate_local_tree() {
+    # Returns 1 rather than die: the caller owns rollback of the half-made
+    # worktree, and an exit here would skip it.
+    local source_dir="$1" worktree="$2" src rel
+    [[ -d "$source_dir" ]] || return 0
+    while IFS= read -r -d '' src; do
+        rel="${src#"$source_dir"/}"
+        if ! git -C "$worktree" check-ignore -q -- "$rel"; then
+            log "refusing to provision non-ignored local file: $rel (add it to the project's .gitignore)"
+            return 1
+        fi
+    done < <(find "$source_dir" -type f -print0)
+}
+
+provision_local_files() {
+    local root="$1" worktree="$2"
+    local shared="$root/local/shared" template="$root/local/template"
+    [[ -d "$shared" || -d "$template" ]] || return 0
+    validate_local_tree "$shared" "$worktree" || return 1
+    validate_local_tree "$template" "$worktree" || return 1
+    if ! command -v rsync >/dev/null 2>&1; then
+        log "warning: rsync not found; skipping local file provisioning"
+        return 0
+    fi
+    # No --delete: never remove worktree-local ignored state.
+    [[ -d "$shared" ]] && rsync -a --exclude='.DS_Store' "$shared/" "$worktree/"
+    [[ -d "$template" ]] && rsync -a --ignore-existing --exclude='.DS_Store' "$template/" "$worktree/"
+    return 0
+}
+
+# ------------------------------------------------------------- commands ----
+
+cmd_init() {
+    local url="${1:-}" root="${2:-}"
+    [[ -n "$url" && -n "$root" ]] || die "usage: wt init <remote-url> <project-dir>"
+    [[ ! -e "$root/repo.git" ]] || die "already initialized: $root/repo.git"
+
+    mkdir -p "$root/local/shared" "$root/local/template" "$root/state" "$root/wt"
+    chmod 700 "$root/local"
+    git clone --bare "$url" "$root/repo.git"
+    git --git-dir="$root/repo.git" config worktree.useRelativePaths true
+
+    local default_branch
+    default_branch="$(git --git-dir="$root/repo.git" symbolic-ref --short HEAD 2>/dev/null || true)"
+    default_branch="${default_branch:-main}"
+    git --git-dir="$root/repo.git" worktree add --relative-paths "$root/main" "$default_branch" >&2
+
+    log "initialized $root (default branch: $default_branch)"
+    printf '%s\n' "$root"
+}
+
+cmd_add() {
+    local name="${1:-}" base="${2:-}"
+    [[ -n "$name" ]] || die "usage: wt add <name> [base]"
+    detect_mode
+
+    local dest branch
+    # The name doubles as the branch when it is a legal ref (slashes fine,
+    # e.g. user/CLK-943); otherwise the branch falls back to the slug.
+    if git check-ref-format --branch "$name" >/dev/null 2>&1; then
+        branch="$name"
+    else
+        branch="$(normalize_slug "${name##*/}")"
+    fi
+    dest="$(worktree_dest "$name")"
+    [[ ! -e "$dest" ]] || die "already exists: $dest"
+    mkdir -p "$(dirname "$dest")"
+
+    if git --git-dir="$WT_GIT_DIR" show-ref --verify --quiet "refs/heads/$branch"; then
+        git --git-dir="$WT_GIT_DIR" worktree add --relative-paths "$dest" "$branch" >&2
+    else
+        [[ -n "$base" ]] || base="$(default_base "$WT_GIT_DIR")"
+        git --git-dir="$WT_GIT_DIR" worktree add --relative-paths -b "$branch" "$dest" "$base" >&2
+    fi
+
+    if [[ "$WT_MODE" == "orchestration" ]]; then
+        if ! provision_local_files "$WT_ROOT" "$dest"; then
+            # Roll back: a half-provisioned worktree must not survive a
+            # failed security validation.
+            git --git-dir="$WT_GIT_DIR" worktree remove --force "$dest" >/dev/null 2>&1 || true
+            git --git-dir="$WT_GIT_DIR" branch -D "$branch" >/dev/null 2>&1 || true
+            die "provisioning failed; worktree rolled back"
+        fi
+    fi
+
+    log "created $dest (branch: $branch, mode: $WT_MODE)"
+    printf '%s\n' "$dest"
+}
+
+cmd_list() {
+    detect_mode
+    log "mode: $WT_MODE (root: $WT_ROOT)"
+    git --git-dir="$WT_GIT_DIR" worktree list
+}
+
+cmd_path() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || die "usage: wt path <name>"
+    detect_mode
+    local dest
+    dest="$(worktree_dest "$name")"
+    [[ -d "$dest" ]] || die "no such worktree: $dest"
+    printf '%s\n' "$dest"
+}
+
+cmd_remove() {
+    local name="${1:-}" delete_branch="${2:-}"
+    [[ -n "$name" ]] || die "usage: wt remove <name> [--branch]"
+    detect_mode
+    local dest branch
+    dest="$(worktree_dest "$name")"
+    [[ -d "$dest" ]] || die "no such worktree: $dest"
+
+    branch="$(git -C "$dest" symbolic-ref --short HEAD 2>/dev/null || true)"
+
+    # Refuse to destroy uncommitted or untracked work.
+    git -C "$dest" diff --quiet || die "worktree has unstaged changes: $dest"
+    git -C "$dest" diff --cached --quiet || die "worktree has staged changes: $dest"
+    [[ -z "$(git -C "$dest" ls-files --others --exclude-standard)" ]] \
+        || die "worktree has untracked files: $dest"
+
+    git --git-dir="$WT_GIT_DIR" worktree remove "$dest"
+    if [[ "$delete_branch" == "--branch" && -n "$branch" ]]; then
+        git --git-dir="$WT_GIT_DIR" branch -D "$branch" >&2
+    fi
+    git --git-dir="$WT_GIT_DIR" worktree prune
+    log "removed $dest"
+}
+
+cmd_prune() {
+    detect_mode
+    git --git-dir="$WT_GIT_DIR" worktree prune --verbose >&2
+    log "pruned"
+}
+
+cmd_doctor() {
+    detect_mode
+    local failures=0 git_version
+
+    log "mode: $WT_MODE"
+    log "root: $WT_ROOT"
+
+    git_version="$(git --version | awk '{print $3}')"
+    case "$(printf '%s\n2.48.0\n' "$git_version" | sort -V | head -1)" in
+        2.48.0) log "git $git_version (>= 2.48: relative worktree paths available)" ;;
+        *)      log "WARNING: git $git_version < 2.48 -- worktrees get absolute pointers; per-worktree containers will not work"
+                failures=$((failures + 1)) ;;
+    esac
+
+    if [[ "$(git --git-dir="$WT_GIT_DIR" config worktree.useRelativePaths 2>/dev/null)" == "true" ]] \
+        || [[ "$(git config --global worktree.useRelativePaths 2>/dev/null)" == "true" ]]; then
+        log "worktree.useRelativePaths: true"
+    else
+        log "WARNING: worktree.useRelativePaths not set; new worktrees from other tools get absolute pointers"
+        failures=$((failures + 1))
+    fi
+
+    # Every registered worktree must resolve (catches stale pointers after moves).
+    local wt_path
+    while IFS= read -r wt_path; do
+        [[ -n "$wt_path" ]] || continue
+        if git -C "$wt_path" rev-parse --git-dir >/dev/null 2>&1; then
+            log "worktree ok: $wt_path"
+        else
+            log "WARNING: worktree broken (try 'git worktree repair'): $wt_path"
+            failures=$((failures + 1))
+        fi
+    done < <(git --git-dir="$WT_GIT_DIR" worktree list --porcelain | sed -n 's/^worktree //p')
+
+    if [[ ! -f /.dockerenv ]]; then
+        if command -v devcontainer >/dev/null 2>&1; then
+            log "devcontainer CLI: $(devcontainer --version 2>/dev/null)"
+        else
+            log "note: devcontainer CLI not installed; per-worktree containers unavailable"
+        fi
+    else
+        log "in-container: devcontainer CLI intentionally unavailable (containers never launch containers)"
+    fi
+
+    if [[ "$WT_MODE" == "orchestration" ]]; then
+        if [[ -d "$WT_ROOT/local" ]]; then log "local/ present"; else log "note: no local/ directory"; fi
+        if [[ -d "$WT_ROOT/state" ]]; then log "state/ present"; else log "note: no state/ directory"; fi
+    fi
+
+    if [[ "$failures" -gt 0 ]]; then
+        die "doctor found $failures problem(s)"
+    fi
+    log "doctor: all checks passed"
+}
+
+# ------------------------------------------------------------------ main ----
+
+command_name="${1:-}"
+[[ -n "$command_name" ]] || usage
+shift
+
+case "$command_name" in
+    init)   cmd_init "$@" ;;
+    add)    cmd_add "$@" ;;
+    list)   cmd_list "$@" ;;
+    path)   cmd_path "$@" ;;
+    remove) cmd_remove "$@" ;;
+    prune)  cmd_prune "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    -h|--help|help) usage ;;
+    *) die "unknown command: $command_name (see wt --help)" ;;
+esac

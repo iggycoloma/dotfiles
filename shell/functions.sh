@@ -446,54 +446,29 @@ function ccwclean {
     echo "Worktree cleanup complete"
 }
 
-# Create a worktree as a sibling of the repo rather than inside it:
-#   ~/Projects/farmers-cartel -> ~/Projects/farmers-cartel-worktrees/<leaf>
-# Nested worktrees get crawled by tsc/jest/eslint/watchers, are reachable by
-# Node's upward module resolution (a partial install silently resolves to the
-# parent repo's node_modules), and are deleted by `git clean -fdx` in the parent.
+# Thin wrapper over bin/wt (worktree operations for the agentic dev
+# environment -- orchestration and clone layouts, provisioning, doctor).
+# A subprocess cannot change the parent shell's directory, so `add` captures
+# the created path from stdout and cd's into it; everything else passes
+# through. Note: `git clean -fdx` does NOT delete worktrees (git skips
+# nested repositories); Node's upward module resolution was the real
+# nesting hazard, which the sibling/orchestration layouts avoid.
 function wt {
-    local branch="${1:-}"
-    if [[ -z "$branch" ]]; then
-        echo "Usage: wt <branch> [base-ref]" >&2
+    local wt_bin="$HOME/.local/bin/dotfiles-bin/wt"
+    if [[ ! -x "$wt_bin" ]]; then
+        echo "wt: bin/wt not deployed (run install.sh)" >&2
         return 1
     fi
-
-    local root repo dest base
-    # First entry of `git worktree list` is always the main worktree. Anchoring
-    # there rather than on --show-toplevel keeps the sibling tree flat when wt
-    # is run from inside an existing worktree.
-    root=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
-    if [[ -z "$root" ]]; then
-        echo "wt: not inside a git repository" >&2
-        return 1
-    fi
-    repo=$(basename "$root")
-    # Last path segment only: iggycoloma/clk-943-slug -> clk-943-slug.
-    dest="$(dirname "$root")/${repo}-worktrees/${branch##*/}"
-
-    if [[ -e "$dest" ]]; then
-        echo "wt: already exists: $dest" >&2
-        return 1
-    fi
-
-    if git show-ref --verify --quiet "refs/heads/$branch"; then
-        git worktree add "$dest" "$branch" || return 1
-    else
-        # Default to origin's default branch, matching Claude Code's
-        # worktree.baseRef=fresh. Degrade to HEAD rather than failing when
-        # there is no origin, or origin/HEAD was never fetched.
-        base="${2:-}"
-        if [[ -z "$base" ]]; then
-            base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
-            if [[ -z "$base" ]] || ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null 2>&1; then
-                base=HEAD
-            fi
-        fi
-        git worktree add -b "$branch" "$dest" "$base" || return 1
-    fi
-
-    cd "$dest" || return 1
-    echo "wt: $dest"
+    case "${1:-}" in
+        add)
+            local dest
+            dest=$("$wt_bin" "$@") || return $?
+            if [[ -d "$dest" ]]; then cd "$dest" || return 1; fi
+            ;;
+        *)
+            "$wt_bin" "$@"
+            ;;
+    esac
 }
 
 if [[ -f "$HOME/.functions.local" ]]; then
