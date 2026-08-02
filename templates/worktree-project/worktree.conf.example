@@ -1,0 +1,5 @@
+# .dev/worktree.conf -- tracked project configuration for wt (no secrets).
+# Parsed as restricted key=value; values are limited to [A-Za-z0-9._/-].
+PROJECT_ID=example
+PORT_RANGE_START=3100
+PORT_RANGE_END=3999

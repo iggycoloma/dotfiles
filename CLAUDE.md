@@ -102,3 +102,12 @@ those environments:
 CI tests 13+ platform configurations. When making changes to bootstrap or shell
 scripts, consider cross-platform impact: Ubuntu (20.04/22.04/24.04), Debian
 (11/12), Alpine (musl), macOS (15/26), and Codespaces simulation.
+
+## Worktree system (wt) -- maintenance map
+
+Repo-maintenance context for the agentic worktree system; the user-facing rules live in the globally deployed instruction files.
+
+- Design: `docs/agentic-worktree-dev-environment.md` (amended in Status); plan and verified evidence log: `planning/2026-08-02-agentic-worktree-system.md`. Where they disagree, the plan wins.
+- Implementation: `bin/wt` (single file until the Phase 5 lib split), `git/hooks/post-checkout` (safety net for worktrees created outside wt; chains git-lfs), `tests/test-wt.sh` (`make test-wt`).
+- Invariants to preserve when editing: provisioning never copies a file whose destination is not gitignored (hard-fail + rollback); `remove` refuses dirty trees and tears down containers by `wt.project`/`wt.slug` labels; worktrees are always created with relative paths; container commands are host-only; no project ever sets repo-local `core.hooksPath`.
+- Parked: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion await the in-flight `claude-code/settings.json` rework (plan Phase 4).

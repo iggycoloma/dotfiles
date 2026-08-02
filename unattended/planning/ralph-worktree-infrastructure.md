@@ -1,5 +1,11 @@
 # Plan: Ralph-Style Workflow + Git Worktree Infrastructure
 
+> **Superseded (2026-08-02):** Part 1 (worktree management) is replaced by
+> `bin/wt` and `planning/2026-08-02-agentic-worktree-system.md`; the
+> `ccw`/`ccwls`/`ccwclean` sketch was never built and should not be.
+> The ralph loop itself (Part 2+) is slated for deprecation as a separate
+> step and carries no compatibility requirement.
+
 ## Context
 
 The dotfiles repo has a solid Claude Code foundation (hooks, agents, pipeline, permissions, CLAUDE.md). The next step is enabling unattended autonomous workflows (Ralph-style loops) and parallel agent execution via git worktrees. This requires new scripts, templates, permission profiles, and shell integration.
