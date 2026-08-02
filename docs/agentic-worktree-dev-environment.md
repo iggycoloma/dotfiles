@@ -6,8 +6,9 @@ Original design, adopted with amendments.
 The implementation plan is [`planning/2026-08-02-agentic-worktree-system.md`](../planning/2026-08-02-agentic-worktree-system.md); where the two disagree, the plan wins.
 The amendments, decided 2026-08-02 (rationale and verification evidence in the plan):
 
-- **Layout (supersedes section 2):** worktrees live nested at `<repo>/.worktrees/<slug>/`, not as siblings of a bare `repo.git/`.
-  Verified: the devcontainer CLI's `--mount-git-worktree-common-dir` reconstructs the nested relative structure in its mounts, and nested worktrees inside a repo-root mount need no configuration at all.
+- **Layout: adopted as designed** -- the section 2 orchestration directory (bare `repo.git/` + `local/` + `state/` + `main/` + `wt/`) stands.
+  A **clone mode** is added for repositories not yet migrated and for GitHub Codespaces (which mounts a single repository): worktrees go to a sibling directory `<parent>/<repo>-worktrees/<leaf>`, without `local/`/`state/` provisioning.
+  Verification status: the devcontainer CLI's `--mount-git-worktree-common-dir` is proven to reconstruct relative worktree structure for nested worktrees; the equivalent spike for this layout's `wt/x -> ../../repo.git/worktrees/x` is specified in the plan and gates per-worktree container support.
 - **Relative paths are mandatory:** `worktree.useRelativePaths = true` globally, and `wt add` passes `--relative-paths`.
   Required by the devcontainer CLI's common-dir mounting, and makes worktrees relocatable across the host/container mount boundary.
   Git version floor: 2.48.

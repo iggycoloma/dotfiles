@@ -9,6 +9,7 @@ Revision history:
 - r3 adds the **host/container execution model** (section 3), which voids one of r2's arguments for nesting (3.3) and makes the devcontainer CLI a first-class dependency.
 - r4-r5: state-volume tier split, `./dev verify` / lifecycle / credential-delivery decisions, `worktree.useRelativePaths` and mount-topology spikes executed and passed, installer verification finding.
 - r6: maintainer constraints recorded (section 1.1) -- **Codespaces in-container flows are a hard compatibility requirement**; ralph stack exempt from compatibility. Session evidence log added (section 10).
+- r7: **layout decision reversed by maintainer to the design doc's original bare-sibling orchestration layout** (section 4). The nested layout was a Claude-Code-default-driven detour: its verified advantages were real but its costs (Node upward resolution, mitigation cruft, `local/`/`state/` homelessness) were being paid to accommodate one harness's default that a `WorktreeCreate` hook redirects anyway. Nested evidence remains valid and recorded; the bare-sibling mount-topology spike (section 9) is the one gating verification.
 
 ## 1. Goal
 
@@ -23,7 +24,7 @@ One worktree system serving Claude Code, Codex CLI, Copilot CLI, and a human at 
 Decisions from the maintainer that bound this plan; do not relitigate without new input.
 
 - **Codespaces compatibility is a hard requirement.** In Codespaces the agent necessarily runs in-container; there is no host tier. Everything in this plan must degrade cleanly to that topology. Concretely:
-  - Nested worktrees inside the workspace mount work in-container with zero configuration -- **this planning session itself ran in a devcontainer inside a nested worktree** and is the standing proof.
+  - Worktrees whose repo shares the same mounted filesystem work in-container with zero configuration -- **this planning session itself ran in a devcontainer inside a nested worktree** and is the standing proof. Under r7's clone mode, Codespaces worktrees are siblings at `/workspaces/<repo>-worktrees/`, which sit inside the same container filesystem and inherit the same property.
   - `wt` core commands (`add`, `sync`, `doctor`, `remove`, ...) must work in-container. `wt container-up`/`wt exec` are host-only; `wt doctor` must detect the in-container case and report those as intentionally unavailable rather than broken.
   - The devcontainer CLI install is gated on `is_devcontainer()` being false; containers never launch containers.
   - Container-tier settings (`settings.container.json`, `sandbox.enabled: false`) stay as they are.
@@ -146,6 +147,8 @@ $ git worktree list
 
 This is a direct argument for the nested layout that survives everything in 3.3. The relative pointer and the mount reconstruction are the same shape only because the worktree lives inside the repo. A sibling layout would require the CLI to invent a mount topology for an arbitrary relative path.
 
+*(r7 note: the demonstrated behavior -- resolve the relative pointer, mount both endpoints so the relationship is preserved -- plausibly generalizes to the orchestration layout's `wt/x -> ../../repo.git/worktrees/x`, which stays within one parent directory. That generalization is exactly what the section 9 spike must confirm before Phase 5 relies on it.)*
+
 Two caveats the test surfaced:
 
 - **`/workspaces` is reported as the main worktree, but its files are not mounted.** Only `.git` is. Git infers the main worktree path from the common dir's parent, so `git -C /workspaces status` inside the container would report every tracked file as deleted. Agents must operate on their own worktree and never on the inferred main checkout.
@@ -204,7 +207,7 @@ Note on the relocation test: the absolute worktree also survived the move, but o
 Caveats:
 
 - **Version floor.** `--relative-paths` and this config landed in git 2.48. Ubuntu 20.04 (git 2.25) and Debian 11 (git 2.30) are below it. An unknown config key is silently ignored by older git, so the setting degrades gracefully -- but those platforms will produce absolute worktrees and cannot use `--mount-git-worktree-common-dir`. `wt doctor` must check the git version and say so plainly.
-- **Relative means the pair must move together.** The worktree and its repo must keep their relative relationship. The nested layout guarantees this; a sibling layout at arbitrary paths does not.
+- **Relative means the pair must move together.** The worktree and its repo must keep their relative relationship. The nested layout guarantees this; so does the orchestration layout, whose directory is the unit that moves (r7). Only free-floating siblings at arbitrary paths (clone mode's `<repo>-worktrees/`) can break it, if repo and worktree tree are relocated independently.
 - `wt add` should still pass `--relative-paths` explicitly as belt and braces, in case a repo-local config or a different `HOME` overrides the global setting.
 
 Good news, verified against this repo: **none of `.devcontainer/{debian-bash,ubuntu-zsh,unattended}/devcontainer.json` sets `workspaceMount`**, so this repo is not exposed to [devcontainers/cli#1243](https://github.com/devcontainers/cli/issues/1243), where the common-dir mount is silently skipped when a custom `workspaceMount` is present. That bug becomes a rule `dc-audit` must enforce for other projects.
@@ -220,7 +223,7 @@ The alternative topology -- mount the repo root, create worktrees inside the con
 | Migration cost | Holds -- no re-clone |
 | Claude Code `EnterWorktree` approval friction | Holds |
 
-Net: still nested at `<repo>/.worktrees/<slug>/`, but now on sandbox and ergonomics grounds rather than devcontainer grounds.
+*(r7: this conclusion is superseded. The maintainer weighed these residual arguments against Node upward resolution, mitigation cruft, and `local/`/`state/` placement, and chose the design doc's original orchestration layout -- see section 4. The costs above were accepted knowingly; the sandbox write-scope point is half-priced by PR #80's existing `git worktree *` exclusions.)*
 
 ### 3.4 Security upside: agent credentials never enter the container
 
@@ -331,12 +334,43 @@ And the simplification that matters most: under section 3 the **default path nee
 
 ## 4. Layout decision
 
-**`<repo>/.worktrees/<slug>/` -- nested, vendor-neutral, with Claude Code redirected there by a dotfiles-shipped `WorktreeCreate` hook.**
+**The design doc's original orchestration layout, adopted as designed (maintainer decision, r7): bare `repo.git/` with `local/`, `state/`, `main/`, and `wt/` as siblings under one orchestration directory. Claude Code is redirected into `wt/` by the dotfiles-shipped `WorktreeCreate` hook.**
 
-Rationale in 3.3 (sandbox, migration, friction) plus: `.claude/` is a vendor namespace, and Codex or Copilot worktrees living under it is indefensible when Codex has no native support at all.
-`.claude/` also holds settings, agents, and commands -- mixing configuration with checkouts is a category error.
+```text
+~/code/example/            # orchestration dir -- moves as one unit
+├── repo.git/              # bare shared object database
+├── local/                 # shared/ + template/ provisioning source (chmod 700)
+├── state/                 # port registry, slugs, container labels
+├── main/                  # stable review/integration checkout
+└── wt/
+    ├── issue-123/         # .git -> ../../repo.git/worktrees/issue-123 (relative)
+    └── agent-auth/
+```
 
-Costs of nesting and mitigations: recursive tools and Docker build contexts see repo copies (gitignore `.worktrees/`, `.dockerignore`, `dc-audit` check); editor indexing (`files.watcherExclude`); deleting the repo deletes its worktrees (`wt remove` is the supported path).
+Externally validated as current best practice for exactly this use case -- parallel AI agents, equally-weighted checkouts, no privileged "main directory" dumping ground (gitworktree.org bare-repo and best-practices guides, multiple 2025-2026 workflow writeups).
+
+What this buys over the nested detour:
+
+- **Node upward module resolution solved structurally** -- no parent checkout above a worktree to resolve into. This was the one PR #80 hazard that stood against nesting.
+- **`local/` and `state/` get their natural home** -- the former open question #1 dissolves; no XDG side-directory, no entanglement with `docs/future-workspace-local-state.md`.
+- **All nesting mitigations vanish** -- no `.gitignore`/`.dockerignore` entries for worktrees, no watcher excludes, no `dc-audit` worktree-exclusion rule, no "main worktree visible but unmounted" caveat inside containers.
+- **Relative pointers stay valid** because the orchestration directory is the unit that moves; `wt/x/.git -> ../../repo.git/worktrees/x` never leaves it.
+
+Costs, accepted knowingly:
+
+- **Per-project migration** -- each adopted project is re-cloned bare into an orchestration dir (`wt init`). One-time, and adoption is per-project opt-in; unmigrated repos use clone mode (below).
+- **The `WorktreeCreate` shim becomes load-bearing** for Claude Code rather than defense-in-depth: without it, native `--worktree` creates `.claude/worktrees/` inside whichever checkout the session is in. Acceptable: the shim ships in `settings.json`, which this repo deploys and drift-lints everywhere.
+- **`EnterWorktree` approval friction** -- Claude Code prompts when entering a worktree outside `.claude/worktrees/`, unsuppressable except in `bypassPermissions`. Accepted as a one-tap cost per session.
+- **The mount-topology spike must be re-run for this shape** before Phase 5 relies on it (section 9); only the nested variant has been executed.
+
+### Clone mode: unmigrated repos and Codespaces
+
+`wt` detects which shape it is in and degrades:
+
+- **Orchestration mode** (primary): `repo.git/` present in the ancestry -- full behavior.
+- **Clone mode** (fallback): an ordinary clone -- worktrees go to a sibling directory `<parent>/<repo>-worktrees/<leaf>`, exactly the shape the existing PR #80 `wt` function already implements. No `local/`/`state/` provisioning (no orchestration dir to hold them); creation, listing, and removal still work.
+
+Codespaces is always clone mode: a Codespace mounts one repository at `/workspaces/<repo>`, so siblings land at `/workspaces/<repo>-worktrees/`, inside the persistent `/workspaces` mount. This satisfies the 1.1 hard requirement without a separate mechanism.
 
 **Residual risk.** `WorktreeCreate` aborts creation on non-zero exit, making `wt` a single point of failure where it is missing or broken.
 The shim must **degrade** -- fall back to `git worktree add "$worktree_base_path/$worktree_suffix"` -- and exit non-zero **only** when ignore-validation rejects a destination, where aborting is correct. This distinction gets a test.
@@ -351,15 +385,9 @@ Its header comment argues *for* siblings on three hazards of nesting. Assessed:
 - **Node upward module resolution** -- **stands**. A nested worktree missing its own `node_modules` silently resolves imports to the parent checkout's `node_modules`. Real hazard for host-side work in Node projects; does not apply in per-worktree containers (deps installed in-container per worktree) and does not apply to sibling layouts.
 - **Watcher/crawler noise (tsc, jest, eslint)** -- partial. Tools that honour gitignore are fine; tools with their own include globs need `.worktrees/` excludes (already a Phase 5/6 item).
 
-Resolution path for Phase 3, in order of preference:
+Resolution (r7): the existing function's shape **is** clone mode (section 4). Its UX -- create + cd, `origin/HEAD` default matching `worktree.baseRef=fresh`, leaf-name slugging -- carries directly into `bin/wt`; orchestration mode extends it rather than replacing it. Its header comment gets corrected in passing: the `git clean -fdx` claim is disproven for worktrees (dry-run verified -- git skips nested repositories), while its Node-resolution rationale is vindicated and now solved structurally by the sibling layout.
 
-1. Keep the nested decision; mitigate Node resolution by having `wt add` verify the worktree installs its own deps before host-side toolchain use (or simply document that host-side Node work uses the container). Update the `wt` function to the nested layout and fold it into `bin/wt`.
-2. If Node resolution proves disqualifying in practice, re-run the devcontainer mount-topology spike (section 9) against a *sibling* relative-path worktree before switching: the CLI's mount reconstruction was only verified for the nested case, and sibling relocatability requires the repo and worktree tree to move together, which sibling directories do not guarantee.
-
-Either way the existing function's UX (create + cd, `origin/HEAD` default, leaf-name slugging) carries into `bin/wt`, and the superseded header comment gets corrected -- its `git clean` claim is wrong for worktrees.
-
-**Open sub-decision.** `local/` and `state/` must sit outside every checkout, hence outside the sandbox workspace under any layout.
-Proposal: `${XDG_DATA_HOME:-~/.local/share}/wt/<project-id>/{local,state}/`, decided deliberately against `docs/future-workspace-local-state.md` so AI-tool state and project local-dev state do not silently merge.
+**Resolved (was the open sub-decision).** `local/` and `state/` live in the orchestration directory, as the design doc specified all along. The XDG proposal is withdrawn; no interaction with `docs/future-workspace-local-state.md` remains -- that doc stays exclusively about AI-tool state persistence.
 
 ## 5. Repo-specific findings
 
@@ -412,7 +440,7 @@ Each phase is independently shippable, and carries tests -- merges gate on `make
 
 ### Phase 0 -- land the doc, fix the orphaned hooks path
 
-- Commit `docs/agentic-worktree-dev-environment.md`, amended for the nested vendor-neutral layout (4), the `core.hooksPath` reversal (5.3), the `.worktreeinclude` correction (2.2), and the host/container execution model (3).
+- Commit `docs/agentic-worktree-dev-environment.md` with an amendments note in its Status section (`core.hooksPath` reversal (5.3), `.worktreeinclude` correction (2.2), host/container execution model (3), relative paths). **Executed**; the note's layout amendment was then reversed again by r7 -- the doc's section 2 layout stands as originally designed, with clone mode added for unmigrated repos and Codespaces.
 - Remove the stale repo-local `core.hooksPath` (5.1).
 - Fix `pre-commit` to resolve repo-local hooks via `--git-common-dir` (5.3).
 - `tests/validate-dotfiles.sh`: assert the effective `core.hooksPath` resolves to an existing directory.
@@ -452,7 +480,9 @@ Packaging differs per platform. Checked 2026-08-02:
 ### Phase 3 -- `wt` core
 
 - `bin/wt` plus `bootstrap/lib/wt/*.sh`, following the existing `bin/` + `bootstrap/lib/` split.
-- Commands: `add`, `list`, `path`, `sync`, `diff-local`, `remove`, `prune`, `doctor`.
+- Commands: `init`, `add`, `list`, `path`, `sync`, `diff-local`, `remove`, `prune`, `doctor`. `wt init <url> <dir>` builds the orchestration layout (bare clone, `local/`, `state/`, `main/`, `wt/`, `chmod 700 local/`).
+- **Mode detection** (4): orchestration mode when `repo.git/` is in the ancestry; clone mode otherwise, creating siblings at `<parent>/<repo>-worktrees/<leaf>` (absorbing the PR #80 function's shape and UX -- create + cd, `origin/HEAD` base default, leaf-name slugging). Clone mode skips `local/`/`state/` provisioning. Codespaces is always clone mode.
+- Retire the `wt` shell function in `shell/functions.sh` in favor of `bin/wt` (keep a thin wrapper so `cd`-on-create still works -- a subprocess cannot change the parent shell's directory).
 - **`wt add` always passes `git worktree add --relative-paths`** (3.3). Non-negotiable: `--mount-git-worktree-common-dir` does not work without it. Git version floor 2.48.
 - Slug normalization, collision checks, transactional `add` with rollback.
 - `local/shared` (overwrite) and `local/template` (`--ignore-existing`) provisioning.
@@ -483,7 +513,7 @@ Delivers harness-agnosticism.
 - Shared download-cache volumes, isolated build output (3.7).
 - Teardown: `wt container-up` stamps `--id-label wt.slug=<slug>`; `wt remove` tears down matching containers via `docker` (the CLI has no `down`/`stop` subcommand), retaining volumes unless `--volumes` (3.8).
 - Credential delivery via `--remote-env` for `GH_TOKEN`/`GITLAB_TOKEN`; agent CLI creds stay on the directory volume under the opt-in in-container profile (3.8).
-- Extend `bin/dc-audit.sh`: flag custom `workspaceMount` as worktree-hostile (3.3), fixed `container_name` and globally-named volumes/networks as collision risks (3.5), missing `.worktrees/` exclusion.
+- Extend `bin/dc-audit.sh`: flag custom `workspaceMount` as worktree-hostile (3.3), fixed `container_name` and globally-named volumes/networks as collision risks (3.5). (The nested-era `.worktrees/` exclusion rule is dropped -- r7's layout has no worktrees inside the checkout.)
 - Extend `tests/test-dc-audit.sh`.
 
 ### Phase 6 -- instruction files
@@ -495,17 +525,62 @@ Delivers harness-agnosticism.
 
 ## 8. Open questions
 
-1. `local/`/`state/` location and its relationship to `docs/future-workspace-local-state.md` (4). Maintainer is open to revisiting, with the hard boundary that Codespaces persistence must keep working (1.1) -- note that in Codespaces, workspace-local storage outlives volumes on full rebuild, which may argue for a workspace-adjacent location there.
-2. Credential profiles (`--profile no-secrets`) in Phase 3, or defer until a second consumer?
-3. Proving ground: this repo has no `compose.yaml`, so Phase 5 needs a real project.
-4. Sandbox concession if the Phase 1 spike shows the state root is blocked.
-5. In-container agents as an opt-in profile for VS Code interactive work (3.4) -- worth supporting, or explicitly out of scope?
+1. ~~`local/`/`state/` location~~ **Resolved by r7**: they live in the orchestration directory (4.1).
+2. **Bare-sibling mount-topology spike (section 9) -- the gating verification for r7's layout.** Until it passes, Phase 5's per-worktree containers rest on a plausible-but-unproven generalization of the nested result.
+3. Credential profiles (`--profile no-secrets`) in Phase 3, or defer until a second consumer?
+4. Proving ground: this repo has no `compose.yaml`, so Phase 5 needs a real project.
+5. Sandbox concession if the Phase 1 spike shows the `local/`/`state/` root (now the orchestration dir) is blocked for host-tier writes. PR #80's `git worktree *` exclusions cover creation; provisioning writes to `local/`/`state/` still need checking under bwrap.
+6. In-container agents as an opt-in profile for VS Code interactive work (3.4) -- worth supporting, or explicitly out of scope?
 
 ## 9. Appendix: Phase 1 spike protocol -- worktree git inside a per-worktree container
 
-**Executed 2026-08-02. Result: pass.** Findings recorded in 3.3; the script is kept here as a regression check for CLI upgrades. Must run on the **host**; a devcontainer has no Docker access.
+**Nested variant executed 2026-08-02, pass** (findings in 3.3): the CLI preserves the relative relationship by mounting deeper -- worktree at `/workspaces/.worktrees/feat`, common dir at `/workspaces/.git`.
 
-The question it answered: a nested worktree's relative pointer is `gitdir: ../../.git/worktrees/feat`, so the CLI had either to mount the common dir at `/.git` or to mount the workspace deeper to preserve the relative relationship. It does the latter -- worktree at `/workspaces/.worktrees/feat`, common dir at `/workspaces/.git`.
+**Bare-sibling variant (r7's layout): NOT yet executed -- this is the gating spike for Phase 5.** Must run on the **host**; a devcontainer has no Docker access. It answers whether the CLI's relative-structure reconstruction generalizes to `wt/x -> ../../repo.git/worktrees/x`, plus the follow-up write test with injected identity.
+
+```bash
+export PATH="$HOME/.devcontainers/bin:$PATH"
+
+# orchestration dir with bare repo -- the r7 layout
+mkdir -p ~/wtprobe4 && cd ~/wtprobe4
+git init -q --bare repo.git
+git clone -q repo.git seed && cd seed
+mkdir .devcontainer
+printf '{\n  "name": "wt-probe",\n  "image": "mcr.microsoft.com/devcontainers/base:ubuntu"\n}\n' \
+  > .devcontainer/devcontainer.json
+git add -A && git commit -q --no-verify -m devcontainer && git push -q origin HEAD
+cd ~/wtprobe4
+
+git --git-dir=repo.git config worktree.useRelativePaths true
+git --git-dir=repo.git worktree add wt/feat main 2>/dev/null \
+  || git --git-dir=repo.git worktree add wt/feat master
+cat wt/feat/.git          # expect: gitdir: ../../repo.git/worktrees/feat
+
+# TEST: per-worktree container against the sibling-of-bare worktree
+devcontainer up --workspace-folder ~/wtprobe4/wt/feat --id-label wtprobe=bare \
+  --mount-git-worktree-common-dir
+devcontainer exec --workspace-folder ~/wtprobe4/wt/feat --id-label wtprobe=bare \
+  --mount-git-worktree-common-dir -- bash -lc '
+    echo "toplevel:   $(git rev-parse --show-toplevel)"
+    echo "common-dir: $(git rev-parse --path-format=absolute --git-common-dir)"
+    git status --short; git worktree list
+    git -c user.name=probe -c user.email=probe@example.com \
+        commit -q --allow-empty -m write-test && echo "WRITE OK" || echo "WRITE FAILED"'
+
+# proof the write reached the shared object DB: visible from the HOST
+git --git-dir=repo.git log --oneline --all | head -3
+
+# what did the CLI mount?
+docker inspect --format '{{json .Mounts}}' \
+  "$(docker ps -q --filter label=wtprobe=bare)" | jq .
+
+# teardown
+docker rm -f $(docker ps -aq --filter label=wtprobe)
+```
+
+Pass criteria: pointer is relative into `repo.git`; in-container git fully resolves; the empty commit is visible from the host via `--git-dir=repo.git log`. The `docker inspect` output should be recorded in section 10 either way -- if the CLI flattens or fails here, Phase 5 needs a fallback (explicit dual mount of `repo.git` alongside the worktree, driven by `wt container-up`).
+
+The original nested-variant script follows, kept as a regression check for CLI upgrades:
 
 ```bash
 # prerequisites: git >= 2.48, devcontainer CLI >= 0.81.0
