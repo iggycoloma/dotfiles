@@ -438,6 +438,12 @@ Dotfiles tooling must never weaken a repository's ignore rules, credential scope
 
 Each phase is independently shippable, and carries tests -- merges gate on `make lint` and `make test`.
 
+**Execution status (2026-08-02, branch `feat/agentic-worktree-system`):**
+Phases 0, 2, 3, and 6 are implemented and committed; Phase 5 is implemented except the Compose passthrough (`wt compose`, profiles), which waits on a proving project with a `compose.yaml` (open question 4).
+Phase 1's spikes are executed (both mount topologies, write-through, relative paths).
+**Phase 4 remains parked** on the in-flight `claude-code/settings.json` rework: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion.
+Also outstanding: macOS/Seatbelt parity checks, the `EnterWorktree`-hook-routing question, and host-bwrap behavior for orchestration-dir writes (open question 5).
+
 ### Phase 0 -- land the doc, fix the orphaned hooks path
 
 - Commit `docs/agentic-worktree-dev-environment.md` with an amendments note in its Status section (`core.hooksPath` reversal (5.3), `.worktreeinclude` correction (2.2), host/container execution model (3), relative paths). **Executed**; the note's layout amendment was then reversed again by r7 -- the doc's section 2 layout stands as originally designed, with clone mode added for unmigrated repos and Codespaces.
