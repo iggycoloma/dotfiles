@@ -134,6 +134,70 @@ assert_file_not_exists "$TMP/proj/wt/rejected/.git" "failed add rolls the worktr
 rm -f local/shared/not-ignored.txt
 
 # ============================================================
+# Test Suite: sync and diff-local
+# ============================================================
+test_suite "sync and diff-local"
+
+cd "$TMP/proj" || exit 1
+dest="$TMP/proj/wt/provisioned"
+
+# shared drifted earlier (SANDBOX_KEY=xyz written after provisioning abc)
+output=$("$WT" diff-local provisioned 2>&1)
+status=$?
+assert_not_equals 0 "$status" "diff-local exits nonzero on drift"
+assert_contains "$output" "differs" "diff-local reports the drifted file"
+
+"$WT" sync provisioned >/dev/null 2>&1
+synced=$(cat "$dest/.env.shared")
+assert_equals "SANDBOX_KEY=xyz" "$synced" "sync overwrites shared copies"
+customized=$(cat "$dest/.env.local")
+assert_equals "CUSTOMIZED=1" "$customized" "sync leaves customized template files alone"
+
+output=$("$WT" diff-local provisioned 2>&1)
+assert_equals 0 $? "diff-local passes after sync"
+
+# ============================================================
+# Test Suite: runtime identity and port registry
+# ============================================================
+test_suite "runtime identity"
+
+assert_file_exists "$dest/.env.worktree" "add generates .env.worktree"
+env_content=$(cat "$dest/.env.worktree")
+assert_contains "$env_content" "WORKTREE_SLUG=provisioned" "env has slug"
+assert_contains "$env_content" "COMPOSE_PROJECT_NAME=proj-provisioned" "env has compose project name"
+port1=$(sed -n 's/^APP_PORT=//p' "$dest/.env.worktree")
+assert_contains "$env_content" "APP_PORT=$port1" "worktree gets a port from the registry"
+
+dest2=$("$WT" add second-id 2>/dev/null)
+port2=$(sed -n 's/^APP_PORT=//p' "$dest2/.env.worktree")
+assert_equals "$((port1 + 1))" "$port2" "next worktree gets the next free port"
+
+"$WT" remove second-id --branch >/dev/null 2>&1
+if grep -q "second-id" "$TMP/proj/state/ports.tsv"; then
+    released="no"
+else
+    released="yes"
+fi
+assert_equals "yes" "$released" "remove releases the allocated port"
+
+# ============================================================
+# Test Suite: container command gating
+# ============================================================
+test_suite "container gating"
+
+if [[ -f /.dockerenv ]]; then
+    output=$("$WT" container-up provisioned 2>&1)
+    status=$?
+    assert_not_equals 0 "$status" "container-up refuses to run inside a container"
+    assert_contains "$output" "host-only" "refusal explains containers never launch containers"
+    output=$("$WT" exec provisioned -- true 2>&1)
+    assert_not_equals 0 $? "exec refuses to run inside a container"
+else
+    output=$("$WT" container-up 2>&1)
+    assert_not_equals 0 $? "container-up requires a name"
+fi
+
+# ============================================================
 # Test Suite: remove safety
 # ============================================================
 test_suite "remove safety"
