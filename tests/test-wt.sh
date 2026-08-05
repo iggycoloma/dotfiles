@@ -743,6 +743,43 @@ assert_equals "$feature_tip" "$(git -C "$feature" rev-parse HEAD)" \
     "named pull fast-forwards to origin/<branch>"
 
 # ============================================================
+# Test Suite: bash completion
+# ============================================================
+test_suite "bash completion"
+
+# Drive _wt exactly as readline would: set COMP_WORDS/COMP_CWORD, collect
+# COMPREPLY. The wt() shim points completion's `wt list --names` at the
+# pullproj layout built above.
+complete_wt() {
+    bash -c '
+        wt() { "'"$WT"'" "$@"; }
+        cd "'"$TMP"'/pullproj" || exit 1
+        source "'"$DOTFILES_DIR"'/shell/completions/wt.bash"
+        COMP_WORDS=("$@"); COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 )); COMPREPLY=()
+        _wt
+        printf "%s\n" "${COMPREPLY[@]}"
+    ' -- "$@"
+}
+
+out=$(complete_wt wt "")
+assert_contains "$out" "pull" "top-level completion offers pull"
+assert_contains "$out" "git" "top-level completion offers git"
+
+out=$(complete_wt wt pull "")
+assert_contains "$out" "main" "wt pull completes main"
+assert_contains "$out" "pull-feature" "wt pull completes worktree names"
+
+out=$(complete_wt wt git "")
+assert_contains "$out" "main" "wt git completes worktree names at the name position"
+
+# Past the name, without git's own completion loaded, _wt must stay silent
+# and exit cleanly rather than offering worktree names to git.
+out=$(complete_wt wt git main "")
+status=$?
+assert_equals 0 "$status" "wt git past the name exits cleanly without git completion"
+assert_equals "" "$out" "wt git past the name offers no wt candidates"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary

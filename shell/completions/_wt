@@ -25,6 +25,8 @@ _wt() {
         'go:cd into a worktree'
         'list:list worktrees for the current project'
         'path:print the worktree'\''s path'
+        'pull:fetch origin and fast-forward a worktree (default: main)'
+        'git:run git in the named worktree (verbatim pass-through)'
         'sync:refresh local/shared into a worktree'
         'diff-local:show drift between local/shared and a worktree'\''s copies'
         'container-up:start the worktree'\''s dev container'
@@ -41,8 +43,19 @@ _wt() {
     fi
 
     case "${words[2]}" in
-        go|path|diff-local|container-up|exec)
+        go|path|pull|diff-local|container-up|exec)
             (( CURRENT == 3 )) && _wt_worktrees ;;
+        git)
+            if (( CURRENT == 3 )); then
+                _wt_worktrees
+            else
+                # Past the name, re-dispatch as a plain git command line so
+                # subcommands, flags, and refs complete as after 'git '.
+                # Refs are shared repo-wide, so cwd context is correct.
+                words=( git "${(@)words[4,-1]}" )
+                (( CURRENT -= 2 ))
+                _normal
+            fi ;;
         sync)
             if (( CURRENT == 3 )); then
                 _alternative 'flags:flag:((--all:"sync main plus every worktree"))' \
