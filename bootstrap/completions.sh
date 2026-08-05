@@ -53,6 +53,12 @@ setup_bash_completions() {
         fi
     done
 
+    # Repo-shipped completions are symlinked, not generated: editing the
+    # file in shell/completions/ takes effect in the next shell without
+    # re-running the installer.
+    ln -sf "$DOTFILES_DIR/shell/completions/wt.bash" "$completion_dir/wt"
+    log_success "Linked completion for wt"
+
     log_success "Bash completions configured"
 }
 
@@ -81,6 +87,11 @@ setup_zsh_completions() {
         zsh -c "zcompile '$zsh_dir/completions/_glab'" 2>/dev/null || true
         log_success "Generated glab completion"
     fi
+
+    # Not zcompiled, unlike the generated completions above: a .zwc beside a
+    # symlink into the repo goes stale the moment the source file is edited.
+    ln -sf "$DOTFILES_DIR/shell/completions/_wt" "$zsh_dir/completions/_wt"
+    log_success "Linked wt completion"
 
     if has_tool kubectl; then
         kubectl completion zsh > "$zsh_dir/completions/_kubectl" 2>/dev/null || true
