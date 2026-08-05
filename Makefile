@@ -4,7 +4,9 @@
 # .claude is excluded because Claude Code nests worktrees at
 # .claude/worktrees/<name>/ -- full repo copies at other commits, whose
 # stale scripts would otherwise be linted as if they were ours.
-SHELL_SCRIPTS := $(shell find . -name '*.sh' -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*')
+# bin/wt is listed explicitly: it carries no extension, and it is the largest
+# shell file in the repo to be going unchecked.
+SHELL_SCRIPTS := $(shell find . \( -name '*.sh' -o -name '*.bash' \) -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*') ./bin/wt
 
 lint: lint-settings-sync lint-settings-drift lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)

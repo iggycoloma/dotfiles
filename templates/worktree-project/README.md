@@ -16,6 +16,7 @@ Initialize a project:
 wt init git@github.com:org/example.git ~/code/example
 cd ~/code/example
 wt add issue-123        # creates wt/issue-123, provisions local/, allocates a port
+wt go issue-123         # cd into it later (any unambiguous prefix works)
 wt container-up issue-123
 wt exec issue-123 -- ./dev verify
 ```

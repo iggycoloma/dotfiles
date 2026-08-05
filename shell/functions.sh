@@ -448,8 +448,8 @@ function ccwclean {
 
 # Thin wrapper over bin/wt (worktree operations for the agentic dev
 # environment -- orchestration and clone layouts, provisioning, doctor).
-# A subprocess cannot change the parent shell's directory, so `add` captures
-# the created path from stdout and cd's into it; everything else passes
+# A subprocess cannot change the parent shell's directory, so `add` and `go`
+# capture the path from stdout and cd into it; everything else passes
 # through. Note: `git clean -fdx` does NOT delete worktrees (git skips
 # nested repositories); Node's upward module resolution was the real
 # nesting hazard, which the sibling/orchestration layouts avoid.
@@ -460,10 +460,16 @@ function wt {
         return 1
     fi
     case "${1:-}" in
-        add)
+        add|go)
             local dest
             dest=$("$wt_bin" "$@") || return $?
-            if [[ -d "$dest" ]]; then cd "$dest" || return 1; fi
+            # --help prints to the same stdout the path arrives on; pass
+            # anything that is not a directory through instead of eating it.
+            if [[ -d "$dest" ]]; then
+                cd "$dest" || return 1
+            elif [[ -n "$dest" ]]; then
+                printf '%s\n' "$dest"
+            fi
             ;;
         *)
             "$wt_bin" "$@"
