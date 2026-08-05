@@ -626,6 +626,8 @@ wt add <name> [base] [--profile profile]
 wt go [name]
 wt list [--names]
 wt path <name>
+wt pull [name]
+wt git <name> <git-arguments...>
 wt sync <name|--all>
 wt diff-local <name>
 wt open <name>

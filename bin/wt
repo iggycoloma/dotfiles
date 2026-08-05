@@ -19,7 +19,7 @@ die()  { printf 'wt: error: %s\n' "$*" >&2; exit 1; }
 
 # ------------------------------------------------------------------ help ----
 
-WT_COMMANDS=(init add go list path sync diff-local container-up exec remove prune doctor)
+WT_COMMANDS=(init add go list path pull git sync diff-local container-up exec remove prune doctor)
 
 # Single source of truth per command: "<synopsis>\t<description>". The
 # command table, per-command --help, and every usage error read from here,
@@ -31,6 +31,8 @@ command_spec() {
         go)           printf '%s\t%s' 'go [name]'                'cd into a worktree (no name: the stable checkout)' ;;
         list)         printf '%s\t%s' 'list [--names]'           'list worktrees for the current project' ;;
         path)         printf '%s\t%s' 'path <name>'              "print the worktree's path" ;;
+        pull)         printf '%s\t%s' 'pull [name]'              "fetch origin and fast-forward a worktree to origin/<branch> (default: main)" ;;
+        git)          printf '%s\t%s' 'git <name> <git-args...>' 'run git in the named worktree (verbatim pass-through)' ;;
         sync)         printf '%s\t%s' 'sync <name|--all>'        "refresh local/shared into a worktree, 'main', or all (templates untouched)" ;;
         diff-local)   printf '%s\t%s' 'diff-local <name>'        "show drift between local/shared and a worktree's copies" ;;
         container-up) printf '%s\t%s' 'container-up <name>'      "start the worktree's dev container (host only)" ;;
@@ -75,6 +77,20 @@ NOTE
   path. --all syncs main plus every registered worktree in one pass.
   local/shared is overwritten in the worktree; local/template is never touched
   after the initial copy.
+NOTE
+        ;;
+        pull) cat <<'NOTE'
+  Fetches origin (--prune), then fast-forwards the worktree's branch to
+  origin/<branch>. Refuses staged or unstaged changes, and never merges or
+  rebases: a diverged tree is an error to resolve explicitly, not an
+  implicit merge. Keeps the stable main/ checkout pristine by construction.
+NOTE
+        ;;
+        git) cat <<'NOTE'
+  Everything after <name> is passed to git verbatim, including flags:
+  'wt git main log --help' shows git's help, not wt's. Equivalent to
+  git -C "$(wt path <name>)" <git-args...>, with no wt policy applied --
+  'wt git main pull' bypasses the fast-forward guard that 'wt pull' adds.
 NOTE
         ;;
         remove) cat <<'NOTE'
@@ -643,6 +659,12 @@ cmd_add() {
         # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
         git --git-dir="$WT_GIT_DIR" worktree add $WT_REL_FLAG "$dest" "$branch" >&2
     else
+        # New branches start at the true remote head, not the head as of
+        # the last fetch. Best-effort: an offline add still works.
+        if git --git-dir="$WT_GIT_DIR" config remote.origin.url >/dev/null 2>&1; then
+            git --git-dir="$WT_GIT_DIR" fetch --prune --quiet origin 2>/dev/null \
+                || log "warning: fetch failed; basing '$branch' on last-known origin state"
+        fi
         [[ -n "$base" ]] || base="$(default_base "$WT_GIT_DIR")"
         # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
         git --git-dir="$WT_GIT_DIR" worktree add $WT_REL_FLAG -b "$branch" "$dest" "$base" >&2
@@ -706,6 +728,50 @@ cmd_path() {
     dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
     printf '%s\n' "$dest"
+}
+
+cmd_pull() {
+    check_args pull 0 1 "$@"
+    local name="${1:-}"
+    detect_mode
+    local dest
+    if [[ -n "$name" ]]; then
+        dest="$(resolve_worktree "$name")"
+    elif [[ "$WT_MODE" == "orchestration" ]]; then
+        dest="$WT_ROOT/main"
+    else
+        dest="$WT_ROOT"
+    fi
+    [[ -d "$dest" ]] || die "no such worktree: $dest"
+
+    local branch
+    branch="$(git -C "$dest" symbolic-ref --short HEAD 2>/dev/null || true)"
+    [[ -n "$branch" ]] || die "cannot pull: detached HEAD in $dest"
+
+    # Fast-forward only, and never over local edits: main/ must stay
+    # pristine, and a diverged branch needs an explicit rebase decision,
+    # not an implicit merge. Untracked files are left to git, which
+    # aborts by itself on a collision.
+    git -C "$dest" diff --quiet || die "worktree has unstaged changes: $dest"
+    git -C "$dest" diff --cached --quiet || die "worktree has staged changes: $dest"
+
+    git --git-dir="$WT_GIT_DIR" fetch --prune --quiet origin || die "fetch failed"
+    git --git-dir="$WT_GIT_DIR" rev-parse --verify --quiet "refs/remotes/origin/$branch" >/dev/null \
+        || die "no origin/$branch to pull (branch never pushed?)"
+    git -C "$dest" merge --ff-only "origin/$branch" >&2 \
+        || die "cannot fast-forward: $dest has commits not on origin/$branch"
+    log "pulled $dest ($branch -> origin/$branch)"
+}
+
+cmd_git() {
+    local name="${1:-}"
+    require_name git "$name"
+    shift
+    detect_mode
+    local dest
+    dest="$(resolve_worktree "$name")"
+    [[ -d "$dest" ]] || die "no such worktree: $dest"
+    exec git -C "$dest" "$@"
 }
 
 cmd_sync() {
@@ -911,13 +977,19 @@ command_spec "$command_name" >/dev/null || die "unknown command: $command_name (
 
 # A help flag must print help, never run the command: 'wt add --help' used to
 # reach cmd_add and create a worktree named 'help'. Scanning stops at '--' so
-# 'wt exec x -- tool --help' still reaches the tool.
-for help_arg in "$@"; do
-    case "$help_arg" in
-        --) break ;;
-        -h|--help) command_help "$command_name" ;;
-    esac
-done
+# 'wt exec x -- tool --help' still reaches the tool. For 'git', everything
+# after the name belongs to git verbatim ('wt git main log --help' means
+# git's help), so only the name position is scanned.
+if [[ "$command_name" == "git" ]]; then
+    case "${1:-}" in -h|--help) command_help git ;; esac
+else
+    for help_arg in "$@"; do
+        case "$help_arg" in
+            --) break ;;
+            -h|--help) command_help "$command_name" ;;
+        esac
+    done
+fi
 
 case "$command_name" in
     init)         cmd_init "$@" ;;
@@ -925,6 +997,8 @@ case "$command_name" in
     go)           cmd_go "$@" ;;
     list)         cmd_list "$@" ;;
     path)         cmd_path "$@" ;;
+    pull)         cmd_pull "$@" ;;
+    git)          cmd_git "$@" ;;
     sync)         cmd_sync "$@" ;;
     diff-local)   cmd_diff_local "$@" ;;
     container-up) cmd_container_up "$@" ;;

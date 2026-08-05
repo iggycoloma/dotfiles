@@ -661,6 +661,88 @@ port_kept=$(sed -n 's/^APP_PORT=//p' "$dest/.env.worktree")
 assert_equals "$port_before" "$port_kept" "existing allocation survives a bad range"
 
 # ============================================================
+# Test Suite: pull and git pass-through
+# ============================================================
+test_suite "pull and git pass-through"
+
+make_remote "$TMP/remote-pull.git"
+"$WT" init "$TMP/remote-pull.git" "$TMP/pullproj" >/dev/null 2>&1
+cd "$TMP/pullproj" || exit 1
+
+# Advance the remote out-of-band so the layout is stale.
+advance_remote() {
+    local remote="$1" msg="$2" branch="${3:-}"
+    git clone -q "$remote" "$TMP/seed-adv" 2>/dev/null
+    if [[ -n "$branch" ]]; then git -C "$TMP/seed-adv" checkout -q -B "$branch" "origin/$branch"; fi
+    git -C "$TMP/seed-adv" commit -q --allow-empty -m "$msg"
+    git -C "$TMP/seed-adv" push -q origin HEAD
+    rm -rf "$TMP/seed-adv"
+}
+
+# wt git: verbatim pass-through into the named worktree.
+out=$("$WT" git main rev-parse --abbrev-ref HEAD)
+assert_equals "main" "$out" "wt git runs in the named worktree"
+out=$("$WT" git main log --oneline -1)
+assert_contains "$out" "init" "wt git passes flags through verbatim"
+"$WT" git main rev-parse --verify --quiet refs/heads/nope >/dev/null 2>&1
+assert_not_equals 0 $? "wt git propagates git's exit code"
+output=$("$WT" git nope status 2>&1)
+assert_not_equals 0 $? "wt git fails on an unknown worktree"
+assert_contains "$output" "no such worktree" "wt git names the missing worktree"
+output=$("$WT" git --help)
+assert_equals 0 $? "wt git --help is wt's help, not a worktree lookup"
+assert_contains "$output" "verbatim" "wt git help documents the pass-through"
+output=$("$WT" git 2>&1)
+assert_not_equals 0 $? "wt git without a name is a usage error"
+
+# wt pull with no name fast-forwards main/ from anywhere in the layout.
+advance_remote "$TMP/remote-pull.git" advance-1
+remote_tip=$(git --git-dir="$TMP/remote-pull.git" rev-parse HEAD)
+feature=$("$WT" add pull-feature 2>/dev/null)
+cd "$feature" || exit 1
+"$WT" pull >/dev/null 2>&1
+assert_equals 0 $? "wt pull succeeds from inside a feature worktree"
+assert_equals "$remote_tip" "$(git -C "$TMP/pullproj/main" rev-parse HEAD)" \
+    "wt pull default target is main/, fast-forwarded to the remote tip"
+cd "$TMP/pullproj" || exit 1
+
+# add pre-fetch: the feature branched AFTER the remote advanced must start
+# at the true remote head even though nothing fetched explicitly.
+assert_equals "$remote_tip" "$(git -C "$feature" rev-parse HEAD)" \
+    "wt add fetches first: new branch starts at the true remote head"
+
+# Dirty main/ is refused.
+printf 'dirty\n' >> "$TMP/pullproj/main/.gitignore"
+output=$("$WT" pull 2>&1)
+assert_not_equals 0 $? "wt pull refuses a dirty main/"
+assert_contains "$output" "unstaged changes" "pull names the dirtiness"
+git -C "$TMP/pullproj/main" checkout -q -- .gitignore
+
+# A diverged main/ is an error, never an implicit merge.
+git -C "$TMP/pullproj/main" commit -q --allow-empty -m local-divergence
+advance_remote "$TMP/remote-pull.git" advance-2
+output=$("$WT" pull 2>&1)
+assert_not_equals 0 $? "wt pull refuses to merge a diverged main/"
+assert_contains "$output" "fast-forward" "divergence error names the ff-only policy"
+git -C "$TMP/pullproj/main" reset -q --hard origin/main
+"$WT" pull >/dev/null 2>&1
+assert_equals 0 $? "wt pull recovers once main/ is back on the remote line"
+
+# A branch that was never pushed cannot pull.
+output=$("$WT" pull pull-feature 2>&1)
+assert_not_equals 0 $? "wt pull fails on a never-pushed branch"
+assert_contains "$output" "never pushed" "pull explains the missing origin branch"
+
+# A pushed branch fast-forwards to its own origin ref.
+git -C "$feature" push -q origin pull-feature
+advance_remote "$TMP/remote-pull.git" feature-advance pull-feature
+feature_tip=$(git --git-dir="$TMP/remote-pull.git" rev-parse refs/heads/pull-feature)
+"$WT" pull pull-feature >/dev/null 2>&1
+assert_equals 0 $? "wt pull works on a named, pushed worktree"
+assert_equals "$feature_tip" "$(git -C "$feature" rev-parse HEAD)" \
+    "named pull fast-forwards to origin/<branch>"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
