@@ -213,12 +213,12 @@ cd "$TMP/slugproj" || exit 1
 
 output=$("$WT" --help 2>&1)
 assert_equals 0 $? "wt --help exits 0"
-assert_contains "$output" "diff-local <name>" "wt --help lists every command"
+assert_contains "$output" "container up|exec" "wt --help lists every command"
 assert_contains "$output" "'wt <command> --help'" "wt --help points at per-command help"
 
 output=$("$WT" help sync 2>&1)
 assert_equals 0 $? "wt help <command> exits 0"
-assert_contains "$output" "Usage: wt sync <name|--all>" "wt help sync prints sync's usage"
+assert_contains "$output" "Usage: wt sync [name|--all] [--diff]" "wt help sync prints sync's usage"
 
 # A bare invocation is a usage error: stderr, exit 2.
 "$WT" >/dev/null 2>&1
@@ -244,9 +244,9 @@ assert_not_equals 0 $? "unknown command fails"
 assert_contains "$output" "unknown command: bogus" "unknown command is named"
 
 # Everything after '--' belongs to the container command, help flags included.
-output=$("$WT" exec nosuch -- tool --help 2>&1)
-assert_not_contains "$output" "Usage: wt exec" "wt exec passes --help after -- to the command"
-assert_contains "$output" "no such worktree" "wt exec resolves the worktree instead of printing help"
+output=$("$WT" container exec nosuch -- tool --help 2>&1)
+assert_not_contains "$output" "Usage: wt container" "container exec passes --help after -- to the command"
+assert_contains "$output" "no such worktree" "container exec resolves the worktree instead of printing help"
 
 # ============================================================
 # Test Suite: orchestration mode
@@ -356,18 +356,18 @@ assert_file_not_exists "$TMP/proj/wt/rejected/.git" "failed add rolls the worktr
 rm -f local/shared/not-ignored.txt
 
 # ============================================================
-# Test Suite: sync and diff-local
+# Test Suite: sync and sync --diff
 # ============================================================
-test_suite "sync and diff-local"
+test_suite "sync and sync --diff"
 
 cd "$TMP/proj" || exit 1
 dest="$TMP/proj/wt/provisioned"
 
 # shared drifted earlier (SANDBOX_KEY=xyz written after provisioning abc)
-output=$("$WT" diff-local provisioned 2>&1)
+output=$("$WT" sync --diff provisioned 2>&1)
 status=$?
-assert_not_equals 0 "$status" "diff-local exits nonzero on drift"
-assert_contains "$output" "differs" "diff-local reports the drifted file"
+assert_not_equals 0 "$status" "sync --diff exits nonzero on drift"
+assert_contains "$output" "differs" "sync --diff reports the drifted file"
 
 "$WT" sync provisioned >/dev/null 2>&1
 synced=$(cat "$dest/.env.shared")
@@ -375,15 +375,30 @@ assert_equals "SANDBOX_KEY=xyz" "$synced" "sync overwrites shared copies"
 customized=$(cat "$dest/.env.local")
 assert_equals "CUSTOMIZED=1" "$customized" "sync leaves customized template files alone"
 
-output=$("$WT" diff-local provisioned 2>&1)
-assert_equals 0 $? "diff-local passes after sync"
+output=$("$WT" sync --diff provisioned 2>&1)
+assert_equals 0 $? "sync --diff passes after sync"
 
-# The stable main/ checkout syncs like any other worktree.
-"$WT" sync main >/dev/null 2>&1
-assert_equals 0 $? "wt sync main succeeds"
-assert_file_exists "$TMP/proj/main/.env.shared" "sync main provisions the stable checkout"
+# --diff never writes: the drifted copy must survive the preview untouched.
+printf 'SANDBOX_KEY=preview\n' > local/shared/.env.shared
+"$WT" sync --diff provisioned >/dev/null 2>&1
+assert_equals "SANDBOX_KEY=xyz" "$(cat "$dest/.env.shared")" \
+    "sync --diff leaves the worktree copy untouched"
+
+# --diff --all prefixes each line with the tree it belongs to.
+output=$("$WT" sync --diff --all 2>&1)
+assert_not_equals 0 $? "sync --diff --all exits nonzero on drift"
+assert_contains "$output" $'provisioned\tdiffers' "sync --diff --all attributes drift per tree"
+printf 'SANDBOX_KEY=xyz\n' > local/shared/.env.shared
+
+# The stable main/ checkout syncs like any other worktree -- and is the
+# default when no name is given.
+"$WT" sync >/dev/null 2>&1
+assert_equals 0 $? "wt sync with no name succeeds"
+assert_file_exists "$TMP/proj/main/.env.shared" "bare sync provisions the stable checkout"
 main_path=$("$WT" path main 2>/dev/null)
 assert_equals "$TMP/proj/main" "$main_path" "wt path main resolves the stable checkout"
+assert_equals "$TMP/proj/main" "$("$WT" path 2>/dev/null)" \
+    "wt path with no name defaults to the stable checkout"
 
 # main is protected from add and remove.
 output=$("$WT" add main 2>&1)
@@ -433,25 +448,35 @@ assert_equals "yes" "$released" "remove releases the allocated port"
 # ============================================================
 test_suite "container gating"
 
+# The noun group rejects unknown subcommands before doing anything else.
+output=$("$WT" container 2>&1)
+assert_not_equals 0 $? "bare wt container is a usage error"
+assert_contains "$output" "usage: wt container" "bare container prints the synopsis"
+output=$("$WT" container bogus 2>&1)
+assert_not_equals 0 $? "unknown container subcommand fails"
+
+# exec's -- separator is mandatory: without it the container command's
+# flags would leak into wt's own parsing.
+output=$("$WT" container exec provisioned true 2>&1)
+assert_not_equals 0 $? "container exec without -- is a usage error"
+assert_contains "$output" "usage: wt container" "missing -- prints the synopsis"
+
 # Name resolution precedes any docker/CLI requirement, in every environment.
-output=$("$WT" exec nonexistent -- true 2>&1)
-assert_not_equals 0 $? "exec fails on an unknown worktree"
-assert_contains "$output" "no such worktree" "exec resolves the name before the docker check"
+output=$("$WT" container exec nonexistent -- true 2>&1)
+assert_not_equals 0 $? "container exec fails on an unknown worktree"
+assert_contains "$output" "no such worktree" "container exec resolves the name before the docker check"
 
 if [[ -f /.dockerenv ]]; then
-    output=$("$WT" container-up provisioned 2>&1)
+    output=$("$WT" container up provisioned 2>&1)
     status=$?
-    assert_not_equals 0 "$status" "container-up refuses to run inside a container"
+    assert_not_equals 0 "$status" "container up refuses to run inside a container"
     assert_contains "$output" "host-only" "refusal explains containers never launch containers"
-    output=$("$WT" exec provisioned -- true 2>&1)
-    assert_not_equals 0 $? "exec refuses to run inside a container"
-    # main resolves (would otherwise be "no such worktree") and then hits
-    # the host-only gate -- proving container commands accept main.
-    output=$("$WT" exec main -- true 2>&1)
-    assert_contains "$output" "host-only" "exec resolves main before the host-only refusal"
-else
-    output=$("$WT" container-up 2>&1)
-    assert_not_equals 0 $? "container-up requires a name"
+    output=$("$WT" container exec provisioned -- true 2>&1)
+    assert_not_equals 0 $? "container exec refuses to run inside a container"
+    # No name: up defaults to main, which resolves (would otherwise be
+    # "no such worktree") and then hits the host-only gate.
+    output=$("$WT" container up 2>&1)
+    assert_contains "$output" "host-only" "container up with no name resolves main before the host-only refusal"
 fi
 
 # ============================================================
@@ -764,6 +789,21 @@ complete_wt() {
 out=$(complete_wt wt "")
 assert_contains "$out" "pull" "top-level completion offers pull"
 assert_contains "$out" "git" "top-level completion offers git"
+assert_contains "$out" "container" "top-level completion offers container"
+assert_not_contains "$out" "diff-local" "top-level completion drops the absorbed diff-local"
+
+out=$(complete_wt wt container "")
+assert_equals "up exec" "${out//$'\n'/ }" "wt container completes its two subcommands"
+out=$(complete_wt wt container up "")
+assert_contains "$out" "main" "wt container up completes worktree names"
+
+out=$(complete_wt wt sync "")
+assert_contains "$out" "--diff" "wt sync offers --diff"
+assert_contains "$out" "--all" "wt sync offers --all"
+assert_contains "$out" "main" "wt sync offers worktree names"
+
+out=$(complete_wt wt remove main "")
+assert_equals "--branch" "$out" "wt remove past the name offers only the flag"
 
 out=$(complete_wt wt pull "")
 assert_contains "$out" "main" "wt pull completes main"
