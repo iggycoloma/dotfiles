@@ -9,7 +9,7 @@ add_newline = true
 
 # Format
 format = """
-[╭─](bright-blue)$username$hostname$directory$git_branch$git_status$docker_context$python$nodejs$rust$golang$java
+[╭─](bright-blue)$username$hostname$container$shlvl${custom.project}$directory$git_branch$git_state$git_status$docker_context$python$nodejs$rust$golang$java
 [╰─](bright-blue)$character"""
 
 # Character
@@ -31,6 +31,62 @@ ssh_only = true
 style = "bold green"
 format = "[$hostname]($style) in "
 
+# Container
+#
+# hostname is ssh_only, so without this a devcontainer shell is visually
+# identical to a host shell -- which matters here, where project builds and
+# tests are supposed to run in the container and the host stays toolchain-free.
+# Renders only when actually containerized.
+[container]
+symbol = "⬢"
+style = "bold bright-yellow"
+format = "[$symbol $name]($style) "
+
+# Shell nesting depth
+#
+# Subshells stack silently; this catches the case where you think you left one
+# and did not. Below the threshold it prints nothing, so a plain login shell is
+# unaffected -- raise it if a container baseline turns this always-on.
+[shlvl]
+disabled = false
+threshold = 2
+symbol = "↕"
+style = "bold bright-yellow"
+format = "[$symbol$shlvl]($style) "
+
+# Project identity
+#
+# truncate_to_repo makes $directory show a path relative to the enclosing
+# checkout, so the project name is exactly what it drops. Under a wt
+# orchestration dir every worktree is its own checkout, which leaves the
+# prompt showing "main" or "feat-x" with no hint of which project that is.
+# This restores the name $directory cannot.
+#
+# Scoped to orchestration dirs on purpose: there the name sits above every
+# checkout, so it can never collide with what $directory prints. A plain
+# clone keeps its own name as the first component of the truncated path
+# until you are truncation_length deep, so printing it here would read as
+# "dotfiles ▸ dotfiles/bin" most of the time.
+[custom.project]
+description = "wt orchestration project name, which truncate_to_repo hides"
+when = true
+shell = ["sh"]
+# Orchestration root = bare repo.git (matches find_orchestration_root in bin/wt).
+# The checkout test keeps transit dirs (the root itself, wt/) unannotated --
+# $directory already spells those out in full.
+command = '''
+d=$PWD; checkout=; orchestration=
+while [ -n "$d" ] && [ "$d" != "/" ]; do
+    [ -z "$checkout" ] && [ -e "$d/.git" ] && checkout="$d"
+    if [ -d "$d/repo.git" ]; then orchestration="$d"; break; fi
+    d=${d%/*}
+done
+[ -n "$checkout" ] && [ -n "$orchestration" ] && printf '%s' "${orchestration##*/}"
+exit 0
+'''
+style = "bold bright-blue"
+format = "([$output ▸]($style) )"
+
 # Directory
 [directory]
 truncation_length = 3
@@ -44,6 +100,14 @@ read_only = " 🔒"
 symbol = " "
 style = "bold bright-magenta"
 format = "on [$symbol$branch]($style) "
+
+# Git State
+#
+# Names the in-progress operation and its step count, so an interrupted
+# stacked-PR rebase is visible without running git status. Silent otherwise.
+[git_state]
+style = "bold bright-yellow"
+format = "\\([$state( $progress_current/$progress_total)]($style)\\) "
 
 # Git Status
 [git_status]
