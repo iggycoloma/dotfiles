@@ -45,9 +45,21 @@ This repo deploys a portable CLI environment. Key directories:
 | `claude-code/CLAUDE.md` | Global (all projects) | Claude Code (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
 | `copilot/copilot-instructions.md` | Global (all projects) | Copilot CLI (deployed to `~/.copilot/`) |
+| `agent-prompts/*.md` | Global (all projects) | Shared fragments, deployed to each tool's `prompts/` dir |
 
 Project-specific instructions belong in root files. Global files should contain
 only preferences and guardrails that apply across all repositories.
+
+Cross-tool content (communication style, CLI tool preferences, comment policy,
+markdown formatting) is single-sourced in `agent-prompts/` and deployed to
+`~/.claude/prompts/`, `~/.codex/prompts/`, and `~/.copilot/prompts/` by
+`bootstrap/symlinks.sh`. Claude loads it via native `@~/.claude/prompts/...`
+imports (guaranteed, inlined at session start); Codex and Copilot have no import
+mechanism, so their global files carry a "read these at session start" directive
+(best-effort). For that reason security-critical content -- the credential deny
+lists in Guardrails -- stays inlined in every instruction file and remains
+covered by `tests/test-consistency.sh`; only preferences and conventions belong
+in `agent-prompts/`.
 
 ## Deny-list semantics
 
