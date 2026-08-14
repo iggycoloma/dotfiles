@@ -8,6 +8,7 @@
 - Never access credential directories: ~/.ssh, ~/.aws, ~/.gnupg, ~/.azure, ~/.config/gcloud, ~/.config/gh, ~/.config/glab-cli, ~/.docker, ~/.kube, ~/.config/heroku, ~/.config/doctl, ~/.gradle, ~/.m2, ~/.minikube, ~/.cargo, ~/.gem, ~/.composer, ~/.stripe, ~/.dotfiles-state, ~/.copilot
 - Never access credential files: ~/.npmrc, ~/.pypirc, ~/.netrc, ~/.git-credentials, ~/.pgpass, ~/.my.cnf, ~/.mongorc.js, *.tfvars, *.ppk, *.jks, *.keystore, *.pfx, *.p12, settings.local.json, ~/.claude/.credentials.json
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
+- Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks
 
 Enforcement: `settings.json` permission rules carry the credential deny lists and `pre-security.sh` blocks the same paths for the file tools; `sandbox.credentials` blocks them for Bash subprocesses at the OS level. `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.
 
@@ -90,12 +91,8 @@ Several skills have overlapping triggers. When multiple match, apply this order:
 
 ## Worktrees (parallel agent work)
 
-- One agent per worktree, never two agents editing one checkout.
-- Create with `wt add <name>` (prints the path); tear down with `wt remove <name>` -- it kills the worktree's containers, releases its ports, and refuses dirty trees. Never `rm -rf` a worktree.
-- Layouts are auto-detected: an orchestration dir (bare `repo.git` + `local/` + `state/` + `wt/`) provisions local dev files and `.env.worktree`; a plain clone gets a sibling `<repo>-worktrees/` tree.
-- Run project builds and tests in the project's dev container -- `wt container exec <name> -- <command>` from the host -- and keep the host toolchain-free. When the project provides `./dev verify`, it is the pre-handoff gate.
-- Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks.
-- Reach for a worktree for any task expected to produce commits; quick reads and answers need none. One task, one worktree, one branch -- never switch branches inside a worktree, and never touch another worktree's files.
+@~/.claude/prompts/worktrees.md
+
+Claude-specific publication policy, which overrides nothing above but is not shared because it differs per tool:
+
 - Publication policy: commit and push freely per Outward-facing writes above; PRs stay drafted -- compose the text, show it, and let the human run `gh pr create` or grant it explicitly for the task.
-- In an orchestration dir, `main/` is for review and integration only -- never develop there.
-- Start by checking `wt sync --diff <name>` and rerun without `--diff` if local files drifted; hand off by committing everything, running `./dev verify` in the container, and leaving the worktree in place for review rather than removing it.

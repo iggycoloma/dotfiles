@@ -51,15 +51,29 @@ Project-specific instructions belong in root files. Global files should contain
 only preferences and guardrails that apply across all repositories.
 
 Cross-tool content (communication style, CLI tool preferences, comment policy,
-markdown formatting) is single-sourced in `agent-prompts/` and deployed to
-`~/.claude/prompts/`, `~/.codex/prompts/`, and `~/.copilot/prompts/` by
-`bootstrap/symlinks.sh`. Claude loads it via native `@~/.claude/prompts/...`
-imports (guaranteed, inlined at session start); Codex and Copilot have no import
-mechanism, so their global files carry a "read these at session start" directive
-(best-effort). For that reason security-critical content -- the credential deny
-lists in Guardrails -- stays inlined in every instruction file and remains
-covered by `tests/test-consistency.sh`; only preferences and conventions belong
-in `agent-prompts/`.
+markdown formatting, worktree operational rules) is single-sourced in
+`agent-prompts/` and deployed to `~/.claude/prompts/`, `~/.codex/prompts/`, and
+`~/.copilot/prompts/` by `bootstrap/symlinks.sh` (whole-directory, so a new
+fragment needs no manifest entry). Claude loads it via native
+`@~/.claude/prompts/...` imports (guaranteed, inlined at session start); Codex
+and Copilot have no import mechanism, so their global files carry a "read these
+at session start" directive (best-effort). For that reason security-critical
+content stays inlined in every instruction file and remains covered by
+`tests/test-consistency.sh`; only preferences and conventions belong in
+`agent-prompts/`.
+
+Two inlined exceptions are load-bearing and deliberately not shared:
+
+- The credential deny lists in Guardrails.
+- The repo-local `core.hooksPath` prohibition, which used to sit in the
+  triplicated Worktrees section. It silently disables gitleaks secret scanning,
+  which is not something to deliver best-effort, so single-sourcing the rest of
+  that section promoted this one bullet into Guardrails instead. The test
+  asserts it verbatim in all three global files.
+
+Publication policy is also per-tool -- what an agent may push or open without
+asking differs -- so it stays inlined alongside a pointer to the shared
+fragment.
 
 ## Deny-list semantics
 
@@ -69,7 +83,7 @@ useful when editing the deny lists, dead weight in every unrelated project's ses
 
 `settings.json` has three kinds of deny entries; they do not share matching rules, so trust them differently.
 
-- `Read(<glob>)` / `Edit(<glob>)` -- real glob matching against the `file_path` argument. The primary boundary for credential paths; covers `.env*`, `~/.ssh/**`, `~/.aws/**`, etc.
+- `Read(<glob>)` / `Edit(<glob>)` -- real glob matching against the `file_path` argument. Covers credential *file shapes* wherever they appear: `**/.env*`, `**/credentials.*`, `**/*.pem`, `**/*.key`, `**/*.tfstate*`, etc. Whole credential *directories* (`~/.ssh`, `~/.aws`, `~/.stripe`, ...) are not listed here -- they are enumerated once in `sandbox.credentials` and `sandbox.filesystem.denyRead`, and mirrored in `agent-hooks/pre-security.sh`. Add a glob here when the risk is a filename pattern; add a path there when the risk is a directory.
   Do NOT add `Write(<glob>)` entries: the file permission check never consults them, and Claude Code warns about every one at startup. `Edit(<glob>)` is the entry that covers all file-editing tools, Write included.
 - `Bash(<prefix>:*)` -- prefix match against the command string. `Bash(rm -rf:*)` blocks only commands literally starting with `rm -rf`, not `sudo rm -rf /`, `bash -c 'rm -rf /'`, `env rm -rf /`, `xargs rm -rf`, subshells, or pipes. A tripwire, never a security boundary.
 - There is no hook-based Bash scan behind these. `pre-security.sh` guards file-path arguments only; the command-string scan was retired because it could not tell naming a path from opening one (see [docs/sandbox.md](docs/sandbox.md#why-there-is-no-bash-scan)). Credential reads from Bash are gated by `sandbox.credentials`, enforced by bwrap/Seatbelt.
@@ -88,7 +102,7 @@ Keep `settings.json` and `settings.container.json` ask blocks identical; contain
 Bash deny entries stay deliberately narrow. Each risk is defended at exactly one tier; do not duplicate across tiers.
 The ask tier guards a fourth kind of risk the tiers below do not: *attribution* -- outward speech published under the developer's identity (PR/MR text, review comments, issue posts). No sandbox or server defends that; the prompt is the gate.
 
-- **Tier 1 -- file content (this layer defends).** Credential exposure is caught by the `Read`/`Edit` globs in `settings.json` and the matching `pre-security.sh` path check, with `sandbox.credentials` covering the same paths for Bash subprocesses. Authoritative; new file-content guards belong here.
+- **Tier 1 -- file content (this layer defends).** Credential exposure is caught by the `Read`/`Edit` globs in `settings.json` for filename shapes, by `sandbox.credentials` and `sandbox.filesystem.denyRead` for whole credential directories, and by the `pre-security.sh` path check for both across every hooked tool. The three lists are not copies of each other: only `pre-security.sh` is expected to carry the full set. Authoritative; new file-content guards belong here.
 - **Tier 2 -- system state and network (sandbox/host defends).** The container boundary, OS sandbox (bwrap on Linux/WSL2, seatbelt on macOS), and the `sudo:*` deny are the gates. Do NOT add per-binary Bash denies for `iptables`, `systemctl`, `mkfs`, `dd`, `shutdown`, etc. -- they need sudo to do anything meaningful and sudo is already blocked, so each one only adds a redundant prompt.
 - **Tier 3 -- remote / shared (server defends).** Trunk protection, required reviews, and push restrictions live on the remote (GitHub branch protection rules). Do NOT simulate with `Bash(git push * main*)` tripwires -- the prefix matcher does not handle inline wildcards reliably, and remote protection is the only authoritative defense against an accidental trunk push.
 
@@ -138,5 +152,6 @@ Repo-maintenance context for the agentic worktree system; the user-facing rules 
   - **Carapace owns a colliding `wt` spec** (Windows Terminal's `wt.exe`). It mass-registers every spec via one `compdef`/`complete` call, and `shell/completion.sh` sources it *after* ours, so last-writer-wins silently replaced `wt`. Fixed by appending `wt` to `CARAPACE_EXCLUDES` in `shell/exports.sh`. Keep it in exports, not completion.sh: it must be set before either shell branch runs `carapace _carapace <shell>`, and both `.bashrc` and `.zprofile` source exports first. Append rather than assign -- a devcontainer `remoteEnv` may have excluded other specs deliberately.
   - **`~/.cache/zsh/zcompdump` persists a binding independently of how it was made.** Zinit's turbo-mode plugins load after completion.sh, and the subsequent compinit writes a dump that captures whatever `_comps` held by then. `compinit -C` replays it *without rescanning fpath*, which cuts both ways: it preserves an old carapace binding, and it hides a newly installed completion until the dump is rebuilt. Two guards, because they cover different entry points: `.zshrc` rebuilds when the completions dir is newer than the dump (`-nt`), and `bootstrap/completions.sh` deletes the dump after writing completions. Manual recovery is still `rm -f ~/.cache/zsh/zcompdump`. Do not "simplify" the fpath entry to a plain daily rebuild -- on the cached path it does nothing at all, which is the failure the `-nt` clause exists to prevent.
   - **The full-compinit branch passes `-u` on purpose.** Putting the dir on fpath before compinit also puts it in front of compaudit, which follows the symlinks into the dotfiles checkout. On a WSL2 DrvFs mount every path reports 0777, so the audit would prompt at each shell start and then skip exactly the files the fpath entry exists to load. `-u` accepts them; the tradeoff is that a genuinely world-writable dir on fpath is trusted, which is acceptable for single-user machines and containers and is the reason this is a deliberate flag rather than an oversight.
+- `ignore` is the one command that does not call `detect_mode`: its target may be a workspace root sitting *above* several orchestration dirs, which is not a project. It detects layouts (a `repo.git` beside a `wt/`, a `*-worktrees/` sibling) rather than emitting a fixed list, rewrites only the delimited managed block so hand-written rules survive, and is wired into `init` (writes) and `doctor` (reports missing or stale). Doctor's check is orchestration-mode only -- clone mode puts worktrees in a sibling dir that an `.ignore` inside the clone cannot bound. Rationale and the E2BIG failure it prevents: [docs/agentic-worktree-dev-environment.md](docs/agentic-worktree-dev-environment.md#why-the-orchestration-root-needs-an-ignore).
 - `WT_SLUG_MAX` (40) is a display budget, not an identity. Changing it must never orphan a worktree already on disk, which is why every name-taking command resolves through `resolve_worktree` -- creation mapping first, then a prefix match against git's own registry -- rather than recomputing the path. `worktree_dest` is the creation mapping only; do not reintroduce it as a lookup.
 - Parked: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion await the in-flight `claude-code/settings.json` rework (plan Phase 4).
