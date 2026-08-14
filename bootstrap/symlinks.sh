@@ -504,7 +504,7 @@ create_symlinks() {
 
     mkdir -p "$HOME/.config"
     _link_if_present "$DOTFILES_DIR/config/starship.toml" "$HOME/.config/starship.toml"
-    for cfg in bat bottom lazygit yazi ripgrep; do
+    for cfg in bat bottom ghostty lazygit yazi ripgrep; do
         _link_if_present "$DOTFILES_DIR/config/$cfg" "$HOME/.config/$cfg"
     done
 

@@ -1,0 +1,46 @@
+# Ghostty configuration
+# Reloaded in-app with Cmd+Shift+, -- no restart needed for most keys.
+
+# --- Session restore -------------------------------------------------------
+# `always` forces a state save on every exit, so restore does not depend on
+# macOS "Close windows when quitting an application" being unchecked.
+# Restores window geometry, tab and split layout, and per-tab working
+# directory. It does NOT re-run the processes that were in those tabs.
+window-save-state = always
+
+# Working-directory restore is carried by shell integration, not by the
+# window state alone -- without this, restored tabs all land in $HOME and
+# every cwd-derived tab name comes back wrong.
+shell-integration = zsh
+
+# `title` is what makes the tab name track cwd and running command, which is
+# what regenerates tab names after a restore.
+# `sudo` preserves terminfo so `sudo -e` and friends do not fall back to dumb.
+# `ssh-env` downgrades TERM to xterm-256color on remote hosts that have never
+# heard of xterm-ghostty.
+shell-integration-features = cursor,title,sudo,ssh-env
+
+# New tabs and splits open where the current one is, so a restored layout
+# stays coherent as you add to it.
+window-inherit-working-directory = true
+
+# --- macOS behaviour -------------------------------------------------------
+# Keeping the app alive after the last window closes means Cmd+N restores into
+# a running process rather than a cold launch.
+quit-after-last-window-closed = false
+
+# Left Option sends Esc so zsh's Alt+b / Alt+f word motions work; right Option
+# stays as-is for composed characters.
+macos-option-as-alt = left
+
+# --- Ergonomics ------------------------------------------------------------
+# Full `yarn verify` across an nx monorepo blows past the 10MB default.
+scrollback-limit = 104857600
+
+# Title reporting lets a remote process read the title back out of the
+# terminal, which is a known injection vector. Off is the default; pinned here
+# so a future default change does not silently turn it on.
+title-report = false
+
+auto-update = check
+auto-update-channel = stable
