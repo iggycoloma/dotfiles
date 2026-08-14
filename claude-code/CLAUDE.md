@@ -88,6 +88,7 @@ Several skills have overlapping triggers. When multiple match, apply this order:
 - `review-pr` over `security-audit` unless the user explicitly asks for a security audit or the diff is clearly security-focused (auth/crypto/secrets). Incidental touches to a file in one of those areas do not promote to `security-audit`.
 - `debug` over everything else only when the user pastes a stack trace, stderr block, or failing test output. "The UI looks wrong" is not `debug`.
 - `fix-issue` over `debug` when the user references a filed GitHub issue (#NNN or issue URL). Without one, stay in `debug`.
+- Any diff-scoped review over `systems-review`. A change under review is always reviewed as a change; `systems-review` takes over only when the unit named is a subsystem rather than a diff. It also outranks `refactor` and `optimize` in the other direction -- when the question is which mechanism enforces an invariant, it is not a cleanup or a slowdown.
 
 ## Worktrees (parallel agent work)
 

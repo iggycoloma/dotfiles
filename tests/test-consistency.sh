@@ -417,6 +417,86 @@ test_mcp_guidance_present() {
 }
 
 # ============================================================================
+# Test Suite: Command Frontmatter
+# ============================================================================
+
+# Emit the frontmatter of a markdown file -- the lines between the leading
+# "---" and the next one -- or nothing when the file has no frontmatter block.
+extract_frontmatter() {
+    awk 'NR == 1 && $0 == "---" { inside = 1; next }
+         inside && $0 == "---" { exit }
+         inside { print }' "$1"
+}
+
+# Claude Code reads description, argument-hint, and allowed-tools from the
+# frontmatter block. A missing or unclosed block drops all three silently.
+test_command_frontmatter_present() {
+    local missing=()
+    local file
+    for file in "$DOTFILES_DIR"/claude-code/commands/*.md; do
+        [[ -f "$file" ]] || continue
+        if [[ -z "$(extract_frontmatter "$file")" ]]; then
+            missing+=("$(basename "$file")")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        test_pass "All command files open with a frontmatter block"
+    else
+        test_fail "Command files with missing or unclosed frontmatter: ${missing[*]}"
+    fi
+}
+
+# A permission rule's parenthesised content is one prefix pattern, not a list.
+# Bash(git log:*, git tag:*) therefore matches nothing and every prefix in the
+# group is denied; each one needs its own Bash(...) entry. Verified against a
+# live session -- the packed form returns "This command requires approval".
+test_no_packed_permission_rules() {
+    local packed=()
+    local file line
+    for file in "$DOTFILES_DIR"/claude-code/commands/*.md; do
+        [[ -f "$file" ]] || continue
+        line=$(extract_frontmatter "$file" | grep '^allowed-tools:' || true)
+        [[ -n "$line" ]] || continue
+        if printf '%s\n' "$line" | grep -Eq '[A-Za-z_]+\([^)]*,[^)]*\)'; then
+            packed+=("$(basename "$file")")
+        fi
+    done
+
+    if [[ ${#packed[@]} -eq 0 ]]; then
+        test_pass "No packed Tool(a, b) permission rules in command frontmatter"
+    else
+        test_fail "Packed permission rules, split into separate entries: ${packed[*]}"
+    fi
+}
+
+# An unquoted value opening with "[" is a YAML flow sequence, so
+# "[from-tag] [to-tag]" is two sequences with no separator and fails a strict
+# parse. Claude Code's own parser is lenient, which is what lets this rot go
+# unnoticed until some other tool reads the file as YAML.
+test_frontmatter_bracket_values_parse() {
+    local bad=()
+    local file line value
+    for file in "$DOTFILES_DIR"/claude-code/commands/*.md; do
+        [[ -f "$file" ]] || continue
+        while IFS= read -r line; do
+            [[ "$line" =~ ^[a-zA-Z_-]+:[[:space:]]*(.*)$ ]] || continue
+            value="${BASH_REMATCH[1]}"
+            [[ "$value" == \[* ]] || continue
+            if [[ ! "$value" =~ ^\[[^][]*\]$ ]]; then
+                bad+=("$(basename "$file"): $line")
+            fi
+        done < <(extract_frontmatter "$file")
+    done
+
+    if [[ ${#bad[@]} -eq 0 ]]; then
+        test_pass "Bracketed frontmatter values are valid YAML flow sequences"
+    else
+        test_fail "Bracketed values need quoting: ${bad[*]}"
+    fi
+}
+
+# ============================================================================
 # Test Suite: Dotfiles State Self-Heal Link List
 # ============================================================================
 
@@ -472,6 +552,11 @@ main() {
 
     test_suite "MCP Guidance"
     test_mcp_guidance_present
+
+    test_suite "Command Frontmatter"
+    test_command_frontmatter_present
+    test_no_packed_permission_rules
+    test_frontmatter_bracket_values_parse
 
     test_suite "Dotfiles State Self-Heal Link List"
     test_state_heal_links_match

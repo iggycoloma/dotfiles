@@ -53,7 +53,7 @@ When user intent matches these commands, use the equivalent workflow:
 - `context-prime`: load README + key project files, summarize stack, git state, and active work.
 - `commit`: inspect staged/uncommitted diff, propose conventional commit message, then commit.
 - `pr-create`: summarize changes, draft a complete PR body, and provide/run `gh pr create`.
-- `review-pr`: fetch PR info/diff/checks and produce severity-ordered findings.
+- `review-pr`: fetch a PR, MR, or the working diff; judge correctness, ordering, observability, repo fit and mechanism level; label each finding blocking or non-blocking; and name both the smallest correct change and the best available one.
 - `debug`: gather evidence, form hypotheses, identify root cause, implement minimal fix, add tests.
 - `test`: generate or update tests for changed behavior and run relevant suite.
 - `dependencies`: check outdated/vulnerable deps, classify risk, and update safely.

@@ -54,7 +54,7 @@ dotfiles/
 |   |-- statusline.sh          # Status bar (git, context, model)
 |   |-- hooks/                 # Claude hook wrappers + notify
 |   |-- agents/                # PM, architect, implementer, QA, code reviewer
-|   +-- commands/              # 16 slash commands (/commit, /pipeline, ...)
+|   +-- commands/              # 18 slash commands (/commit, /pipeline, ...)
 |-- codex/
 |   |-- AGENTS.md              # Global Codex instructions
 |   |-- config.toml            # Host variant (sandbox_mode=workspace-write)

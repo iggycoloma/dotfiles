@@ -190,7 +190,7 @@ architecture (project-scope `AGENTS.md` + `CLAUDE.md` +
 | Settings variants per tool      | 2     | Host (`settings.json` / `config.toml`) and container (`settings.container.json` / `config.container.toml`) flavors |
 | Hooks (Claude Code)             | 4     | Credential blocking, conventional commits enforcement, no-emoji blocker, Pushover idle notification   |
 | Agents (Claude Code)            | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer (wired into `/pipeline`)           |
-| Commands (Claude Code)          | 16    | `/commit`, `/pr-create`, `/review-pr`, `/debug`, `/test`, `/refactor`, `/security-audit`, `/pipeline` |
+| Commands (Claude Code)          | 18    | `/commit`, `/pr-create`, `/review-pr`, `/debug`, `/test`, `/refactor`, `/security-audit`, `/pipeline` |
 | Skills (Codex)                  | n/a   | Claude-parity workflow skills mapping user intent                                                     |
 
 The **4-stage pipeline** (`/pipeline`) runs PM spec -> architecture review
