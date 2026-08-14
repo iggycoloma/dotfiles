@@ -89,7 +89,7 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
 | Agents          | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer     |
-| Commands        | 16    | commit, pr-create, review-pr, debug, test, refactor, pipeline, ...     |
+| Commands        | 18    | commit, pr-create, review-pr, debug, test, refactor, pipeline, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
 The **4-stage pipeline** (`/pipeline`) runs PM Spec -> Architecture Review ->

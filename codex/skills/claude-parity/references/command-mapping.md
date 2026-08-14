@@ -31,10 +31,12 @@ Use this table to map Claude-style command intent to Codex execution steps.
 
 ## review-pr
 
-1. Fetch PR context with `gh pr view`, `gh pr diff`, and checks.
-2. Review for correctness, security, performance, maintainability, and test coverage.
-3. Report findings ordered by severity with file references.
-4. Provide final verdict: approve / request changes / comment.
+1. Fetch change context with `gh pr view` / `gh pr diff`, `glab mr view` / `glab mr diff`, or the working diff against the repo's default base when no target is given.
+2. Judge in order of how often it bites: correctness for untested cases, merge ordering, observability of failure, evidence for behaviour people rely on, repo fit at both altitudes (which utility *and* which mechanism), mechanism level, content levels, title durability.
+3. Rank invariants by durability -- schema constraint -> type -> application code -> runtime coordination -- and flag a mechanism that reached lower than it needed to.
+4. Then answer both halves once for the change as a whole: the smallest correct change, and the best available change with nothing off-limits (priced, capped at one, default non-blocking).
+5. Label every finding blocking or non-blocking. No third, softer tier.
+6. Drop any finding without evidence -- an input that produces the wrong result, or for a mechanism finding, the constraint or type that already carries the invariant, cited by name and file.
 
 ## debug
 
