@@ -1,7 +1,7 @@
 ---
 description: Create a pull request with proper formatting
 argument-hint: [base-branch]
-allowed-tools: Read, Bash(git:*, gh:*), Grep
+allowed-tools: Read, Bash(git:*), Bash(gh:*), Grep
 ---
 
 You are creating a pull request.
