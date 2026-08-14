@@ -1,6 +1,6 @@
 ---
 description: Generate changelog from recent commits
-argument-hint: [from-tag] [to-tag]
+argument-hint: "[from-tag] [to-tag]"
 allowed-tools: Read, Bash(git log:*), Bash(git describe:*), Bash(git tag:*), Grep
 ---
 
