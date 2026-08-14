@@ -57,15 +57,31 @@ setopt INTERACTIVE_COMMENTS  # Allow comments in interactive mode
 setopt EXTENDED_GLOB         # Extended globbing
 setopt NO_BEEP               # No beeping
 
-# Completion system initialization (cached -- full rebuild once per day)
+# Repo-shipped completions must be on fpath before compinit scans it.
+# completions.zsh sets this too, but it is sourced from completion.sh below --
+# after compinit has already run, so anything only listed there is never
+# registered. Carapace re-registers its ~500 tools post-compinit and hides the
+# gap; a command excluded from carapace (wt) is left with no completion at all.
+_comp_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+fpath=("$_comp_dir" $fpath)
+
+# Completion system initialization (cached -- rebuilt daily, and whenever the
+# completions dir changes). The dir check is not an optimization: `compinit -C`
+# replays the dump without rescanning fpath, so a completion the installer just
+# wrote stays unregistered for up to a day on the cached path. Adding or
+# relinking a file bumps the dir's mtime, which is the signal to rebuild.
 autoload -Uz compinit
 _comp_dump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
-if [[ -n "$_comp_dump"(#qN.mh+24) ]]; then
-    compinit -d "$_comp_dump"
+if [[ ! -s "$_comp_dump" || -n "$_comp_dump"(#qN.mh+24) || "$_comp_dir" -nt "$_comp_dump" ]]; then
+    # -u skips compaudit. The dir reaches fpath before compinit now, so the
+    # audit follows the symlinks into the dotfiles checkout; on a WSL2 DrvFs
+    # mount every path reports 0777, which turns each shell start into an
+    # interactive prompt and then skips the files this entry exists to load.
+    compinit -u -d "$_comp_dump"
 else
     compinit -C -d "$_comp_dump"
 fi
-unset _comp_dump
+unset _comp_dir _comp_dump
 
 # Completion configuration
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'

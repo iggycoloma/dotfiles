@@ -133,6 +133,20 @@ fi=0:\
 # ripgrep configuration
 export RIPGREP_CONFIG_PATH="$XDG_CONFIG_HOME/ripgrep/config"
 
+# Repo-shipped completions own their command names where carapace collides.
+# Carapace's `wt` spec is Windows Terminal (wt.exe), unrelated to bin/wt, and
+# its init mass-registers every spec after completion.sh has already bound
+# ours -- so last-writer-wins silently replaced `wt` completion. Excluding the
+# spec states the ownership rule once instead of re-asserting compdef/complete
+# per shell after the carapace source. Must be set before completion.sh runs
+# `carapace _carapace <shell>`; both .bashrc and .zprofile source this first.
+# Appended, not assigned: a devcontainer remoteEnv or user profile may have
+# excluded other specs deliberately, and the guard keeps re-sourcing a no-op.
+case ",${CARAPACE_EXCLUDES}," in
+    *,wt,*) ;;
+    *) export CARAPACE_EXCLUDES="${CARAPACE_EXCLUDES:+$CARAPACE_EXCLUDES,}wt" ;;
+esac
+
 # Less colors for man pages
 export LESS_TERMCAP_mb=$'\e[1;32m'      # begin bold
 export LESS_TERMCAP_md=$'\e[1;34m'      # begin blink
