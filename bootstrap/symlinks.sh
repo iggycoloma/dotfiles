@@ -255,6 +255,21 @@ _deploy_notify_lib() {
     cp -f "$src" "$target"
 }
 
+# Shared instruction fragments (agent-prompts/) deployed per tool as
+# <tool-config-dir>/prompts. CLAUDE.md pulls them in via @~/.claude/prompts/...
+# imports; Codex and Copilot have no import mechanism, so their global files
+# instruct the agent to read the deployed copies at session start.
+_deploy_agent_prompts() {
+    local target="$1"
+    [[ -d "$DOTFILES_DIR/agent-prompts" ]] || return 0
+    if is_devcontainer; then
+        rm -rf "$target"
+        cp -rf "$DOTFILES_DIR/agent-prompts" "$target"
+    else
+        create_symlink "$DOTFILES_DIR/agent-prompts" "$target"
+    fi
+}
+
 _setup_agent_hooks() {
     [[ -d "$DOTFILES_DIR/agent-hooks" ]] || return 0
 
@@ -325,6 +340,8 @@ _setup_claude_code() {
         CLAUDE.md statusline.sh -- hooks agents commands
 
     _deploy_notify_lib "$HOME/.claude/hooks"
+
+    _deploy_agent_prompts "$HOME/.claude/prompts"
 
     log_success "Claude Code configuration complete"
 }
@@ -399,6 +416,8 @@ _setup_codex() {
 
     _setup_codex_notify
 
+    _deploy_agent_prompts "$HOME/.codex/prompts"
+
     log_success "Codex configuration complete"
 }
 
@@ -409,6 +428,8 @@ _setup_copilot() {
 
     _deploy_configs "$DOTFILES_DIR/copilot" "$HOME/.copilot" \
         copilot-instructions.md hooks.json
+
+    _deploy_agent_prompts "$HOME/.copilot/prompts"
 
     log_success "Copilot CLI configuration complete"
 }
