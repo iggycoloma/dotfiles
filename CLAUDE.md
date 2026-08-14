@@ -97,6 +97,19 @@ Do not "simplify" narrow ask entries into the allow list during maintenance: the
 `gh api` / `glab api` are ask-gated on purpose -- they can POST anything and would otherwise bypass every verb rule.
 Keep `settings.json` and `settings.container.json` ask blocks identical; container sessions are where the most autonomous work happens.
 
+### Command frontmatter allowed-tools
+
+A slash command's `allowed-tools:` is a rule surface of its own, not part of `settings.json`.
+It is documented here because it borrows the same prefix-match syntax as the entries above and is easy to mistake for them, while resolving differently in every case below.
+
+- **The parenthesised content is one prefix pattern, not a list.** `Bash(git log:*, git tag:*)` matches nothing at all -- not the first prefix, not any of them -- so every command in the group is denied with "This command requires approval". Each prefix needs its own entry: `Bash(git log:*), Bash(git tag:*)`.
+- **It is additive over `settings.json`, not a ceiling.** A broken rule falls back to the global allow list rather than blocking the command, which is why a packed group sits unnoticed for as long as `settings.json` happens to grant the same prefixes. Do not read a working command as evidence that its frontmatter parses.
+- **`permissions.ask` still wins.** Ask resolves ahead of frontmatter the same way it resolves ahead of allow, so granting `Bash(gh:*)` in a command file does not un-gate `gh pr create`. A command file cannot widen the outward-speech policy.
+- The frontmatter parser is lenient about YAML a strict parser rejects: `argument-hint: [a] [b]` is two flow sequences with no separator, and the `allowed-tools` line below it still takes effect. Quote such values anyway, or anything else reading these files as YAML trips on them.
+
+`tests/test-consistency.sh` enforces the first and last points across `claude-code/commands/`.
+Each claim here was checked against a live headless session rather than inferred from the docs.
+
 ### Three-tier responsibility model
 
 Bash deny entries stay deliberately narrow. Each risk is defended at exactly one tier; do not duplicate across tiers.
