@@ -7,6 +7,7 @@
 - Never access credential directories: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.config/glab-cli`, `~/.docker`, `~/.kube`, `~/.config/heroku`, `~/.config/doctl`, `~/.gradle`, `~/.m2`, `~/.minikube`, `~/.cargo`, `~/.gem`, `~/.composer`, `~/.stripe`, `~/.dotfiles-state`, `~/.copilot`
 - Never access credential files: `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.git-credentials`, `~/.pgpass`, `~/.my.cnf`, `~/.mongorc.js`, `*.tfvars`, `*.ppk`, `*.jks`, `*.keystore`, `*.pfx`, `*.p12`, `settings.local.json`, `~/.claude/.credentials.json`
 - Deny path traversal patterns (for example paths containing `../`) unless the user explicitly asks and confirms
+- Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks
 - Do not add decorative emoji characters to code, docs, or commit messages
 - Use conventional commits and do not include AI attribution or `Co-Authored-By` lines
 
@@ -30,6 +31,7 @@ At the start of a session, read and apply:
 
 - `~/.codex/prompts/writing-style.md` -- communication style for explanations, reviews, and prose
 - `~/.codex/prompts/engineering-conventions.md` -- preferred CLI tools, code-comment policy, markdown formatting
+- `~/.codex/prompts/worktrees.md` -- operational rules for the `wt` worktree system, when the task involves worktrees
 
 ### Codex-specific communication corrections
 
@@ -69,12 +71,8 @@ When user intent matches these commands, use the equivalent workflow:
 
 ## Worktrees (parallel agent work)
 
-- One agent per worktree, never two agents editing one checkout.
-- Create with `wt add <name>` (prints the path); tear down with `wt remove <name>` -- it kills the worktree's containers, releases its ports, and refuses dirty trees. Never `rm -rf` a worktree.
-- Layouts are auto-detected: an orchestration dir (bare `repo.git` + `local/` + `state/` + `wt/`) provisions local dev files and `.env.worktree`; a plain clone gets a sibling `<repo>-worktrees/` tree.
-- Run project builds and tests in the project's dev container -- `wt container exec <name> -- <command>` from the host -- and keep the host toolchain-free. When the project provides `./dev verify`, it is the pre-handoff gate.
-- Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks.
-- Reach for a worktree for any task expected to produce commits; quick reads and answers need none. One task, one worktree, one branch -- never switch branches inside a worktree, and never touch another worktree's files.
+The operational rules live in `~/.codex/prompts/worktrees.md`, listed under Shared conventions above -- read it before doing worktree work.
+
+Codex-specific publication policy, which is not shared because it differs per tool:
+
 - Publication policy: commit locally in the worktree; the human reviews, pushes, and opens the PR. Push or open PRs yourself only when explicitly granted for the task.
-- In an orchestration dir, `main/` is for review and integration only -- never develop there.
-- Start by checking `wt sync --diff <name>` and rerun without `--diff` if local files drifted; hand off by committing everything, running `./dev verify` in the container, and leaving the worktree in place for review rather than removing it.

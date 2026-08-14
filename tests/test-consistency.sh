@@ -82,6 +82,74 @@ INSTRUCTION_FILES=(
     "$COPILOT_GITHUB"
 )
 
+# The three globally-deployed files. The root AGENTS.md and
+# .github/copilot-instructions.md are repo-scoped and carry no worktree rules.
+GLOBAL_FILES=(
+    "$CLAUDE_GLOBAL"
+    "$CODEX_AGENTS"
+    "$COPILOT_GLOBAL"
+)
+
+WORKTREE_FRAGMENT="$DOTFILES_DIR/agent-prompts/worktrees.md"
+
+# The operational worktree rules are single-sourced in agent-prompts/. This
+# guard is the deliberate exception: it stays inlined per tool because
+# Codex and Copilot load shared fragments best-effort (no import mechanism),
+# and a silently disabled gitleaks hook is not something to deliver on a
+# best-effort basis. Keep the wording identical so drift is detectable.
+# shellcheck disable=SC2016  # backticks are literal markdown, not a subshell
+HOOKS_PATH_GUARD='- Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks'
+
+# ============================================================================
+# Test Suite: Worktree Rules
+# ============================================================================
+
+test_hooks_path_guard_inlined() {
+    for file in "${GLOBAL_FILES[@]}"; do
+        local basename
+        basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+        if grep -Fqx -e "$HOOKS_PATH_GUARD" "$file"; then
+            test_pass "core.hooksPath guard inlined in $basename"
+        else
+            test_fail "core.hooksPath guard missing or reworded in $basename"
+            test_info "Expected verbatim: $HOOKS_PATH_GUARD"
+        fi
+    done
+}
+
+test_worktree_fragment_single_sourced() {
+    if [[ -f "$WORKTREE_FRAGMENT" ]]; then
+        test_pass "agent-prompts/worktrees.md exists"
+    else
+        test_fail "agent-prompts/worktrees.md missing"
+        return
+    fi
+
+    # Each tool must actually pull the fragment in, by whatever mechanism it
+    # has: Claude via a native @import, Codex and Copilot via their
+    # read-at-session-start list. A fragment nothing references is dead.
+    local file basename
+    for file in "${GLOBAL_FILES[@]}"; do
+        basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+        if grep -q 'prompts/worktrees\.md' "$file"; then
+            test_pass "Worktree fragment referenced by $basename"
+        else
+            test_fail "Worktree fragment not referenced by $basename"
+        fi
+    done
+
+    # The rules must live in exactly one place: if a tool file still carries
+    # the operational bullets, the single-sourcing has been undone.
+    for file in "${GLOBAL_FILES[@]}"; do
+        basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+        if grep -Fq -e '- One agent per worktree' "$file"; then
+            test_fail "Operational worktree bullets re-inlined in $basename"
+        else
+            test_pass "Operational worktree bullets not duplicated in $basename"
+        fi
+    done
+}
+
 # ============================================================================
 # Test Suite: Credential Directory Deny Lists
 # ============================================================================
@@ -377,6 +445,10 @@ test_state_heal_links_match() {
 
 main() {
     echo -e "${CYAN}Starting Consistency Tests${NC}\n"
+
+    test_suite "Worktree Rules"
+    test_hooks_path_guard_inlined
+    test_worktree_fragment_single_sourced
 
     test_suite "Credential Directory Deny Lists"
     test_credential_dirs_present

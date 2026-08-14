@@ -51,15 +51,29 @@ Project-specific instructions belong in root files. Global files should contain
 only preferences and guardrails that apply across all repositories.
 
 Cross-tool content (communication style, CLI tool preferences, comment policy,
-markdown formatting) is single-sourced in `agent-prompts/` and deployed to
-`~/.claude/prompts/`, `~/.codex/prompts/`, and `~/.copilot/prompts/` by
-`bootstrap/symlinks.sh`. Claude loads it via native `@~/.claude/prompts/...`
-imports (guaranteed, inlined at session start); Codex and Copilot have no import
-mechanism, so their global files carry a "read these at session start" directive
-(best-effort). For that reason security-critical content -- the credential deny
-lists in Guardrails -- stays inlined in every instruction file and remains
-covered by `tests/test-consistency.sh`; only preferences and conventions belong
-in `agent-prompts/`.
+markdown formatting, worktree operational rules) is single-sourced in
+`agent-prompts/` and deployed to `~/.claude/prompts/`, `~/.codex/prompts/`, and
+`~/.copilot/prompts/` by `bootstrap/symlinks.sh` (whole-directory, so a new
+fragment needs no manifest entry). Claude loads it via native
+`@~/.claude/prompts/...` imports (guaranteed, inlined at session start); Codex
+and Copilot have no import mechanism, so their global files carry a "read these
+at session start" directive (best-effort). For that reason security-critical
+content stays inlined in every instruction file and remains covered by
+`tests/test-consistency.sh`; only preferences and conventions belong in
+`agent-prompts/`.
+
+Two inlined exceptions are load-bearing and deliberately not shared:
+
+- The credential deny lists in Guardrails.
+- The repo-local `core.hooksPath` prohibition, which used to sit in the
+  triplicated Worktrees section. It silently disables gitleaks secret scanning,
+  which is not something to deliver best-effort, so single-sourcing the rest of
+  that section promoted this one bullet into Guardrails instead. The test
+  asserts it verbatim in all three global files.
+
+Publication policy is also per-tool -- what an agent may push or open without
+asking differs -- so it stays inlined alongside a pointer to the shared
+fragment.
 
 ## Deny-list semantics
 
@@ -138,5 +152,6 @@ Repo-maintenance context for the agentic worktree system; the user-facing rules 
   - **Carapace owns a colliding `wt` spec** (Windows Terminal's `wt.exe`). It mass-registers every spec via one `compdef`/`complete` call, and `shell/completion.sh` sources it *after* ours, so last-writer-wins silently replaced `wt`. Fixed by appending `wt` to `CARAPACE_EXCLUDES` in `shell/exports.sh`. Keep it in exports, not completion.sh: it must be set before either shell branch runs `carapace _carapace <shell>`, and both `.bashrc` and `.zprofile` source exports first. Append rather than assign -- a devcontainer `remoteEnv` may have excluded other specs deliberately.
   - **`~/.cache/zsh/zcompdump` persists a binding independently of how it was made.** Zinit's turbo-mode plugins load after completion.sh, and the subsequent compinit writes a dump that captures whatever `_comps` held by then. `compinit -C` replays it *without rescanning fpath*, which cuts both ways: it preserves an old carapace binding, and it hides a newly installed completion until the dump is rebuilt. Two guards, because they cover different entry points: `.zshrc` rebuilds when the completions dir is newer than the dump (`-nt`), and `bootstrap/completions.sh` deletes the dump after writing completions. Manual recovery is still `rm -f ~/.cache/zsh/zcompdump`. Do not "simplify" the fpath entry to a plain daily rebuild -- on the cached path it does nothing at all, which is the failure the `-nt` clause exists to prevent.
   - **The full-compinit branch passes `-u` on purpose.** Putting the dir on fpath before compinit also puts it in front of compaudit, which follows the symlinks into the dotfiles checkout. On a WSL2 DrvFs mount every path reports 0777, so the audit would prompt at each shell start and then skip exactly the files the fpath entry exists to load. `-u` accepts them; the tradeoff is that a genuinely world-writable dir on fpath is trusted, which is acceptable for single-user machines and containers and is the reason this is a deliberate flag rather than an oversight.
+- `ignore` is the one command that does not call `detect_mode`: its target may be a workspace root sitting *above* several orchestration dirs, which is not a project. It detects layouts (a `repo.git` beside a `wt/`, a `*-worktrees/` sibling) rather than emitting a fixed list, rewrites only the delimited managed block so hand-written rules survive, and is wired into `init` (writes) and `doctor` (reports missing or stale). Doctor's check is orchestration-mode only -- clone mode puts worktrees in a sibling dir that an `.ignore` inside the clone cannot bound. Rationale and the E2BIG failure it prevents: [docs/agentic-worktree-dev-environment.md](docs/agentic-worktree-dev-environment.md#why-the-orchestration-root-needs-an-ignore).
 - `WT_SLUG_MAX` (40) is a display budget, not an identity. Changing it must never orphan a worktree already on disk, which is why every name-taking command resolves through `resolve_worktree` -- creation mapping first, then a prefix match against git's own registry -- rather than recomputing the path. `worktree_dest` is the creation mapping only; do not reintroduce it as a lookup.
 - Parked: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion await the in-flight `claude-code/settings.json` rework (plan Phase 4).
