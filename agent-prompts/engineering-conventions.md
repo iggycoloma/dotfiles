@@ -24,6 +24,26 @@ Reach for `sg` over `rg` on structural questions ("all calls to X", "all imports
 
 Use `watchexec` for auto-test/rebuild loops: `watchexec -e py -- pytest tests/`.
 
+## Glob expansion and argument limits
+
+The shell expands a glob before the command runs: `cmd **/*.ts` reaches `cmd` as the literal path of every match, not as a pattern.
+The kernel caps arguments plus environment together at roughly 2 MB per `execve`, so a match list in the tens of thousands fails with `E2BIG` ("argument list too long").
+
+Do not let a glob's match count scale with repository contents.
+Globbing top-level directories (`*/`) is fine -- it matches a handful of entries.
+A recursive glob (`**`, or nested `*/*/*`) is not, when anchored at a workspace root holding several repositories, or at a worktree directory where every worktree is a full checkout and each one added grows the match list.
+
+For bulk operations over many files, stream instead of expanding:
+
+```bash
+rg --files -g '*.ts' | xargs -r some-command
+fd -e ts -X some-command
+```
+
+Both chunk their arguments and have no size ceiling, so they keep working as the tree grows.
+
+Searching is unrestricted at any scope: `rg` streams results rather than building an argument list, and it honors `.gitignore` plus `.ignore`. A directory holding several checkouts is not itself a repository, so no `.gitignore` governs it; an `.ignore` file at that level is what keeps a search from descending into every checkout below it.
+
 ## Comments: prefer self-explanatory code
 
 Reach for a comment only when the code cannot explain itself.
