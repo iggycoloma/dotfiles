@@ -18,7 +18,7 @@ shell-integration = zsh
 # `sudo` preserves terminfo so `sudo -e` and friends do not fall back to dumb.
 # `ssh-env` downgrades TERM to xterm-256color on remote hosts that have never
 # heard of xterm-ghostty.
-shell-integration-features = cursor,title,path,sudo,ssh-env
+shell-integration-features = cursor,title,sudo,ssh-env
 
 # New tabs and splits open where the current one is, so a restored layout
 # stays coherent as you add to it.
