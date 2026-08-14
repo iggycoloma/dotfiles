@@ -140,7 +140,12 @@ export RIPGREP_CONFIG_PATH="$XDG_CONFIG_HOME/ripgrep/config"
 # spec states the ownership rule once instead of re-asserting compdef/complete
 # per shell after the carapace source. Must be set before completion.sh runs
 # `carapace _carapace <shell>`; both .bashrc and .zprofile source this first.
-export CARAPACE_EXCLUDES="wt"
+# Appended, not assigned: a devcontainer remoteEnv or user profile may have
+# excluded other specs deliberately, and the guard keeps re-sourcing a no-op.
+case ",${CARAPACE_EXCLUDES}," in
+    *,wt,*) ;;
+    *) export CARAPACE_EXCLUDES="${CARAPACE_EXCLUDES:+$CARAPACE_EXCLUDES,}wt" ;;
+esac
 
 # Less colors for man pages
 export LESS_TERMCAP_mb=$'\e[1;32m'      # begin bold

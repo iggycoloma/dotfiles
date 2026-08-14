@@ -130,6 +130,12 @@ EOF
         zsh -c "zcompile '$zsh_dir/completions.zsh'" 2>/dev/null || true
     fi
 
+    # A dump written before the completions above was installed still binds the
+    # old set, and `compinit -C` replays it verbatim. Dropping it makes the next
+    # shell do a full scan. Path must match .zshrc's _comp_dump.
+    local comp_dump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+    rm -f "$comp_dump" "$comp_dump.zwc"
+
     log_success "Zsh completions configured"
 }
 
