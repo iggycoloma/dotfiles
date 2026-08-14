@@ -57,6 +57,13 @@ setopt INTERACTIVE_COMMENTS  # Allow comments in interactive mode
 setopt EXTENDED_GLOB         # Extended globbing
 setopt NO_BEEP               # No beeping
 
+# Repo-shipped completions must be on fpath before compinit scans it.
+# completions.zsh sets this too, but it is sourced from completion.sh below --
+# after compinit has already run, so anything only listed there is never
+# registered. Carapace re-registers its ~500 tools post-compinit and hides the
+# gap; a command excluded from carapace (wt) is left with no completion at all.
+fpath=("${ZDOTDIR:-$HOME/.config/zsh}/completions" $fpath)
+
 # Completion system initialization (cached -- full rebuild once per day)
 autoload -Uz compinit
 _comp_dump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"

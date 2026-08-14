@@ -820,6 +820,40 @@ assert_equals 0 "$status" "wt git past the name exits cleanly without git comple
 assert_equals "" "$out" "wt git past the name offers no wt candidates"
 
 # ============================================================
+# Test Suite: zsh completion registration
+# ============================================================
+test_suite "zsh completion registration"
+
+# Registration is a separate failure from the completion's own logic: a healthy
+# _wt that compinit never scans leaves `wt <TAB>` on zsh's _files fallback,
+# which looks like cwd names. Both halves of the contract are checked here.
+
+# Half one: .zshrc must put the completions dir on fpath BEFORE compinit.
+# completions.zsh also sets fpath, but completion.sh sources it after compinit.
+zshrc_fpath_line=$(grep -n 'fpath=(.*completions' "$DOTFILES_DIR/shell/.zshrc" | head -1 | cut -d: -f1)
+zshrc_compinit_line=$(grep -n '^[[:space:]]*compinit' "$DOTFILES_DIR/shell/.zshrc" | head -1 | cut -d: -f1)
+assert_not_equals "" "$zshrc_fpath_line" ".zshrc adds the completions dir to fpath itself"
+[[ -n "$zshrc_fpath_line" && -n "$zshrc_compinit_line" && \
+    "$zshrc_fpath_line" -lt "$zshrc_compinit_line" ]] && ordered=yes || ordered=no
+assert_equals "yes" "$ordered" ".zshrc sets fpath before compinit runs"
+
+# Half two: with the dir on fpath, compinit must actually bind wt to _wt --
+# guards the #compdef tag and the filename in shell/completions/_wt.
+if command -v zsh >/dev/null 2>&1; then
+    comps_wt=$(zsh -f -c "
+        mkdir -p '$TMP/zfpath'
+        ln -sf '$DOTFILES_DIR/shell/completions/_wt' '$TMP/zfpath/_wt'
+        fpath=('$TMP/zfpath' \$fpath)
+        autoload -Uz compinit
+        compinit -u -d '$TMP/zcompdump'
+        print -r -- \${_comps[wt]}
+    " 2>/dev/null)
+    assert_equals "_wt" "$comps_wt" "compinit binds wt to _wt when the dir is on fpath"
+else
+    echo "  (zsh not installed -- skipping compinit binding check)"
+fi
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
