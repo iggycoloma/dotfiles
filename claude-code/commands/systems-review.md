@@ -13,7 +13,7 @@ description: |
   review the change. This takes over only when the unit under review is the
   subsystem itself.
 argument-hint: <path, module, service, or capability to review>
-allowed-tools: Read, Grep, Glob, Bash(git log:*, git blame:*, git show:*, rg:*, fd:*, sg:*, scc:*)
+allowed-tools: Read, Grep, Glob, Bash(git log:*), Bash(git blame:*), Bash(git show:*), Bash(rg:*), Bash(fd:*), Bash(sg:*), Bash(scc:*)
 ---
 
 Review a subsystem for whether its invariants are enforced at the right level, and whether its shape is the one you would choose today.

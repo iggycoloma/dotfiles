@@ -30,7 +30,7 @@ For feature pipeline requests, follow `references/pipeline.md` exactly and pause
 
 ## Output Standards
 
-- `review` output: severity-ordered findings with concrete file references.
+- `review` output: every finding labelled blocking or non-blocking -- no third, softer tier -- with concrete file references, closing with the best available change.
 - `commit` output: final message before commit action.
 - `pr-create` output: title, summary bullets, testing notes, breaking changes, linked issues.
 - `debug` output: evidence, root cause, fix, regression test.

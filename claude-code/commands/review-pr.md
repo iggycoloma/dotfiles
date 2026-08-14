@@ -11,19 +11,27 @@ description: |
   explicit request or when the whole change is security-focused. A diff always
   outranks systems-review.
 argument-hint: [PR/MR number or URL -- omit to review the working diff]
-allowed-tools: Read, Grep, Glob, Bash(gh pr view:*, gh pr diff:*, gh pr checks:*, glab mr view:*, glab mr diff:*, git log:*, git blame:*, git show:*, git diff:*, rg:*, sg:*)
+allowed-tools: Read, Grep, Glob, Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr checks:*), Bash(glab mr view:*), Bash(glab mr diff:*), Bash(git log:*), Bash(git blame:*), Bash(git show:*), Bash(git diff:*), Bash(git status:*), Bash(git remote:*), Bash(git symbolic-ref:*), Bash(git rev-parse:*), Bash(rg:*), Bash(sg:*)
 ---
 
 Review a change against the standards in the project's `CLAUDE.md` and `AGENTS.md`.
 
 ## Target
 
-- **A number or URL was given:** fetch it with `gh pr view` / `gh pr diff`, or `glab mr view` / `glab mr diff` on a GitLab remote. Check `git remote -v` if it is not obvious which.
-- **No argument:** review the working diff against the repo's default base. Determine the base rather than assuming `main` -- check `git symbolic-ref refs/remotes/origin/HEAD` or the project's config.
+The target is `$ARGUMENTS`.
+
+- **Non-empty** -- a PR/MR number or URL.
+  Fetch it with `gh pr view` / `gh pr diff`, or `glab mr view` / `glab mr diff` on a GitLab remote.
+  Check `git remote -v` if it is not obvious which.
+- **Empty** -- review the working diff.
+  Determine the base rather than assuming `main`: `git symbolic-ref refs/remotes/origin/HEAD`, or the project's config.
+  Then read `git diff <base>...HEAD` for committed work **and** `git diff HEAD` for uncommitted work -- the range form excludes the working tree, so on a dirty tree it silently reviews the wrong thing.
+  If both come back empty, say there is nothing to review and stop. Never emit the no-issues line for an empty diff: a clean review nobody earned is worse than no review.
 
 ## Skip if
 
-Closed, draft, already reviewed by you, or a pure dependency bump. Say so and stop.
+Closed, already reviewed by you, or a pure dependency bump. Say so and stop.
+Draft is not a skip -- an early review is what a draft is for.
 
 ## Review
 
