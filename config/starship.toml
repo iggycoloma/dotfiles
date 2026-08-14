@@ -9,7 +9,7 @@ add_newline = true
 
 # Format
 format = """
-[╭─](bright-blue)$username$hostname${custom.project}$directory$git_branch$git_status$docker_context$python$nodejs$rust$golang$java
+[╭─](bright-blue)$username$hostname$container$shlvl${custom.project}$directory$git_branch$git_state$git_status$docker_context$python$nodejs$rust$golang$java
 [╰─](bright-blue)$character"""
 
 # Character
@@ -30,6 +30,29 @@ format = "[$user]($style)@"
 ssh_only = true
 style = "bold green"
 format = "[$hostname]($style) in "
+
+# Container
+#
+# hostname is ssh_only, so without this a devcontainer shell is visually
+# identical to a host shell -- which matters here, where project builds and
+# tests are supposed to run in the container and the host stays toolchain-free.
+# Renders only when actually containerized.
+[container]
+symbol = "⬢"
+style = "bold bright-yellow"
+format = "[$symbol $name]($style) "
+
+# Shell nesting depth
+#
+# Subshells stack silently; this catches the case where you think you left one
+# and did not. Below the threshold it prints nothing, so a plain login shell is
+# unaffected -- raise it if a container baseline turns this always-on.
+[shlvl]
+disabled = false
+threshold = 2
+symbol = "↕"
+style = "bold bright-yellow"
+format = "[$symbol$shlvl]($style) "
 
 # Project identity
 #
@@ -77,6 +100,14 @@ read_only = " 🔒"
 symbol = " "
 style = "bold bright-magenta"
 format = "on [$symbol$branch]($style) "
+
+# Git State
+#
+# Names the in-progress operation and its step count, so an interrupted
+# stacked-PR rebase is visible without running git status. Silent otherwise.
+[git_state]
+style = "bold bright-yellow"
+format = "\\([$state( $progress_current/$progress_total)]($style)\\) "
 
 # Git Status
 [git_status]
