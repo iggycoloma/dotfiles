@@ -4,6 +4,13 @@
 detect_environment() {
     if [[ -n "${CODESPACES:-}" ]]; then
         echo "codespaces"
+    elif [[ -n "${DOTFILES_SANDBOX:-}" ]]; then
+        # Docker Sandboxes. Declared by the kit rather than sniffed: the
+        # sentinels below cannot tell a microVM that owns its Docker daemon
+        # from a container borrowing the host's, and that distinction is the
+        # whole point of is_sandbox. Checked ahead of them because a sandbox
+        # trips them too.
+        echo "sandbox"
     elif [[ -n "${REMOTE_CONTAINERS:-}" ]]; then
         echo "devcontainer"
     elif [[ -f /.dockerenv ]]; then
@@ -62,12 +69,23 @@ run_sudo() {
     fi
 }
 
-# True inside a devcontainer or Codespaces -- the two contexts where the
-# installer skips host-only steps (GUI apps, brew taps, etc).
+# True inside a devcontainer, Codespaces, or a Docker Sandbox -- the contexts
+# where the installer skips host-only steps (GUI apps, brew taps, etc) and
+# Claude Code takes the settings variant that leaves its own sandbox off.
+# Sandboxes belong here: for the install profile they are containers like any
+# other. Only Docker daemon ownership differs -- see is_sandbox.
 is_devcontainer() {
     local env
     env=$(detect_environment)
-    [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]]
+    [[ "$env" == "devcontainer" ]] || [[ "$env" == "codespaces" ]] || [[ "$env" == "sandbox" ]]
+}
+
+# True only in a Docker Sandbox, which owns its Docker daemon inside a microVM.
+# Callers that must not drive the *host* daemon use this to separate "nesting
+# is the supported path here" from "a reachable daemon means the host socket
+# was mounted in, which is host root".
+is_sandbox() {
+    [[ "$(detect_environment)" == "sandbox" ]]
 }
 
 # Currently equivalent to is_devcontainer, but named for caller intent so a
@@ -124,5 +142,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Package Manager: $(detect_package_manager)"
     echo "Minimal Install: $(is_minimal_install && echo "yes" || echo "no")"
     echo "Devcontainer: $(is_devcontainer && echo "yes" || echo "no")"
+    echo "Sandbox: $(is_sandbox && echo "yes" || echo "no")"
     echo "Root: $(is_root && echo "yes" || echo "no")"
 fi

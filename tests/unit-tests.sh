@@ -277,6 +277,39 @@ test_detect_devcontainer() {
     fi
 }
 
+test_detect_sandbox() {
+    local original_cs="${CODESPACES:-}"
+    local original_rc="${REMOTE_CONTAINERS:-}"
+    local original_sb="${DOTFILES_SANDBOX:-}"
+
+    unset CODESPACES
+    # A sandbox trips the container sentinels too -- REMOTE_CONTAINERS here
+    # stands in for the /.dockerenv this suite cannot create. The tier is only
+    # useful if it wins anyway.
+    export REMOTE_CONTAINERS="true"
+    export DOTFILES_SANDBOX="1"
+
+    local result
+    result=$(detect_environment)
+    assert_equals "sandbox" "$result" "DOTFILES_SANDBOX should outrank container sentinels"
+
+    result=$(is_sandbox && echo yes || echo no)
+    assert_equals "yes" "$result" "is_sandbox should be true in a sandbox"
+
+    # Everything except wt's Docker guard treats a sandbox as a container, so
+    # the install profile and settings variant must not shift underneath it.
+    result=$(is_devcontainer && echo yes || echo no)
+    assert_equals "yes" "$result" "is_devcontainer should stay true in a sandbox"
+
+    unset DOTFILES_SANDBOX
+    result=$(is_sandbox && echo yes || echo no)
+    assert_equals "no" "$result" "is_sandbox should be false in a plain devcontainer"
+
+    if [[ -n "$original_cs" ]]; then export CODESPACES="$original_cs"; fi
+    if [[ -n "$original_rc" ]]; then export REMOTE_CONTAINERS="$original_rc"; else unset REMOTE_CONTAINERS; fi
+    if [[ -n "$original_sb" ]]; then export DOTFILES_SANDBOX="$original_sb"; fi
+}
+
 test_detect_local() {
     local original_cs="${CODESPACES:-}"
     local original_rc="${REMOTE_CONTAINERS:-}"
@@ -770,6 +803,7 @@ main() {
     test_suite "detect_environment Function"
     test_detect_codespaces
     test_detect_devcontainer
+    test_detect_sandbox
     test_detect_local
 
     # Logging module tests

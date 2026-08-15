@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
+.PHONY: lint test lint-sandbox-kit test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git).
 # .claude is excluded because Claude Code nests worktrees at
@@ -8,7 +8,7 @@
 # shell file in the repo to be going unchecked.
 SHELL_SCRIPTS := $(shell find . \( -name '*.sh' -o -name '*.bash' \) -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*') ./bin/wt
 
-lint: lint-settings-sync lint-settings-drift lint-devcontainers
+lint: lint-settings-sync lint-settings-drift lint-sandbox-kit lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)
 
 # Regenerate claude-code/settings.container.json from settings.json. The two
@@ -22,6 +22,12 @@ sync-settings:
 # i.e. someone hand-edited it or changed settings.json without re-syncing.
 lint-settings-sync:
 	@bin/sync-settings.sh --check
+
+# Fail if the sandbox kit's generated egress block no longer matches
+# unattended/egress-allowlist.txt -- same drift class as lint-settings-sync,
+# but for sandbox/spec.yaml. Regenerate with bin/sync-sandbox-kit.sh.
+lint-sandbox-kit:
+	@bin/sync-sandbox-kit.sh --check
 
 # Two drift classes: host vs container variants (claude-code, codex) on every
 # key outside the per-tier sandbox block, and Read/Write/Edit deny-list parity

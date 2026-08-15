@@ -34,7 +34,7 @@ command_spec() {
         pull)         printf '%s\t%s' 'pull [name]'              "fetch origin and fast-forward a worktree to origin/<branch> (default: main)" ;;
         git)          printf '%s\t%s' 'git <name> <git-args...>' 'run git in the named worktree (verbatim pass-through)' ;;
         sync)         printf '%s\t%s' 'sync [name|--all] [--diff]' "refresh local/shared into a worktree (default: main); --diff previews drift" ;;
-        container)    printf '%s\t%s' 'container up|exec ...'    "manage the worktree's dev container (host only)" ;;
+        container)    printf '%s\t%s' 'container up|exec ...'    "manage the worktree's dev container" ;;
         remove)       printf '%s\t%s' 'remove <name> [--branch]' 'remove a worktree + its containers (refuses dirty)' ;;
         prune)        printf '%s\t%s' 'prune'                    'clean up stale worktree administrative entries' ;;
         ignore)       printf '%s\t%s' 'ignore [--print] [path]'  'write a workspace .ignore so searches skip worktrees (default: .)' ;;
@@ -92,8 +92,9 @@ NOTE
 
   Everything after -- is passed to the container verbatim, including flags:
   'wt container exec api -- pytest --help' runs pytest's help, not wt's.
-  Host-only: containers never launch containers. This runs IN the
-  container -- for host-side git in a worktree, use 'wt git'.
+  Needs a Docker daemon of its own: the host's, or a Docker Sandbox's.
+  Refused inside a plain container, where a reachable daemon is the host's.
+  This runs IN the container -- for git in a worktree, use 'wt git'.
 NOTE
         ;;
         pull) cat <<'NOTE'
@@ -514,11 +515,22 @@ write_worktree_env() {
 
 # ----------------------------------------------------------- containers ----
 
-require_host_docker() {
-    # /.dockerenv detects Docker only; podman/containerd containers lack it
-    # (bootstrap/detect.sh's is_devcontainer is richer, but wt stays
-    # standalone). Worst case there: devcontainer-CLI absence catches it.
-    [[ ! -f /.dockerenv ]] || die "container commands are host-only: containers never launch containers"
+# True when a reachable Docker daemon would be the host's rather than ours.
+# The hazard was never nesting -- it is that driving the host's daemon from
+# inside a container is host root, so a container that can reach one has had
+# the socket mounted in. A Docker Sandbox owns its daemon inside a microVM,
+# which is why nesting is the supported path there.
+#
+# /.dockerenv detects Docker only; podman/containerd containers lack it
+# (bootstrap/detect.sh's is_devcontainer is richer, but wt stays standalone).
+# Worst case there: devcontainer-CLI absence catches it. DOTFILES_SANDBOX is
+# set by the sandbox kit, matching detect_environment's sandbox tier.
+borrowed_docker() {
+    [[ -f /.dockerenv && -z "${DOTFILES_SANDBOX:-}" ]]
+}
+
+require_private_docker() {
+    ! borrowed_docker || die "refusing to drive the host's Docker daemon from inside a container"
     command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI not installed (run install.sh)"
 }
 
@@ -577,7 +589,7 @@ cmd_container_up() {
     local dest slug repo
     dest="$(resolve_or_default "${1:-}")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
-    require_host_docker
+    require_private_docker
     slug="$(basename "$dest")"
 
     local flags=()
@@ -602,7 +614,7 @@ cmd_container_exec() {
     local dest slug
     dest="$(resolve_worktree "$name")"
     [[ -d "$dest" ]] || die "no such worktree: $dest"
-    require_host_docker
+    require_private_docker
     slug="$(basename "$dest")"
 
     local flags=()
@@ -626,7 +638,7 @@ cmd_container_exec() {
 teardown_containers() {
     local slug="$1" ids
     command -v docker >/dev/null 2>&1 || return 0
-    [[ ! -f /.dockerenv ]] || return 0
+    ! borrowed_docker || return 0
     ids="$(docker ps -aq --filter "label=wt.project=$(project_id)" --filter "label=wt.slug=$slug" 2>/dev/null || true)"
     if [[ -n "$ids" ]]; then
         log "removing containers for $slug"
@@ -1113,7 +1125,7 @@ cmd_doctor() {
         fi
     done < <(registered_worktrees)
 
-    if [[ ! -f /.dockerenv ]]; then
+    if ! borrowed_docker; then
         if command -v devcontainer >/dev/null 2>&1; then
             local dc_version
             dc_version="$(devcontainer --version 2>/dev/null)"
@@ -1127,7 +1139,7 @@ cmd_doctor() {
             log "note: devcontainer CLI not installed; per-worktree containers unavailable"
         fi
     else
-        log "in-container: devcontainer CLI intentionally unavailable (containers never launch containers)"
+        log "in-container: container commands disabled (no private Docker daemon; refusing the host's)"
     fi
 
     if [[ "$WT_MODE" == "orchestration" ]]; then

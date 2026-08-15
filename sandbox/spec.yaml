@@ -1,0 +1,80 @@
+schemaVersion: "2"
+kind: mixin
+name: dotfiles
+version: "0.1"
+displayName: Dotfiles
+description: Installs the dotfiles toolchain, agent rules, and hooks into a Docker Sandbox.
+sourceURL: https://github.com/iggycoloma/dotfiles
+
+security:
+  privileged: false
+
+environment:
+  variables:
+    # Read by bootstrap/detect.sh. The sandbox is declared, not sniffed: the
+    # /.dockerenv sentinel cannot distinguish a microVM that owns its Docker
+    # daemon from a container borrowing the host's, and bin/wt gates on that
+    # difference. Every other consumer treats a sandbox as a container.
+    DOTFILES_SANDBOX: "1"
+    DOTFILES_REPO: https://github.com/iggycoloma/dotfiles.git
+
+credentials:
+  # read_api only. Proxy injection keeps the token out of the VM, but it does
+  # not constrain the request -- the proxy will authenticate a POST to
+  # /merge_requests just as happily as a GET. Scope is what makes drafting-only
+  # structural instead of a rule in settings.json that has to be maintained.
+  - service: gitlab
+    description: GitLab read_api token. MR and note creation stay host actions.
+    required: false
+    apiKey:
+      name: GITLAB_TOKEN
+      proxyManaged: true
+      inject:
+        - domain: gitlab.com
+          header: PRIVATE-TOKEN
+          format: "%s"
+
+setup:
+  install:
+    # Identity first: signing.sh reads user.email when it appends to
+    # allowed_signers, and the sandbox inherits no host gitconfig. The signing
+    # key itself needs nothing here -- signing.sh prefers the forwarded agent
+    # over any key file, and refuses file-based keys in a container outright.
+    - description: Install dotfiles
+      command: |
+        set -eu
+        DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+        git config --global user.name "Iggy Coloma"
+        git config --global user.email "iggy.coloma@logixboard.com"
+        if [ ! -d "$DOTFILES_DIR" ]; then
+            git clone --depth 1 "$DOTFILES_REPO" "$DOTFILES_DIR"
+        fi
+        "$DOTFILES_DIR/install.sh"
+
+permissions:
+  network:
+    # BEGIN wt-managed egress -- generated from unattended/egress-allowlist.txt
+    # by bin/sync-sandbox-kit.sh. Edits inside this block are overwritten;
+    # add hosts to the allowlist instead. Anything outside it is preserved.
+    allow:
+      - api.anthropic.com
+      - api.github.com
+      - api.pushover.net
+      - codeload.github.com
+      - console.anthropic.com
+      - crates.io
+      - files.pythonhosted.org
+      - github.com
+      - gitlab.com
+      - index.crates.io
+      - objects.githubusercontent.com
+      - proxy.golang.org
+      - pypi.org
+      - raw.githubusercontent.com
+      - registry.gitlab.com
+      - registry.npmjs.org
+      - static.crates.io
+      - statsig.anthropic.com
+      - sum.golang.org
+      - uploads.github.com
+    # END wt-managed egress
