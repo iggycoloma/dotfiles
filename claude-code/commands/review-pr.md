@@ -118,3 +118,57 @@ The `Best available change` section is always present, even when the answer is t
 If nothing survives verification: `No blocking issues. Checked correctness, ordering, observability, repo fit, mechanism level, and content levels.` Still answer `Best available change`.
 
 No emojis. No attribution footer. Cite `path:line` for every finding.
+
+## After the report: diligence, then drafts
+
+The report is unchanged. What follows it is a separate `Suggested comments` section, produced
+without being asked.
+
+**Run diligence on the findings that survived verification.** Two passes:
+
+*Prior art.* Check the change's own discussion, the referenced ticket and its comments, and team
+chat for the mechanism by name. A finding the team already argued and dismissed reads as not
+having done the homework, and it spends the author's willingness to read the next one. If the
+ticket points at a spec or doc you cannot read, treat that as unknown rather than as an
+all-clear -- say which section you couldn't see.
+
+*Mitigations, one level down.* Any claim that something is already handled -- a framework default,
+a cookie attribute, a header, a platform guarantee -- gets verified against this repo's actual
+config before it appears anywhere. A half-true mitigation is worse than none: it tells the author
+to relax about the half you got wrong. Separate what the mechanism guarantees from what merely
+happens to be true of the current code, and state the residual gap alongside the protection.
+
+Diligence can amend or kill a finding. When it does, fix the report before printing it -- a
+finding already dispositioned upstream is not a finding, and a corrected mitigation changes how
+severe the remaining risk is.
+
+**Then draft.** One comment per finding that survives and that you would actually post: every
+blocking finding, plus non-blocking ones whose reasoning won't compress to a single line. Skip
+the mechanical ones. For anything diligence resolved, one line saying where it was settled
+instead of a draft.
+
+### Voice for a draft
+
+A comment is a message to a colleague, not a section of the report. Lowercase and contractions
+are fine. Roughly 150 words: one paragraph of mechanism with the `file:line`, one of honest
+impact, one of the fix.
+
+- **If you open with a question, ask a real one.** "quick q" followed by an assertion is a throat
+  clear. The question should be answerable and worth answering -- usually "was this deliberate, or
+  aimed at <the case it clearly gets right>?" -- because the author normally did have a reason and
+  you want it before you argue with the choice.
+- **Assume competence.** Name the case their choice gets right before the case it misses. You are
+  asking about a tradeoff they made, not catching them out.
+- **Plain words for impact.** Drop the protocol shorthand -- "can't quietly fire off actions on the
+  operator's behalf" over "nothing POST-shaped can be ridden". The impact paragraph has to land
+  for someone who doesn't hold the spec in their head; jargon there reads as showing work rather
+  than explaining risk.
+- **Say the merge timing in words.** "the kind of thing I'd rather close before it ships" or
+  "happy for this to be a follow-up" -- never the blocking / non-blocking label, and never a softer
+  verdict than the one in the report.
+- **Don't narrate your own diligence.** The research keeps you from posting something already
+  settled; it is not content for the comment. If you did miss prior art, the author will say so in
+  their reply, and that costs nothing.
+- Offer the fix, don't prescribe it. "if you want it, ..." leaves the call where it belongs.
+
+Drafts are handed over, never posted. Publishing stays a separate, explicit ask.

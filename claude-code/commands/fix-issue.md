@@ -1,72 +1,74 @@
 ---
 description: |
-  Analyze and fix a GitHub issue end-to-end (investigate, reproduce, fix, test,
-  branch, commit, PR). TRIGGER when the user references a GitHub issue by
-  number (#NNN), issue URL (github.com/owner/repo/issues/N), or pastes
-  `gh issue view` output and asks to address it. SKIP for bugs the user is
-  reporting in chat without a filed issue (use debug instead) or when they
+  Analyze and fix a filed issue or ticket end-to-end (investigate, reproduce,
+  fix, test, branch, commit, draft the PR/MR). Tracker-agnostic: GitHub and
+  GitLab issues via gh/glab, Linear or another tracker via its configured MCP
+  server. TRIGGER when the user references a filed issue or ticket -- #NNN, an
+  issue URL, a ticket key like ENG-123, or pasted `gh issue view` /
+  `glab issue view` output -- and asks to address it. SKIP for bugs the user
+  is reporting in chat without a filed issue (use debug instead) or when they
   only want investigation without implementation.
-argument-hint: <issue-number>
+argument-hint: "<issue number, URL, or ticket key>"
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
-You are analyzing and fixing a GitHub issue.
+You are analyzing and fixing a filed issue or ticket.
 
 ## Process
 
-1. **Fetch Issue**:
-   ```bash
-   gh issue view $ARGUMENTS
-   ```
+1. **Resolve the tracker and fetch the issue**. `$ARGUMENTS` may be a bare
+   number, a URL, or a ticket key -- route on its shape:
+   - GitHub URL, or bare `#NNN` with a GitHub remote (`git remote get-url origin`):
+     `gh issue view $ARGUMENTS`
+   - GitLab URL, or bare `#NNN` with a GitLab remote: `glab issue view $ARGUMENTS`
+   - Ticket key (`ENG-123`) or a non-forge tracker URL: use that tracker's MCP
+     server if one is configured. If none is, say so and ask the user to paste
+     the ticket -- never install or configure an MCP server for this.
 
-2. **Understand the Issue**:
-   - What is the problem?
-   - Steps to reproduce (if bug)
-   - Expected vs actual behavior
-   - Any error messages or logs
+2. **Normalize to common concepts**, whatever the source calls them:
+   - Identifier and title
+   - Problem statement; steps to reproduce (if bug)
+   - Expected vs actual behavior; error messages or logs
+   - Acceptance criteria and linked discussion, if present
 
 3. **Investigate**:
-   - Search codebase for relevant files
-     ```bash
-     grep -r "relevant_term" src/
-     ```
-   - Check recent changes that might have caused it
+   - Search the codebase for relevant terms (Grep tool, or `rg` / `sg`)
+   - Check recent changes that might have caused it:
      ```bash
      git log --oneline --all --grep="related_term"
      ```
-   - Look for similar resolved issues
-     ```bash
-     gh issue list --state closed --search "similar keywords"
-     ```
+   - Look for similar resolved issues in the same tracker (e.g.
+     `gh issue list --state closed --search "keywords"`, the glab equivalent,
+     or the MCP search)
 
 4. **Reproduce** (if bug):
    - Try to recreate the issue locally
    - Confirm the problem exists
 
-5. **Develop Solution**:
+5. **Develop solution**:
    - Identify root cause
    - Implement minimal fix
    - Add tests to prevent regression
-   - Verify fix resolves the issue
+   - Verify the fix resolves the issue
 
-6. **Create Branch**:
+6. **Branch and commit**. Derive a slug from the identifier -- if the tracker
+   suggests a branch name (Linear does), prefer it:
    ```bash
-   git checkout -b fix/issue-$ARGUMENTS
+   git checkout -b fix/<identifier-slug>
+   git commit -m "fix: <description> (<identifier>)"
    ```
 
-7. **Commit & PR**:
-   ```bash
-   git commit -m "fix: resolve issue #$ARGUMENTS - description"
-   gh pr create --title "Fix: #$ARGUMENTS - brief description" \
-                --body "Fixes #$ARGUMENTS\n\n[Explain the fix]"
-   ```
+7. **Draft the PR/MR** following `/pr-create`: compose the title and body,
+   reference the issue the way its tracker autolinks (`Fixes #NNN` on the
+   forges; the ticket key, e.g. `Fixes ENG-123`, for Linear), show the create
+   command, and stop. Tracker writes -- status changes, comments -- are
+   likewise drafted for approval, never executed directly.
 
 ## Output Format
 
 ### Issue Analysis
-- Issue #$ARGUMENTS: [Title]
+- <identifier>: [Title]
 - Type: Bug / Feature Request / Enhancement
-- Priority: High / Medium / Low
 
 ### Root Cause
 [Explanation of what's wrong]
@@ -81,8 +83,8 @@ You are analyzing and fixing a GitHub issue.
 ### Testing
 - [How to verify the fix works]
 
-### PR Status
-- Branch: fix/issue-$ARGUMENTS
-- PR: [link or command to create]
+### Handoff
+- Branch: fix/<identifier-slug>
+- PR/MR: [drafted title and body, plus the command to create it]
 
 Ask for confirmation before making changes.
