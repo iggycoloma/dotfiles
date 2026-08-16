@@ -19,17 +19,16 @@ You are drafting a pull request or merge request.
    - GitLab host (gitlab.com or self-hosted) -> `glab`, "merge request", `glab mr create`
    - Anything else -> compose the title and body anyway and say no forge CLI is configured for that host
 
-2. **Verify state**:
+2. **Verify state**. The base is `$1` if given; otherwise determine the
+   default branch with `git symbolic-ref refs/remotes/origin/HEAD` rather
+   than assuming `main`. Then:
    ```bash
    git status
-   git log origin/main..HEAD --oneline
+   git log origin/<base>..HEAD --oneline
    ```
    - Changes are committed
    - On a feature branch
    - Up to date with the base branch
-
-   The base is `$1` if given; otherwise determine the default branch with
-   `git symbolic-ref refs/remotes/origin/HEAD` rather than assuming `main`.
 
 3. **Analyze changes**:
    ```bash
