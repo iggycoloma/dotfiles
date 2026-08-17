@@ -60,6 +60,7 @@ edit the tracked source and redeploy, never the deployed copy.
 | `AGENTS.md` (root, this file) | This repo | All AI tools; Claude via the `@AGENTS.md` import in `CLAUDE.md` |
 | `CLAUDE.md` (root) | This repo | Claude Code only: `@AGENTS.md` plus Claude-specific content |
 | `.github/copilot-instructions.md` | This repo | GitHub Copilot |
+| `.claude/rules/*.md` | This repo | Claude Code path-scoped rules, loaded only when files matching their `paths:` globs are touched |
 | `claude-code/CLAUDE.md` | Global (all projects) | Claude Code (deployed to `~/.claude/`) |
 | `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
 | `copilot/copilot-instructions.md` | Global (all projects) | Copilot CLI (deployed to `~/.copilot/`) |
@@ -107,50 +108,13 @@ fragment.
 
 ## Preferred CLI Tools
 
-Use these tools when available instead of standard Unix alternatives:
+Single-sourced in [agent-prompts/engineering-conventions.md](agent-prompts/engineering-conventions.md) (rg, sg, fd, difft, sd, bat, scc, yq, and friends), which every deployed tool already loads via its `prompts/` directory.
+Tools without a global config should read that fragment directly.
 
-| Instead of | Use | When |
-|-----------|-----|------|
-| `grep` (pattern search) | `rg` (ripgrep) | Text/regex search across files |
-| `grep` (structural) | `sg` (ast-grep) | Finding code patterns by AST structure |
-| `find` | `fd` | Finding files by name/pattern |
-| `diff` | `difft` (difftastic) | Comparing files (AST-aware, ignores formatting noise) |
-| `sed` | `sd` | Find/replace with PCRE regex |
-| `cat` (highlighted) | `bat` | Viewing files with syntax highlighting |
-| `wc -l` / `cloc` | `scc` | Code statistics (LOC, complexity, languages) |
-| manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments) |
-| `jq` | `jq` | JSON processing (keep using jq, it's the standard) |
-| `df` | `duf` | Disk free with color-coded bars |
-| `du` | `dust` | Directory disk usage as a visual tree |
-| `ps` | `procs` | Process viewer with color and search |
-| `time` | `hyperfine` | Benchmarking commands with statistical analysis |
+## Command legibility
 
-## Command legibility (permissions, security, observability)
-
-Permission matching and the session/audit log both operate on the literal command
-string.
-Keep that string an honest record of what runs:
-it is both the realtime gate and the after-the-fact audit trail,
-and both go blind to the same thing -- indirection.
-
-- Prefer built-in file-search and edit tools over shelling out when reading,
-  searching, or editing files.
-  They need no permission prompt, produce structured output, and emit a typed log
-  event instead of a raw shell string.
-- Keep commands literal.
-  Do NOT hide a path, filename, or credential behind a variable, `base64`/`xxd`,
-  glob-indirection, `eval`, command substitution `$(...)`, or a pipe into a shell
-  (`... | sh`).
-  These defeat the scan at runtime AND make the log unsearchable and
-  non-reproducible afterward.
-- Complexity is fine; indirection is not.
-  A long but literal pipeline (`git log --format=%an | sort | uniq -c | sort -rn`)
-  is fully analyzable and is a single clean log line -- prefer it over many opaque
-  micro-calls.
-- Only reach for dynamic or indirect syntax when the operation is genuinely
-  impossible otherwise (a real pipeline, a loop over discovered items).
-  When you must, keep any sensitive path or credential literal, and note in one
-  line why the wrapper is necessary.
+Keep Bash command strings literal -- no paths or credentials hidden behind variables, encodings, `eval`, `$(...)`, or pipes into a shell -- because permission matching and the audit log both read only that string.
+The full rules live in each tool's globally deployed instruction file (`claude-code/CLAUDE.md` Tool Use Discipline, `codex/AGENTS.md` Command legibility).
 
 ## Security Model
 
@@ -162,7 +126,7 @@ Defense-in-depth across multiple layers:
 - **SSH commit signing**: auto-detected from SSH agent (prefers ed25519)
 - **Path traversal**: blocked unless explicitly approved
 - **MCP posture**: No MCP servers installed by default. MCP servers run as child processes with full filesystem/network access and bypass credential deny lists. Do not install MCPs without explicit user request. MCP auth tokens belong in tool-specific local config (e.g., settings.local.json), never in dotfiles-tracked files.
-- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `CLAUDE.md` "Deny-list semantics" for the full rationale and what stays in vs out of the Bash deny list.
+- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `.claude/rules/deny-list-semantics.md` for the full rationale and what stays in vs out of the Bash deny list.
 
 ## Installation Toggles
 
@@ -203,21 +167,10 @@ those environments:
 - MCP configs (in settings.local.json) persist via the same volume mount as other Claude state
 - Project-level .mcp.json files persist in the project repo naturally
 
-## Worktree system (wt) -- maintenance map
+## Worktree system (wt)
 
-Repo-maintenance context for the agentic worktree system; the user-facing rules live in the globally deployed instruction files.
-
-- Design: `docs/agentic-worktree-dev-environment.md` (amended in Status); plan and verified evidence log: `planning/2026-08-02-agentic-worktree-system.md`. Where they disagree, the plan wins.
-- Implementation: `bin/wt` (single file until the Phase 5 lib split), `git/hooks/post-checkout` (safety net for worktrees created outside wt; chains git-lfs), `shell/completions/wt.bash` and `shell/completions/_wt` (symlinked into place by `bootstrap/completions.sh`; they feed off `wt list --names`), `tests/test-wt.sh` (`make test-wt`).
-- Invariants to preserve when editing: provisioning never copies a file whose destination is not gitignored (hard-fail + rollback); `remove` refuses dirty trees and tears down containers by `wt.project`/`wt.slug` labels; worktrees are always created with relative paths; container commands are host-only; no project ever sets repo-local `core.hooksPath`.
-- Completion is a three-part contract: the symlink must exist, the command name must be bound to `_wt` at the end of shell startup, and the zsh dump must not be caching an older binding. Check with `zsh -i -c 'print ${_comps[wt]}'`, which must print `_wt` -- a missing symlink, a hijacked name, and a stale dump are three different failures with the same symptom.
-  The non-obvious parts:
-  - **Carapace owns a colliding `wt` spec** (Windows Terminal's `wt.exe`). It mass-registers every spec via one `compdef`/`complete` call, and `shell/completion.sh` sources it *after* ours, so last-writer-wins silently replaced `wt`. Fixed by appending `wt` to `CARAPACE_EXCLUDES` in `shell/exports.sh`. Keep it in exports, not completion.sh: it must be set before either shell branch runs `carapace _carapace <shell>`, and both `.bashrc` and `.zprofile` source exports first. Append rather than assign -- a devcontainer `remoteEnv` may have excluded other specs deliberately.
-  - **`~/.cache/zsh/zcompdump` persists a binding independently of how it was made.** Zinit's turbo-mode plugins load after completion.sh, and the subsequent compinit writes a dump that captures whatever `_comps` held by then. `compinit -C` replays it *without rescanning fpath*, which cuts both ways: it preserves an old carapace binding, and it hides a newly installed completion until the dump is rebuilt. Two guards, because they cover different entry points: `.zshrc` rebuilds when the completions dir is newer than the dump (`-nt`), and `bootstrap/completions.sh` deletes the dump after writing completions. Manual recovery is still `rm -f ~/.cache/zsh/zcompdump`. Do not "simplify" the fpath entry to a plain daily rebuild -- on the cached path it does nothing at all, which is the failure the `-nt` clause exists to prevent.
-  - **The full-compinit branch passes `-u` on purpose.** Putting the dir on fpath before compinit also puts it in front of compaudit, which follows the symlinks into the dotfiles checkout. On a WSL2 DrvFs mount every path reports 0777, so the audit would prompt at each shell start and then skip exactly the files the fpath entry exists to load. `-u` accepts them; the tradeoff is that a genuinely world-writable dir on fpath is trusted, which is acceptable for single-user machines and containers and is the reason this is a deliberate flag rather than an oversight.
-- `ignore` is the one command that does not call `detect_mode`: its target may be a workspace root sitting *above* several orchestration dirs, which is not a project. It detects layouts (a `repo.git` beside a `wt/`, a `*-worktrees/` sibling) rather than emitting a fixed list, rewrites only the delimited managed block so hand-written rules survive, and is wired into `init` (writes) and `doctor` (reports missing or stale). Doctor's check is orchestration-mode only -- clone mode puts worktrees in a sibling dir that an `.ignore` inside the clone cannot bound. Rationale and the E2BIG failure it prevents: [docs/agentic-worktree-dev-environment.md](docs/agentic-worktree-dev-environment.md#why-the-orchestration-root-needs-an-ignore).
-- `WT_SLUG_MAX` (40) is a display budget, not an identity. Changing it must never orphan a worktree already on disk, which is why every name-taking command resolves through `resolve_worktree` -- creation mapping first, then a prefix match against git's own registry -- rather than recomputing the path. `worktree_dest` is the creation mapping only; do not reintroduce it as a lookup.
-- Parked: the `WorktreeCreate`/`WorktreeRemove` shims and the `devcontainer *` sandbox exclusion await the in-flight `claude-code/settings.json` rework (plan Phase 4).
+Before editing `bin/wt`, `git/hooks/post-checkout`, `shell/completions/wt.bash`, `shell/completions/_wt`, or `tests/test-wt.sh`, read [docs/wt-maintenance.md](docs/wt-maintenance.md) first.
+It carries the invariants and completion-system gotchas that are expensive to rediscover, and changes made without it have broken them before.
 
 ## Working Style
 
