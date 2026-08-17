@@ -46,6 +46,14 @@ Bad -> better:
 - Longer sentences are acceptable when they carry one coherent causal chain. Split them when multiple independent claims become difficult to track.
 - Parentheses and dashes may carry genuinely local context or contrast, but should not become a second running argument.
 
+## Handoff reports
+
+A handoff is the message that closes out a piece of delegated work -- the end-of-task summary, not a mid-task status note.
+
+- For a non-trivial handoff, report four things: the outcome, the meaningful changes, what validation ran and its results, and any material gaps or risks. A trivial task needs a sentence, not the template.
+- Analyze tradeoffs thoroughly and put that analysis in the handoff or the conversation, where the reader can weigh it. Do not encode it as source comments; the comment policy in engineering-conventions covers the little of it that belongs in code.
+- Report validation honestly: name what ran and what it showed, including failures and anything skipped. A gap stated plainly is useful; a gap omitted is a risk transferred unannounced.
+
 ## Avoid
 
 - Inventing names for concepts that can be explained directly; turning straightforward observations into named principles.

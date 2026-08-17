@@ -1,8 +1,7 @@
 # Dotfiles Repository -- Agent Instructions
 
-Shared instructions for all AI coding tools working in this repository.
-Global tool-specific configs live in `claude-code/CLAUDE.md` (deployed to `~/.claude/`)
-and `codex/AGENTS.md` (deployed to `~/.codex/`).
+Canonical, model-neutral instructions for all AI coding tools working in this repository.
+The adjacent `CLAUDE.md` imports this file via `@AGENTS.md` and adds only Claude-specific content.
 
 ## About This Repo
 
@@ -18,8 +17,78 @@ completions, state persistence -- but does not install them. Projects bring thei
 own tooling via `devcontainer.json`; this repo ensures the developer's workflow is
 ready when they arrive.
 
+When making changes, respect this boundary: don't add installation logic for tools
+that belong to individual projects. Do add configuration, completions, and state
+persistence for tools developers commonly encounter.
+
 Tested platforms: Ubuntu (20.04/22.04/24.04), Debian (11/12), Alpine, macOS (15/26),
-GitHub Codespaces.
+GitHub Codespaces. CI tests 13+ platform configurations; when changing bootstrap or
+shell scripts, consider cross-platform impact.
+
+## Agent instruction architecture
+
+### Sources are authoritative; deployments are outputs
+
+The tracked sources in this repository are the single source of truth for every agent-instruction surface.
+The files under `~/.claude`, `~/.codex`, and `~/.copilot` are generated or synchronized outputs of `bootstrap/symlinks.sh` (symlinks on hosts, managed copies in devcontainers) and must not drift silently:
+edit the tracked source and redeploy, never the deployed copy.
+`bin/prompt-drift.sh` (wired into `make lint`) verifies that deployed instruction files still match their tracked sources;
+`bin/settings-drift.sh` does the same for the settings variants.
+
+### Where a rule belongs
+
+- Personal safety, tool choice, writing style, response calibration, and personal workflow live in the personal/shared prompt sources: `claude-code/CLAUDE.md`, `codex/AGENTS.md`, `copilot/copilot-instructions.md`, and the single-sourced fragments in `agent-prompts/`.
+- Project-specific instructions belong in repository root files. The globally deployed files carry only preferences and guardrails that apply across all repositories -- repo details placed there load into every unrelated project's session.
+- Workspace-specific authority, source order, publication policy, local runtime wrappers, and worktree layout live in the workspace prompt -- the instruction file at the workspace root that sits above individual checkouts.
+- Team-owned code, test, canonical command, commit, MR, and review standards live in each repository's root `AGENTS.md`.
+- Subtree `AGENTS.md` files contain only expensive-to-rediscover invariants and gotchas unique to that subtree.
+- Multi-step or rare procedures use on-demand skills/runbooks, with a short mandatory trigger in an always-loaded file only when reliable activation has been demonstrated.
+- Model-neutral policy is canonical in `AGENTS.md`. `CLAUDE.md` imports the adjacent `AGENTS.md` with `@AGENTS.md` and adds only Claude-specific calibration.
+
+### How harnesses load these files
+
+- Codex builds an instruction chain from its detected project root toward the working directory, loading at most one recognized instruction file per directory (`AGENTS.override.md`, then `AGENTS.md`), concatenated root-first under a combined size cap (32 KiB by default). A parent directory above the detected project root cannot be assumed to load, so a repository root `AGENTS.md` must be self-contained.
+- Claude Code discovers `CLAUDE.md` files in parent directories of the working directory (loaded in full at launch) and in subdirectories (loaded on demand when files there are read), and supports `@file` imports, including `@AGENTS.md`.
+- Claude imports organize content but do not make it task-conditional or reduce context cost: imported files are inlined at session start.
+- A linked side document is not automatic Codex context. Keep always-required cross-harness rules in `AGENTS.md`; put conditional procedures outside it only behind an explicit trigger or a tested native skill.
+- More-specific instructions override broader ones in both harnesses. Avoid contradictory copies: keep one canonical statement per rule and reference it.
+
+### File map
+
+| File | Scope | Read by |
+|------|-------|---------|
+| `AGENTS.md` (root, this file) | This repo | All AI tools; Claude via the `@AGENTS.md` import in `CLAUDE.md` |
+| `CLAUDE.md` (root) | This repo | Claude Code only: `@AGENTS.md` plus Claude-specific content |
+| `.github/copilot-instructions.md` | This repo | GitHub Copilot |
+| `.claude/rules/*.md` | This repo | Claude Code path-scoped rules, loaded only when files matching their `paths:` globs are touched |
+| `claude-code/CLAUDE.md` | Global (all projects) | Claude Code (deployed to `~/.claude/`) |
+| `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
+| `copilot/copilot-instructions.md` | Global (all projects) | Copilot CLI (deployed to `~/.copilot/`) |
+| `agent-prompts/*.md` | Global (all projects) | Shared fragments, deployed to each tool's `prompts/` dir |
+
+Cross-tool content (communication style, CLI tool preferences, comment policy,
+markdown formatting, worktree operational rules) is single-sourced in
+`agent-prompts/` and deployed to `~/.claude/prompts/`, `~/.codex/prompts/`, and
+`~/.copilot/prompts/` by `bootstrap/symlinks.sh` (whole-directory, so a new
+fragment needs no manifest entry). Claude loads it via native
+`@~/.claude/prompts/...` imports (guaranteed, inlined at session start); Codex
+and Copilot have no import mechanism, so their global files carry a "read these
+at session start" directive (best-effort). For that reason security-critical
+content stays inlined in every instruction file and remains covered by
+`tests/test-consistency.sh`; only preferences and conventions belong in
+`agent-prompts/`.
+
+Two inlined exceptions are load-bearing and deliberately not shared:
+
+- The credential deny lists in Guardrails.
+- The repo-local `core.hooksPath` prohibition in the globally-deployed files.
+  It silently disables gitleaks secret scanning, which is not something to
+  deliver best-effort, so it stays inlined per tool and the test asserts it
+  verbatim in all three global files.
+
+Publication policy is also per-tool -- what an agent may push or open without
+asking differs -- so it stays inlined alongside a pointer to the shared
+fragment.
 
 ## Guardrails
 
@@ -34,54 +103,18 @@ GitHub Codespaces.
 
 - All shell scripts must pass `make lint` (shellcheck) before merging; CI enforces this
 - Run `make test` to execute the full test suite locally (unit + packages + integration)
+- `make test-unit` / `make test-packages` / `make test-integration` run suites individually
 - Run `shellcheck` on any new or modified `.sh` file before committing
 
 ## Preferred CLI Tools
 
-Use these tools when available instead of standard Unix alternatives:
+Single-sourced in [agent-prompts/engineering-conventions.md](agent-prompts/engineering-conventions.md) (rg, sg, fd, difft, sd, bat, scc, yq, and friends), which every deployed tool already loads via its `prompts/` directory.
+Tools without a global config should read that fragment directly.
 
-| Instead of | Use | When |
-|-----------|-----|------|
-| `grep` (pattern search) | `rg` (ripgrep) | Text/regex search across files |
-| `grep` (structural) | `sg` (ast-grep) | Finding code patterns by AST structure |
-| `find` | `fd` | Finding files by name/pattern |
-| `diff` | `difft` (difftastic) | Comparing files (AST-aware, ignores formatting noise) |
-| `sed` | `sd` | Find/replace with PCRE regex |
-| `cat` (highlighted) | `bat` | Viewing files with syntax highlighting |
-| `wc -l` / `cloc` | `scc` | Code statistics (LOC, complexity, languages) |
-| manual YAML editing | `yq` | YAML/TOML/XML queries and edits (preserves comments) |
-| `jq` | `jq` | JSON processing (keep using jq, it's the standard) |
-| `df` | `duf` | Disk free with color-coded bars |
-| `du` | `dust` | Directory disk usage as a visual tree |
-| `ps` | `procs` | Process viewer with color and search |
-| `time` | `hyperfine` | Benchmarking commands with statistical analysis |
+## Command legibility
 
-## Command legibility (permissions, security, observability)
-
-Permission matching and the session/audit log both operate on the literal command
-string.
-Keep that string an honest record of what runs:
-it is both the realtime gate and the after-the-fact audit trail,
-and both go blind to the same thing -- indirection.
-
-- Prefer built-in file-search and edit tools over shelling out when reading,
-  searching, or editing files.
-  They need no permission prompt, produce structured output, and emit a typed log
-  event instead of a raw shell string.
-- Keep commands literal.
-  Do NOT hide a path, filename, or credential behind a variable, `base64`/`xxd`,
-  glob-indirection, `eval`, command substitution `$(...)`, or a pipe into a shell
-  (`... | sh`).
-  These defeat the scan at runtime AND make the log unsearchable and
-  non-reproducible afterward.
-- Complexity is fine; indirection is not.
-  A long but literal pipeline (`git log --format=%an | sort | uniq -c | sort -rn`)
-  is fully analyzable and is a single clean log line -- prefer it over many opaque
-  micro-calls.
-- Only reach for dynamic or indirect syntax when the operation is genuinely
-  impossible otherwise (a real pipeline, a loop over discovered items).
-  When you must, keep any sensitive path or credential literal, and note in one
-  line why the wrapper is necessary.
+Keep Bash command strings literal -- no paths or credentials hidden behind variables, encodings, `eval`, `$(...)`, or pipes into a shell -- because permission matching and the audit log both read only that string.
+The full rules live in each tool's globally deployed instruction file (`claude-code/CLAUDE.md` Tool Use Discipline, `codex/AGENTS.md` Command legibility).
 
 ## Security Model
 
@@ -93,7 +126,7 @@ Defense-in-depth across multiple layers:
 - **SSH commit signing**: auto-detected from SSH agent (prefers ed25519)
 - **Path traversal**: blocked unless explicitly approved
 - **MCP posture**: No MCP servers installed by default. MCP servers run as child processes with full filesystem/network access and bypass credential deny lists. Do not install MCPs without explicit user request. MCP auth tokens belong in tool-specific local config (e.g., settings.local.json), never in dotfiles-tracked files.
-- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `CLAUDE.md` "Deny-list semantics" for the full rationale and what stays in vs out of the Bash deny list.
+- **Tool-specific deny lists**: follow a three-tier model -- file content defended locally, system/network defended by sandbox + `sudo:*`, remote/shared defended by branch protection. See `.claude/rules/deny-list-semantics.md` for the full rationale and what stays in vs out of the Bash deny list.
 
 ## Installation Toggles
 
@@ -106,6 +139,38 @@ These environment variables control what `install.sh` installs:
 | `DOTFILES_NO_GIT_HOOKS=1` | Skip global git hooks |
 | `DOTFILES_NO_STATE_PERSISTENCE=1` | Skip state persistence tier detection |
 | `DOTFILES_NO_SSH_SIGNING=1` | Skip SSH commit signing auto-detection |
+
+## Repository Architecture
+
+This repo deploys a portable CLI environment. Key directories:
+
+| Directory | Purpose |
+|-----------|---------|
+| `bootstrap/` | Environment detection, package installation, symlink management |
+| `shell/` | Bash/zsh configs, aliases, functions, exports, completions |
+| `git/` | Git config, global hooks (conventional commits, gitleaks) |
+| `claude-code/` | Global Claude Code config (deployed to `~/.claude/`) |
+| `codex/` | Global Codex CLI config (deployed to `~/.codex/`) |
+| `config/` | Starship prompt, ripgrep defaults |
+| `tests/` | 7 test suites (unit, integration, security, packages, functions) |
+
+## Devcontainer Behavior
+
+Claude Code and Codex CLI are installed as native binaries everywhere, hosts
+included -- that is not devcontainer-specific.
+
+The installer auto-detects devcontainers and Codespaces. What is specific to
+those environments:
+- AI tool configs are copied fresh from dotfiles on every rebuild
+- Credential state persists via volume mounts or Codespaces storage
+- Shell history, auth tokens, and sessions survive container rebuilds
+- MCP configs (in settings.local.json) persist via the same volume mount as other Claude state
+- Project-level .mcp.json files persist in the project repo naturally
+
+## Worktree system (wt)
+
+Before editing `bin/wt`, `git/hooks/post-checkout`, `shell/completions/wt.bash`, `shell/completions/_wt`, or `tests/test-wt.sh`, read [docs/wt-maintenance.md](docs/wt-maintenance.md) first.
+It carries the invariants and completion-system gotchas that are expensive to rediscover, and changes made without it have broken them before.
 
 ## Working Style
 

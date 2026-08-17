@@ -91,8 +91,11 @@ notify hook path after selecting the variant.
 
 The deployed home-dir instruction files (`~/.claude/CLAUDE.md`,
 `~/.codex/AGENTS.md`, `~/.copilot/copilot-instructions.md`) are global
-configs. They are user-scope, not project-scope. The dotfiles repo ships a
-default set; users can edit the deployed copies for personal preferences.
+configs. They are user-scope, not project-scope. The tracked sources in the
+dotfiles repo are authoritative: customize by editing the source and
+re-running `install.sh` (or `bootstrap/symlinks.sh`), never by editing the
+deployed copy -- `bin/prompt-drift.sh` flags such edits as drift, and a
+devcontainer rebuild silently destroys them.
 
 ## State persistence
 
