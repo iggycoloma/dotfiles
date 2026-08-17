@@ -124,6 +124,9 @@ log_section "Local Bin Symlinks"
 if [[ -d "$DOTFILES_DIR/bin" ]]; then
     check_symlink "$HOME/.local/bin/dotfiles-bin" "$DOTFILES_DIR/bin" "Dotfiles bin directory"
 fi
+if [[ -x "$DOTFILES_DIR/bin/wt" ]]; then
+    check_symlink "$HOME/.local/bin/wt" "$DOTFILES_DIR/bin/wt" "wt on PATH (agents run it without shell functions)"
+fi
 
 log_section "Broken Symlinks Check"
 # Find any broken symlinks in home and .config
