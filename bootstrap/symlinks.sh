@@ -159,6 +159,10 @@ _chmod_hooks() {
     for f in "$dir"/*.sh; do
         [[ -f "$f" ]] && chmod +x "$f"
     done
+    # Without this, a hooks dir with no .sh files makes the final loop
+    # iteration return 1, and set -e kills whichever caller ran this as the
+    # last command of an && list or function body.
+    return 0
 }
 
 # Containers get a copy so a rebuild always refreshes it; hosts get a symlink
@@ -220,7 +224,11 @@ _deploy_configs() {
 
     if is_devcontainer; then
         stomp_configs "$source_dir" "$target_dir" "${files[@]}" ${dirs[@]+"${dirs[@]}"}
-        [[ -d "$target_dir/hooks" ]] && _chmod_hooks "$target_dir/hooks"
+        # Plain `[[ -d ]] && cmd` returns 1 when the dir is absent, and set -e
+        # then kills the whole deploy for tools that ship no hooks dir (copilot).
+        if [[ -d "$target_dir/hooks" ]]; then
+            _chmod_hooks "$target_dir/hooks"
+        fi
     else
         mkdir -p "$target_dir"
         for f in "${files[@]}"; do

@@ -24,6 +24,13 @@ Reach for `sg` over `rg` on structural questions ("all calls to X", "all imports
 
 Use `watchexec` for auto-test/rebuild loops: `watchexec -e py -- pytest tests/`.
 
+## Forge CLIs: subcommands over raw API
+
+Prefer purpose-built `gh` and `glab` subcommands over `gh api` / `glab api`.
+Reach for `api` only when the higher-level CLI does not expose the required operation or data; when that limitation is not obvious, state it briefly.
+Before using `api` for a common operation -- viewing diffs, commits, checks, pipelines, discussions, or metadata -- check the relevant `gh` or `glab` help first.
+Do not preserve an API workaround merely because an older CLI version lacked the capability: current `glab` supports `mr diff` and `mr view --comments`, `--resolved`, and `--unresolved`, so those no longer justify `glab api`.
+
 ## Glob expansion and argument limits
 
 The shell expands a glob before the command runs: `cmd **/*.ts` reaches `cmd` as the literal path of every match, not as a pattern.
@@ -46,16 +53,20 @@ Searching is unrestricted at any scope: `rg` streams results rather than buildin
 
 ## Comments: prefer self-explanatory code
 
-Reach for a comment only when the code cannot explain itself.
+Reach for a comment only when the code cannot explain itself, and match the comment density of neighboring files in the same role -- a file far chattier or barer than its peers is a smell in either direction.
 Before writing or keeping one, try in order:
 
 1. **Fold it into a name.** Rename the symbol, or extract a named helper or constant, until the comment is redundant (`codeOf` -> `mappedErrorCodeFor`).
-2. **Fold it into the type.** A precise type, enum, or narrowed signature often says what the comment was compensating for.
-3. **Delete it** if the name, signature, or body already carries the content.
+2. **Fold it into the type or a validation.** A precise type, enum, or narrowed signature often says what the comment was compensating for; an assertion or schema check states the invariant the comment only warned about.
+3. **Fold it into structure.** Reshape control flow (early return, extracted branch, reordered steps) or pin the behavior with a test, until the comment is redundant.
+4. **Delete it** if the name, signature, or body already carries the content.
 
 Keep a comment only when it explains *why*, not *what*: non-obvious rationale or a rejected alternative; external constraints and gotchas (ordering/lifecycle, load-order, framework semantics not visible locally, concurrency hazards); a workaround and its reason; a pointer to the ticket, spec, or upstream issue that motivates the code.
 
-Drop as noise: restatements of the name, signature, or next line; narration of self-descriptive code; redundant doc blocks on helpers whose name and body are already clear; section-divider banners; commented-out code.
+Drop as noise: restatements of the name, signature, or next line; narration of self-descriptive code or of the edit that produced it; prose gone stale against the code; redundant doc blocks on helpers whose name and body are already clear; section-divider banners; commented-out code.
+
+Before handoff, sweep the comments in your diff: remove any whose meaning is now expressed through names, types, validation, structure, control flow, or tests.
+Tradeoff analysis belongs in the handoff report and review discussion, where the reader can weigh it; encode it as a source comment only when it records a durable, non-obvious constraint that code and tests cannot express.
 
 Scope: applies to code you write and to files you are already substantively editing.
 Do not churn otherwise-untouched files unless asked for a comment pass.

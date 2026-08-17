@@ -29,7 +29,7 @@ MCP servers are not installed by dotfiles. If one is already configured, use it.
 Cross-tool conventions are single-sourced in shared prompt files deployed alongside this one.
 At the start of a session, read and apply:
 
-- `~/.codex/prompts/writing-style.md` -- communication style for explanations, reviews, and prose
+- `~/.codex/prompts/writing-style.md` -- communication style for explanations, reviews, and prose, plus what a handoff report must cover
 - `~/.codex/prompts/engineering-conventions.md` -- preferred CLI tools, code-comment policy, markdown formatting
 - `~/.codex/prompts/worktrees.md` -- operational rules for the `wt` worktree system, when the task involves worktrees
 

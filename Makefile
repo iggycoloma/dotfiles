@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync sync-settings
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git).
 # .claude is excluded because Claude Code nests worktrees at
@@ -8,7 +8,7 @@
 # shell file in the repo to be going unchecked.
 SHELL_SCRIPTS := $(shell find . \( -name '*.sh' -o -name '*.bash' \) -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*') ./bin/wt
 
-lint: lint-settings-sync lint-settings-drift lint-devcontainers
+lint: lint-settings-sync lint-settings-drift lint-prompt-drift lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)
 
 # Regenerate claude-code/settings.container.json from settings.json. The two
@@ -29,6 +29,13 @@ lint-settings-sync:
 # settings.container.json" and "denied it for Read but not Edit" at lint time.
 lint-settings-drift:
 	@bin/settings-drift.sh --quiet
+
+# Deployed instruction files (~/.claude, ~/.codex, ~/.copilot) are outputs of
+# bootstrap/symlinks.sh; tracked sources are authoritative. Symlinked deploys
+# cannot drift, but devcontainer managed copies go stale between a source edit
+# and the next rebuild. Skips pairs not deployed in this environment.
+lint-prompt-drift:
+	@bin/prompt-drift.sh --quiet
 
 test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt
 

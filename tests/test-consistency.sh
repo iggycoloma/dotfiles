@@ -69,6 +69,7 @@ extract_state_links_heal() {
 # ============================================================================
 
 AGENTS_ROOT="$DOTFILES_DIR/AGENTS.md"
+CLAUDE_ROOT="$DOTFILES_DIR/CLAUDE.md"
 CLAUDE_GLOBAL="$DOTFILES_DIR/claude-code/CLAUDE.md"
 CODEX_AGENTS="$DOTFILES_DIR/codex/AGENTS.md"
 COPILOT_GLOBAL="$DOTFILES_DIR/copilot/copilot-instructions.md"
@@ -147,6 +148,85 @@ test_worktree_fragment_single_sourced() {
         else
             test_pass "Operational worktree bullets not duplicated in $basename"
         fi
+    done
+}
+
+# ============================================================================
+# Test Suite: Shared Prompt Fragments
+# ============================================================================
+
+STYLE_FRAGMENT="$DOTFILES_DIR/agent-prompts/writing-style.md"
+ENG_FRAGMENT="$DOTFILES_DIR/agent-prompts/engineering-conventions.md"
+
+# Anchors for the personal-process rules that must live in the shared
+# fragments and only there: the handoff-report contract in writing-style,
+# the pre-handoff comment sweep in engineering-conventions. Repo-scoped
+# instruction files describe the desired artifact, not the author's process,
+# so the same anchors must not appear in them.
+STYLE_ANCHOR='material gaps or risks'
+ENG_ANCHOR='Before handoff, sweep'
+# shellcheck disable=SC2016  # backticks are literal markdown, not a subshell
+FORGE_CLI_ANCHOR='Prefer purpose-built `gh` and `glab` subcommands'
+
+test_shared_fragments_referenced() {
+    local fragment name file basename
+    for fragment in "$STYLE_FRAGMENT" "$ENG_FRAGMENT"; do
+        name="$(basename "$fragment")"
+        if [[ -f "$fragment" ]]; then
+            test_pass "agent-prompts/$name exists"
+        else
+            test_fail "agent-prompts/$name missing"
+            continue
+        fi
+
+        for file in "${GLOBAL_FILES[@]}"; do
+            basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+            if grep -q "prompts/$name" "$file"; then
+                test_pass "$name referenced by $basename"
+            else
+                test_fail "$name not referenced by $basename"
+            fi
+        done
+    done
+}
+
+test_personal_process_rules_in_fragments() {
+    if grep -Fq -e "$STYLE_ANCHOR" "$STYLE_FRAGMENT"; then
+        test_pass "Handoff report contract present in writing-style.md"
+    else
+        test_fail "Handoff report contract missing from writing-style.md"
+    fi
+
+    if grep -Fq -e "$ENG_ANCHOR" "$ENG_FRAGMENT"; then
+        test_pass "Pre-handoff comment sweep present in engineering-conventions.md"
+    else
+        test_fail "Pre-handoff comment sweep missing from engineering-conventions.md"
+    fi
+
+    if grep -Fq -e "$FORGE_CLI_ANCHOR" "$ENG_FRAGMENT"; then
+        test_pass "Forge CLI subcommands-over-api rule present in engineering-conventions.md"
+    else
+        test_fail "Forge CLI subcommands-over-api rule missing from engineering-conventions.md"
+    fi
+}
+
+test_personal_process_rules_not_in_repo_files() {
+    local file basename anchor
+    for file in "$AGENTS_ROOT" "$CLAUDE_ROOT" "$COPILOT_GITHUB"; do
+        basename="$(basename "$(dirname "$file")")/$(basename "$file")"
+        # Guard first: grep on a missing file exits 2, which would make every
+        # absence assertion below pass vacuously.
+        if [[ ! -f "$file" ]]; then
+            test_fail "Repo-scoped instruction file missing: $basename"
+            continue
+        fi
+        for anchor in "$STYLE_ANCHOR" "$ENG_ANCHOR" "$FORGE_CLI_ANCHOR"; do
+            if grep -Fq -e "$anchor" "$file"; then
+                test_fail "Personal process rule duplicated in repo-scoped $basename: $anchor"
+            else
+                test_pass "No personal process rule in repo-scoped $basename: $anchor"
+            fi
+        done
     done
 }
 
@@ -529,6 +609,11 @@ main() {
     test_suite "Worktree Rules"
     test_hooks_path_guard_inlined
     test_worktree_fragment_single_sourced
+
+    test_suite "Shared Prompt Fragments"
+    test_shared_fragments_referenced
+    test_personal_process_rules_in_fragments
+    test_personal_process_rules_not_in_repo_files
 
     test_suite "Credential Directory Deny Lists"
     test_credential_dirs_present

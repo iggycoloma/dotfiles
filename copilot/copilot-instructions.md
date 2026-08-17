@@ -28,7 +28,7 @@ MCP servers are not installed by dotfiles. If one is configured, use it. Do not 
 Cross-tool conventions are single-sourced in shared prompt files deployed alongside this one.
 At the start of a session, read and apply:
 
-- `~/.copilot/prompts/writing-style.md` -- communication style for explanations, reviews, and prose
+- `~/.copilot/prompts/writing-style.md` -- communication style for explanations, reviews, and prose, plus what a handoff report must cover
 - `~/.copilot/prompts/engineering-conventions.md` -- preferred CLI tools, code-comment policy, markdown formatting
 - `~/.copilot/prompts/worktrees.md` -- operational rules for the `wt` worktree system, when the task involves worktrees
 
