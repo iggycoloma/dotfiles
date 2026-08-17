@@ -1390,6 +1390,59 @@ rm -f local/hooks/pre-sync
 cd "$TMP" || exit 1
 
 # ============================================================
+# Test Suite: port lock lifecycle
+# ============================================================
+test_suite "port lock lifecycle"
+
+cd "$TMP/p2" || exit 1
+lockdir="$TMP/p2/state/ports.lock.d"
+
+# A lock whose owner is gone must be reclaimed, not waited out. Otherwise one
+# killed run disables allocation for the project permanently.
+mkdir -p "$lockdir"
+printf '999999\n' > "$lockdir/pid"   # a pid that cannot be running
+out=$("$WT" add afterstale 2>&1)
+assert_equals 0 $? "a stale lock is reclaimed rather than waited out"
+assert_contains "$out" "reclaimed a port lock" "the reclaim is reported"
+assert_contains "$(cat state/ports.tsv)" "afterstale" "allocation proceeds after the reclaim"
+assert_file_not_exists "$lockdir" "the reclaimed lock is not left behind"
+
+# A lock held by a live process is contention, not staleness, and must not be
+# stolen. The shell running this suite is a convenient live pid.
+mkdir -p "$lockdir"
+printf '%s\n' "$$" > "$lockdir/pid"
+assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockdir'; echo \$?")" \
+    "a lock owned by a running process is not stale"
+assert_equals "0" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$TMP/nonexistent-lock'; echo \$?")" \
+    "a lock with no recorded owner is treated as stale"
+
+out=$("$WT" doctor 2>&1)
+assert_contains "$out" "locked by a running process" "doctor distinguishes live contention"
+rm -rf "$lockdir"
+
+# ...and reports the stale case as a problem, since it means a run was killed.
+mkdir -p "$lockdir"
+printf '999999\n' > "$lockdir/pid"
+out=$("$WT" doctor 2>&1)
+assert_not_equals 0 $? "doctor fails on a stale port lock"
+assert_contains "$out" "stale port lock" "doctor names the stale lock"
+rm -rf "$lockdir"
+
+# The lock is released on the way out, including when a later step dies.
+"$WT" add lockcheck >/dev/null 2>&1
+assert_file_not_exists "$lockdir" "a normal run leaves no lock behind"
+
+# The abnormal path is the one that caused the bug: a process that acquires
+# the lock and then exits non-zero must still release it.
+bash -c "source '$WT'; with_ports_lock '$lockdir' >/dev/null 2>&1; exit 1" >/dev/null 2>&1
+assert_file_not_exists "$lockdir" "a run that exits non-zero still releases the lock"
+
+bash -c "source '$WT'; with_ports_lock '$lockdir' >/dev/null 2>&1; kill -TERM \$\$" >/dev/null 2>&1
+assert_file_not_exists "$lockdir" "a run killed with SIGTERM still releases the lock"
+
+cd "$TMP" || exit 1
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
