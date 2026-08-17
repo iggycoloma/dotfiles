@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift sync-settings
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift prompt-stats sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git).
 # .claude is excluded because Claude Code nests worktrees at
@@ -36,6 +36,11 @@ lint-settings-drift:
 # and the next rebuild. Skips pairs not deployed in this environment.
 lint-prompt-drift:
 	@bin/prompt-drift.sh --quiet
+
+# Regenerate docs/prompt-stats.md (token costs and loading graph of the
+# instruction files). Run after editing any prompt source; commit the result.
+prompt-stats:
+	@bin/prompt-stats.sh
 
 test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt
 
