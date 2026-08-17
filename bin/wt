@@ -43,6 +43,24 @@ json_escape() {
     s="${s//$'\n'/\\n}"
     s="${s//$'\r'/\\r}"
     s="${s//$'\t'/\\t}"
+    # Every remaining control byte is illegal raw inside a JSON string and has
+    # no short escape, so it has to go out as \u00XX. A filesystem path may
+    # legally contain one, and paths are the main thing these commands emit.
+    # Guarded by the case: the scan is per character, and almost no string
+    # reaching here has any.
+    case "$s" in
+        *[[:cntrl:]]*)
+            local out="" i c
+            for (( i = 0; i < ${#s}; i++ )); do
+                c="${s:i:1}"
+                case "$c" in
+                    [[:cntrl:]]) printf -v c '\\u%04x' "'$c" ;;
+                esac
+                out+="$c"
+            done
+            s="$out"
+            ;;
+    esac
     printf '%s' "$s"
 }
 
@@ -998,7 +1016,23 @@ cmd_add() {
                 || die "cannot fetch $remote_ref from origin (no such request on $forge?)"
             base="origin/$name"
             is_request=1
-            log "fetched $forge request $req_num as $name"
+
+            # A local pr-N/mr-N left behind by an earlier `remove` without
+            # --branch is checked out in preference to what was just fetched,
+            # which silently produces the revision the request used to be. The
+            # same name may also belong to an unrelated branch someone created
+            # by hand. Both are refused rather than guessed at: updating the
+            # branch could discard commits made on top of it, and using it as
+            # found contradicts the guarantee that this worktree is the
+            # revision under review.
+            if git --git-dir="$WT_GIT_DIR" show-ref --verify --quiet "refs/heads/$name"; then
+                local have want
+                have="$(git --git-dir="$WT_GIT_DIR" rev-parse --short "refs/heads/$name")"
+                want="$(git --git-dir="$WT_GIT_DIR" rev-parse --short "refs/remotes/origin/$name")"
+                [[ "$have" == "$want" ]] || die "local branch '$name' is at $have but $forge request $req_num is now at $want; delete the stale branch first (git --git-dir='$WT_GIT_DIR' branch -D $name, or '$WT_NAME remove $name --branch' while a worktree still uses it)"
+            fi
+
+            log "fetched $forge request $req_num as $name ($(git --git-dir="$WT_GIT_DIR" rev-parse --short "refs/remotes/origin/$name"))"
             ;;
     esac
 

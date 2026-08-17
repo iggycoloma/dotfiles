@@ -1187,6 +1187,15 @@ assert_equals 'a\\b' "$esc_bs" "json_escape doubles a backslash"
 esc_q="$(bash -c "source '$WT'; json_escape 'say \"hi\"'")"
 assert_equals 'say \"hi\"' "$esc_q" "json_escape escapes a double quote"
 
+# The other C0 bytes are equally illegal raw inside a JSON string and have no
+# short escape, so they have to go out as \u00XX. A path may legally hold one.
+esc_ctl="$(bash -c "source '$WT'; json_escape \$'a\x08b'")"
+assert_equals 'a\u0008b' "$esc_ctl" "json_escape encodes a control byte as an escaped code point"
+if command -v jq >/dev/null 2>&1; then
+    printf '{"p":"%s"}' "$esc_ctl" | jq -e . >/dev/null 2>&1
+    assert_equals 0 $? "a control byte survives as parseable JSON"
+fi
+
 if command -v jq >/dev/null 2>&1; then
     # End to end: git permits a double quote in a branch name.
     cd "$TMP/p2" || exit 1
@@ -1324,6 +1333,25 @@ assert_equals 0 $? "a request whose branch exists only as a fork ref still resol
 assert_dir_exists "$TMP/p2/wt/pr-1" "the request worktree is created under a pr-N name"
 assert_equals "$fork_sha" "$(git -C "$TMP/p2/wt/pr-1" rev-parse HEAD 2>/dev/null)" \
     "the worktree is pinned to the request head, not to the default branch"
+
+# Re-adding a request whose head has moved must not silently reuse the branch
+# left behind by an earlier remove: that checks out the revision the request
+# used to be, which is the opposite of the guarantee.
+git -C main commit -q --allow-empty -m "feat: a newer revision under review"
+fork_sha2="$(git -C main rev-parse HEAD)"
+git -C main push -q -f origin "HEAD:refs/pull/1/head"
+git -C main reset --hard -q HEAD~1
+"$WT" remove pr-1 >/dev/null 2>&1   # deliberately without --branch
+out=$(WT_FORGE=github "$WT" add pr:1 2>&1)
+assert_not_equals 0 $? "re-adding a moved request refuses the stale local branch"
+assert_contains "$out" "is now at" "the refusal names both revisions"
+assert_contains "$out" "branch -D pr-1" "the refusal prints the command that clears it"
+
+# Once the stale branch is gone the new revision checks out.
+git --git-dir="$TMP/p2/repo.git" branch -D pr-1 >/dev/null 2>&1
+WT_FORGE=github "$WT" add pr:1 >/dev/null 2>&1
+assert_equals "$fork_sha2" "$(git -C "$TMP/p2/wt/pr-1" rev-parse HEAD 2>/dev/null)" \
+    "the recreated worktree is at the updated request head"
 
 # [base] cannot mean anything for a request: silently honouring it would
 # produce a tree that is not the revision under review.
