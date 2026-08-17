@@ -940,32 +940,23 @@ detect_forge() {
     esac
 }
 
-# Prints the source branch of the numbered request. Both CLIs are run from the
-# stable checkout so they can infer the repository from its origin -- an
-# orchestration root is not itself a repository, so cwd cannot be trusted.
-resolve_forge_ref() {
-    local ref="$1"
-    local num="${ref#*:}" forge stable branch=""
-    case "$num" in ''|*[!0-9]*) die "not a request number: $ref" ;; esac
-    forge="$(detect_forge)"
-    stable="$(default_worktree)"
-    case "$forge" in
-        gitlab)
-            command -v glab >/dev/null 2>&1 || die "cannot resolve $ref: glab not installed"
-            command -v jq >/dev/null 2>&1 || die "cannot resolve $ref: jq is required to read glab's JSON output"
-            # The fallback is assigned outside the substitution rather than as
-            # a trailing `|| true` inside it: there it would also swallow a
-            # failed cd, which is a different failure with the same symptom.
-            branch="$(cd "$stable" && glab mr view "$num" -F json 2>/dev/null | jq -r '.source_branch // empty' 2>/dev/null)" || branch=""
-            ;;
-        github)
-            command -v gh >/dev/null 2>&1 || die "cannot resolve $ref: gh not installed"
-            branch="$(cd "$stable" && gh pr view "$num" --json headRefName -q '.headRefName' 2>/dev/null)" || branch=""
-            ;;
-    esac
-    [[ -n "$branch" ]] || die "cannot resolve $ref on $forge (no such request, or not authenticated)"
-    log "resolved $ref to branch '$branch' via $forge"
-    printf '%s\n' "$branch"
+# Resolving a request through gh or glab was removed rather than fixed. Those
+# CLIs return the contributor's branch name, which does not exist on origin
+# when the request came from a fork -- the common case for an outside
+# contribution. The forge's own request ref does exist there, so cmd_add
+# fetches that directly and needs neither CLI, nor jq, nor authentication for
+# a public repository.
+
+# Undo a half-made worktree. The branch is deleted only when this invocation
+# created it: `add` also attaches to a branch that already exists, and deleting
+# that one would destroy commits the worktree never owned -- a failed cache
+# path is not a reason to lose unpushed work.
+rollback_add() {
+    local dest="$1" branch="$2" created="$3"
+    git --git-dir="$WT_GIT_DIR" worktree remove --force "$dest" >/dev/null 2>&1 || true
+    if [[ "$created" -eq 1 ]]; then
+        git --git-dir="$WT_GIT_DIR" branch -D "$branch" >/dev/null 2>&1 || true
+    fi
 }
 
 cmd_add() {
@@ -978,25 +969,40 @@ cmd_add() {
     done
     set -- ${add_args[@]+"${add_args[@]}"}
     check_args add 1 2 "$@"
-    local name="$1" base="${2:-}"
+    local name="$1" base="${2:-}" is_request=0
     detect_mode
     [[ "$WT_MODE" != "orchestration" || "$name" != "main" ]] \
         || die "'main' is reserved for the stable checkout (use '$WT_NAME sync main' to provision it)"
 
     case "$name" in
         pr:*|mr:*)
-            name="$(resolve_forge_ref "$name")"
-            git --git-dir="$WT_GIT_DIR" fetch --quiet origin \
-                "+refs/heads/$name:refs/remotes/origin/$name" 2>/dev/null \
-                || log "warning: could not fetch origin/$name; using last-known state"
-            # A request's worktree is only meaningful based on that request's
-            # head; the default branch that [base] would otherwise supply is
-            # never the right starting point here.
-            [[ -n "$base" ]] || base="origin/$name"
+            local req_num="${name#*:}" forge remote_ref
+            case "$req_num" in ''|*[!0-9]*) die "not a request number: $name" ;; esac
+            # [base] cannot mean anything here: the worktree is defined by the
+            # request head, so accepting a base would silently produce a tree
+            # that is not the revision under review.
+            [[ -z "$base" ]] \
+                || die "[base] cannot be combined with $name: a request worktree is always based on the request head"
+            forge="$(detect_forge)"
+            case "$forge" in
+                gitlab) remote_ref="refs/merge-requests/$req_num/head"; name="mr-$req_num" ;;
+                *)      remote_ref="refs/pull/$req_num/head";           name="pr-$req_num" ;;
+            esac
+            # Fetched from the forge's own request namespace rather than the
+            # contributor's branch. A request opened from a fork has no
+            # refs/heads/<branch> on origin at all, while the request ref
+            # always exists on the upstream repository, is immutable, and
+            # names the exact revision under review. The local branch is
+            # pr-N/mr-N so it cannot collide with a contributor's branch name.
+            git --git-dir="$WT_GIT_DIR" fetch --quiet origin "+$remote_ref:refs/remotes/origin/$name" \
+                || die "cannot fetch $remote_ref from origin (no such request on $forge?)"
+            base="origin/$name"
+            is_request=1
+            log "fetched $forge request $req_num as $name"
             ;;
     esac
 
-    local dest branch hook_status=0
+    local dest branch hook_status=0 created_branch=0
     # The name doubles as the branch when it is a legal ref (slashes fine,
     # e.g. user/CLK-943); otherwise the branch falls back to the slug.
     if git check-ref-format --branch "$name" >/dev/null 2>&1; then
@@ -1019,26 +1025,29 @@ cmd_add() {
     else
         # New branches start at the true remote head, not the head as of
         # the last fetch. Best-effort: an offline add still works.
-        if git --git-dir="$WT_GIT_DIR" config remote.origin.url >/dev/null 2>&1; then
+        #
+        # Skipped for a request: its ref was already fetched above and lives
+        # outside refs/heads/*, so --prune here would delete it as stale
+        # against the configured refspec before worktree add can use it.
+        if [[ "$is_request" -eq 0 ]] && git --git-dir="$WT_GIT_DIR" config remote.origin.url >/dev/null 2>&1; then
             git --git-dir="$WT_GIT_DIR" fetch --prune --quiet origin 2>/dev/null \
                 || log "warning: fetch failed; basing '$branch' on last-known origin state"
         fi
         [[ -n "$base" ]] || base="$(default_base "$WT_GIT_DIR")"
         # shellcheck disable=SC2086  # WT_REL_FLAG is deliberately word-split
         git --git-dir="$WT_GIT_DIR" worktree add $WT_REL_FLAG -b "$branch" "$dest" "$base" >&2
+        created_branch=1
     fi
 
     if [[ "$WT_MODE" == "orchestration" ]]; then
         if ! provision_local_files "$WT_ROOT" "$dest"; then
             # Roll back: a half-provisioned worktree must not survive a
             # failed security validation.
-            git --git-dir="$WT_GIT_DIR" worktree remove --force "$dest" >/dev/null 2>&1 || true
-            git --git-dir="$WT_GIT_DIR" branch -D "$branch" >/dev/null 2>&1 || true
+            rollback_add "$dest" "$branch" "$created_branch"
             die "provisioning failed; worktree rolled back"
         fi
         if ! share_build_caches "$WT_ROOT" "$dest" "$dest/.dev/worktree.conf"; then
-            git --git-dir="$WT_GIT_DIR" worktree remove --force "$dest" >/dev/null 2>&1 || true
-            git --git-dir="$WT_GIT_DIR" branch -D "$branch" >/dev/null 2>&1 || true
+            rollback_add "$dest" "$branch" "$created_branch"
             die "cache sharing failed; worktree rolled back"
         fi
         write_worktree_env "$WT_ROOT" "$dest" "$(basename "$dest")"
@@ -1225,6 +1234,15 @@ cmd_sync() {
         local wt_path failures=0
         while IFS= read -r wt_path; do
             [[ -d "$wt_path" ]] || continue
+            # The same gate the single-worktree path runs. Skipping it here
+            # meant a project could reject an unsafe sync for `sync <name>`
+            # and still have it happen under `sync --all`. Per-worktree, so
+            # one refusal isolates that tree instead of aborting the sweep.
+            if ! run_hook pre-sync "$WT_ROOT" "$wt_path"; then
+                log "WARNING: pre-sync hook failed for $wt_path; nothing copied there"
+                failures=$((failures + 1))
+                continue
+            fi
             if provision_local_files "$WT_ROOT" "$wt_path"; then
                 log "synced local/ into $wt_path"
                 write_worktree_env "$WT_ROOT" "$wt_path" "$(basename "$wt_path")"

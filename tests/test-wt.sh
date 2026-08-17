@@ -1285,6 +1285,63 @@ assert_contains "$out" "usage:" "prune's arity error shows the synopsis"
 cd "$TMP" || exit 1
 
 # ============================================================
+# Test Suite: request refs, rollback safety, pre-sync under --all
+# ============================================================
+test_suite "request refs, rollback safety, pre-sync under --all"
+
+cd "$TMP/p2" || exit 1
+
+# A request opened from a fork has no refs/heads/<branch> on origin at all,
+# only the forge's request ref. Simulated exactly: the commit is published as
+# refs/pull/1/head and under no branch name anywhere.
+git -C main commit -q --allow-empty -m "feat: the revision under review"
+fork_sha="$(git -C main rev-parse HEAD)"
+git -C main push -q origin "HEAD:refs/pull/1/head"
+git -C main reset --hard -q HEAD~1
+
+WT_FORGE=github "$WT" add pr:1 >/dev/null 2>&1
+assert_equals 0 $? "a request whose branch exists only as a fork ref still resolves"
+assert_dir_exists "$TMP/p2/wt/pr-1" "the request worktree is created under a pr-N name"
+assert_equals "$fork_sha" "$(git -C "$TMP/p2/wt/pr-1" rev-parse HEAD 2>/dev/null)" \
+    "the worktree is pinned to the request head, not to the default branch"
+
+# [base] cannot mean anything for a request: silently honouring it would
+# produce a tree that is not the revision under review.
+out=$(WT_FORGE=github "$WT" add pr:1 main 2>&1)
+assert_not_equals 0 $? "a request plus an explicit base is refused"
+assert_contains "$out" "cannot be combined" "the refusal explains why base is meaningless here"
+
+# Rollback must not delete a branch this invocation did not create. Otherwise
+# a bad provisioning path destroys unpushed commits on an existing branch.
+git --git-dir="$TMP/p2/repo.git" branch keepme main 2>/dev/null
+printf 'x\n' > local/shared/notignored.txt
+"$WT" add keepme >/dev/null 2>&1
+assert_not_equals 0 $? "add fails when a provisioned file is not gitignored"
+assert_file_not_exists "$TMP/p2/wt/keepme" "the half-made worktree is rolled back"
+git --git-dir="$TMP/p2/repo.git" show-ref --verify --quiet refs/heads/keepme
+assert_equals 0 $? "rollback preserves a branch that already existed"
+
+# The mirror image: a branch this invocation did create is still cleaned up,
+# so the guard did not simply disable rollback.
+"$WT" add brandnew >/dev/null 2>&1
+git --git-dir="$TMP/p2/repo.git" show-ref --verify --quiet refs/heads/brandnew
+assert_not_equals 0 $? "rollback still deletes a branch it created itself"
+rm -f local/shared/notignored.txt
+
+# pre-sync gates `sync <name>`; it must gate `sync --all` too, or the more
+# expansive command is the unguarded one.
+mkdir -p local/hooks
+printf '#!/usr/bin/env bash\nexit 1\n' > local/hooks/pre-sync
+chmod +x local/hooks/pre-sync
+out=$("$WT" sync --all 2>&1)
+assert_not_equals 0 $? "a failing pre-sync fails sync --all"
+assert_contains "$out" "pre-sync hook failed" "sync --all reports which gate refused"
+assert_contains "$out" "failed validation" "sync --all still reports an aggregate count"
+rm -f local/hooks/pre-sync
+
+cd "$TMP" || exit 1
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
