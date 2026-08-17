@@ -1253,6 +1253,38 @@ assert_equals "1" \
     "block_free rejects a block whose middle port is busy"
 
 # ============================================================
+# Test Suite: prune
+# ============================================================
+test_suite "prune"
+
+cd "$TMP/p2" || exit 1
+"$WT" add prunable >/dev/null 2>&1
+assert_contains "$("$WT" list --names 2>/dev/null)" "prunable" "the worktree is registered before pruning"
+
+# Deleting the directory outside git leaves the administrative entry behind,
+# which is the only thing prune exists to clear.
+rm -rf "$TMP/p2/wt/prunable"
+assert_contains "$("$WT" list --names 2>/dev/null)" "prunable" \
+    "a directory deleted outside git stays registered"
+
+"$WT" prune >/dev/null 2>&1
+assert_equals 0 $? "prune succeeds"
+assert_not_contains "$("$WT" list --names 2>/dev/null)" "prunable" \
+    "prune clears the stale administrative entry"
+
+# prune is git's cleanup, not wt's: it knows nothing about the port registry,
+# so a worktree deleted outside `remove` keeps its block. Pinned so the day
+# that changes is a deliberate decision rather than a surprise.
+assert_contains "$(cat "$TMP/p2/state/ports.tsv")" "prunable" \
+    "prune leaves the port block allocated, because only remove releases it"
+
+out=$("$WT" prune extra 2>&1)
+assert_not_equals 0 $? "prune rejects an argument"
+assert_contains "$out" "usage:" "prune's arity error shows the synopsis"
+
+cd "$TMP" || exit 1
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
