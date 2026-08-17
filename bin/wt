@@ -1580,6 +1580,25 @@ cmd_doctor() {
     if [[ "$WT_MODE" == "orchestration" ]]; then
         if [[ -d "$WT_ROOT/local" ]]; then d_ok "local/ present"; else d_note "no local/ directory"; fi
         if [[ -d "$WT_ROOT/state" ]]; then d_ok "state/ present"; else d_note "no state/ directory"; fi
+
+        # Only `remove` releases a port block, so a worktree deleted any other
+        # way -- rm -rf, a `git worktree remove`, a prune after either --
+        # keeps its reservation forever and the pool erodes silently. Doctor
+        # is where that surfaces, because nothing else ever reads the registry
+        # against the worktrees that actually exist.
+        local registry="$WT_ROOT/state/ports.tsv" live_slugs reg_slug orphans=0
+        if [[ -f "$registry" ]]; then
+            live_slugs="$(while IFS= read -r wt_path; do printf '%s\n' "${wt_path##*/}"; done < <(registered_worktrees))"
+            while IFS=$'\t' read -r reg_slug _; do
+                [[ -n "$reg_slug" ]] || continue
+                if ! printf '%s\n' "$live_slugs" | grep -qxF "$reg_slug"; then
+                    d_warn "orphaned port reservation: $reg_slug has no worktree; fix: remove its line from $registry (only '$WT_NAME remove' releases a block)"
+                    orphans=$((orphans + 1))
+                    failures=$((failures + 1))
+                fi
+            done < "$registry"
+            [[ "$orphans" -gt 0 ]] || d_ok "port registry: no orphaned reservations"
+        fi
     fi
 
     if (( DOCTOR_JSON )); then

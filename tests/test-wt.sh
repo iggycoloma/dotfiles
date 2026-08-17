@@ -1278,6 +1278,26 @@ assert_not_contains "$("$WT" list --names 2>/dev/null)" "prunable" \
 assert_contains "$(cat "$TMP/p2/state/ports.tsv")" "prunable" \
     "prune leaves the port block allocated, because only remove releases it"
 
+# ...which is what doctor is for: nothing else compares the registry against
+# the worktrees that actually exist, so the pool would erode silently.
+out=$("$WT" doctor 2>&1)
+assert_not_equals 0 $? "doctor fails while a port reservation is orphaned"
+assert_contains "$out" "orphaned port reservation: prunable" \
+    "doctor names the orphaned reservation"
+assert_contains "$out" "ports.tsv" "doctor points at the registry to fix"
+
+if command -v jq >/dev/null 2>&1; then
+    assert_contains "$("$WT" doctor --json 2>/dev/null | jq -r '.checks[].detail')" \
+        "orphaned port reservation" "doctor --json carries the orphan finding too"
+fi
+
+# Releasing it by hand clears the finding, which proves the check tracks the
+# registry rather than reporting unconditionally.
+grep -v '^prunable' "$TMP/p2/state/ports.tsv" > "$TMP/p2/state/ports.tsv.tmp"
+mv "$TMP/p2/state/ports.tsv.tmp" "$TMP/p2/state/ports.tsv"
+assert_contains "$("$WT" doctor 2>&1)" "no orphaned reservations" \
+    "doctor reports a clean registry once the block is released"
+
 out=$("$WT" prune extra 2>&1)
 assert_not_equals 0 $? "prune rejects an argument"
 assert_contains "$out" "usage:" "prune's arity error shows the synopsis"

@@ -18,7 +18,7 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 | `AGENTS.md` | every session in this repo, all tools | triggers `docs/wt-maintenance.md` before editing wt implementation files | 179 | 3015 | 3015 | 36% |
 | `CLAUDE.md` | every Claude session in this repo | imports `@AGENTS.md` at launch | 8 | 127 | 3142 | -- |
 | `.claude/rules/deny-list-semantics.md` | Claude touches `claude-code/settings*.json` or `claude-code/commands/**` | nothing | 64 | 2044 | 2044 | -- |
-| `docs/wt-maintenance.md` | explicit trigger in AGENTS.md before wt edits | nothing | 25 | 2293 | 2293 | -- |
+| `docs/wt-maintenance.md` | explicit trigger in AGENTS.md before wt edits | nothing | 25 | 2360 | 2360 | -- |
 | `.github/copilot-instructions.md` | every Copilot session in this repo | nothing | 43 | 543 | 543 | -- |
 
 ## Always-loaded totals per harness (a session in this repo)
@@ -29,7 +29,7 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 | Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8544 |
 | Copilot | global instructions + session-start fragments + repo instructions | 5495 |
 
-Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (2293 tokens, explicit trigger), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
+Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (2360 tokens, explicit trigger), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
 
 ## Reading the numbers
 
