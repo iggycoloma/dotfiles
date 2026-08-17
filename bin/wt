@@ -953,11 +953,14 @@ resolve_forge_ref() {
         gitlab)
             command -v glab >/dev/null 2>&1 || die "cannot resolve $ref: glab not installed"
             command -v jq >/dev/null 2>&1 || die "cannot resolve $ref: jq is required to read glab's JSON output"
-            branch="$(cd "$stable" && glab mr view "$num" -F json 2>/dev/null | jq -r '.source_branch // empty' 2>/dev/null || true)"
+            # The fallback is assigned outside the substitution rather than as
+            # a trailing `|| true` inside it: there it would also swallow a
+            # failed cd, which is a different failure with the same symptom.
+            branch="$(cd "$stable" && glab mr view "$num" -F json 2>/dev/null | jq -r '.source_branch // empty' 2>/dev/null)" || branch=""
             ;;
         github)
             command -v gh >/dev/null 2>&1 || die "cannot resolve $ref: gh not installed"
-            branch="$(cd "$stable" && gh pr view "$num" --json headRefName -q '.headRefName' 2>/dev/null || true)"
+            branch="$(cd "$stable" && gh pr view "$num" --json headRefName -q '.headRefName' 2>/dev/null)" || branch=""
             ;;
     esac
     [[ -n "$branch" ]] || die "cannot resolve $ref on $forge (no such request, or not authenticated)"
