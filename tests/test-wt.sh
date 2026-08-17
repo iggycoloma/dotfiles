@@ -1105,6 +1105,14 @@ assert_contains "$out" "refusing to share non-ignored cache path" \
     "a non-ignored cache path is refused"
 assert_file_not_exists "$TMP/p2/wt/cache-bad" "a refused cache path rolls the worktree back"
 
+# Restore the conf: it is tracked, so leaving it pointing at a non-ignored
+# path would make every later `add` in this fixture fail the same way.
+printf 'CACHE_PATHS=node_modules\nPORT_BLOCK_SIZE=4\n' > main/.dev/worktree.conf
+rm -rf main/notignored
+git -C main add -A >/dev/null 2>&1
+git -C main commit -q -m "chore: restore cache conf" >/dev/null 2>&1
+git -C main push -q origin HEAD >/dev/null 2>&1
+
 # pre-* hooks gate the operation; post-* hooks report failure without
 # destroying the worktree.
 mkdir -p local/hooks
@@ -1120,6 +1128,49 @@ assert_contains "$("$WT" add pr:abc 2>&1)" "not a request number" \
     "a non-numeric request is rejected before any forge call"
 assert_contains "$(WT_FORGE=bitbucket "$WT" add pr:1 2>&1)" "WT_FORGE must be" \
     "an unknown WT_FORGE is rejected"
+
+# ============================================================
+# Test Suite: post-pull, post-remove, async hooks
+# ============================================================
+test_suite "post-pull, post-remove, async hooks"
+
+printf '#!/usr/bin/env bash\necho pulled >> "%s/state/pulllog"\n' "$TMP/p2" > local/hooks/post-pull
+chmod +x local/hooks/post-pull
+"$WT" pull main >/dev/null 2>&1
+assert_contains "$(cat state/pulllog 2>/dev/null)" "pulled" "post-pull runs after a fast-forward"
+rm -f local/hooks/post-pull
+
+# The async form detaches and logs. A blocking hook writes to the caller's
+# stderr and never creates a log file, so the file's existence is what proves
+# the async path was taken.
+printf '#!/usr/bin/env bash\nsleep 1\necho async-done\n' > local/hooks/post-add.async
+chmod +x local/hooks/post-add.async
+"$WT" add asyncwt >/dev/null 2>&1
+assert_equals 0 $? "an async hook does not fail the command"
+logf="$TMP/p2/state/hooks/asyncwt-post-add.log"
+tries=0
+while [[ ! -s "$logf" && $tries -lt 60 ]]; do sleep 0.2; tries=$((tries + 1)); done
+assert_contains "$(cat "$logf" 2>/dev/null)" "async-done" \
+    "the async hook's output is captured under state/hooks"
+rm -f local/hooks/post-add.async
+
+printf '#!/usr/bin/env bash\nexit 0\n' > local/hooks/pre-add.async
+chmod +x local/hooks/pre-add.async
+assert_contains "$("$WT" add asyncpre 2>&1)" "pre-* hooks cannot run asynchronously" \
+    "an async pre-hook is refused, because a gate that does not block is not a gate"
+rm -f local/hooks/pre-add.async
+
+# post-remove fires from the root, after teardown, with the worktree gone.
+# shellcheck disable=SC2016  # $1 and $(basename) are for the hook script, not this shell
+printf '#!/usr/bin/env bash\nprintf "removed:%%s\\n" "$(basename "$1")" >> "%s/state/removelog"\n' \
+    "$TMP/p2" > local/hooks/post-remove
+chmod +x local/hooks/post-remove
+"$WT" remove feat >/dev/null 2>&1
+assert_equals 0 $? "remove succeeds with a post-remove hook"
+assert_contains "$(cat state/removelog 2>/dev/null)" "removed:feat" \
+    "post-remove runs after the worktree is gone"
+assert_file_not_exists "$TMP/p2/wt/feat" "post-remove does not resurrect the worktree"
+rm -f local/hooks/post-remove
 
 cd "$TMP" || exit 1
 

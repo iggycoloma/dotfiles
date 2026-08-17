@@ -518,16 +518,51 @@ share_build_caches() {
 # goes on to build against a half-configured tree.
 run_hook() {
     local name="$1" root="$2" worktree="$3"
-    local hook="$root/local/hooks/$name" cwd
+    local hook="$root/local/hooks/$name"
+    local async_hook="$hook.async" cwd logdir logfile
+
+    # post-remove joins the pre-* hooks in running from the root: by the time
+    # it fires its worktree is gone, so there is nothing to cd into.
+    case "$name" in
+        pre-*|post-remove) cwd="$root" ;;
+        *)                 cwd="$worktree" ;;
+    esac
+
+    # <stage>.async detaches the hook and logs it, for the slow setup work
+    # (dependency installs, image pulls) whose latency is the whole reason to
+    # want a background stage. It is a separate file from the blocking hook so
+    # a project can have both: the part that must succeed before the command
+    # returns, and the part that only has to finish eventually.
+    if [[ -e "$async_hook" ]]; then
+        case "$name" in
+            pre-*)
+                # A gate that does not block is not a gate.
+                log "warning: ignoring $(basename "$async_hook") -- pre-* hooks cannot run asynchronously"
+                ;;
+            *)
+                if [[ -x "$async_hook" ]]; then
+                    logdir="$root/state/hooks"
+                    mkdir -p "$logdir"
+                    logfile="$logdir/$(basename "$worktree")-$name.log"
+                    log "running $name.async in background (log: $logfile)"
+                    ( cd "$cwd" && "$async_hook" "$worktree" ) >"$logfile" 2>&1 &
+                    # Reparented to init when wt exits; nothing here ever waits
+                    # on it, so its status is only ever readable in the log.
+                    disown 2>/dev/null || true
+                fi
+                ;;
+        esac
+    fi
+
     [[ -x "$hook" ]] || return 0
-    case "$name" in pre-*) cwd="$root" ;; *) cwd="$worktree" ;; esac
     log "running $name hook: $hook"
     if (cd "$cwd" && "$hook" "$worktree"); then
         return 0
     fi
     case "$name" in
-        pre-*) log "$name hook failed" ;;
-        *)     log "$name hook failed; worktree kept (fix and re-run: $hook $worktree)" ;;
+        pre-*)       log "$name hook failed" ;;
+        post-remove) log "$name hook failed; the worktree was still removed" ;;
+        *)           log "$name hook failed; worktree kept (fix and re-run: $hook $worktree)" ;;
     esac
     return 1
 }
@@ -1105,6 +1140,13 @@ cmd_pull() {
     git -C "$dest" merge --ff-only "origin/$branch" >&2 \
         || die "cannot fast-forward: $dest has commits not on origin/$branch"
     log "pulled $dest ($branch -> origin/$branch)"
+    # New commits can invalidate installed dependencies and generated files,
+    # so this is the natural place to reinstall or regenerate them.
+    local hook_status=0
+    if [[ "$WT_MODE" == "orchestration" ]]; then
+        run_hook post-pull "$WT_ROOT" "$dest" || hook_status=1
+    fi
+    return "$hook_status"
 }
 
 cmd_git() {
@@ -1245,8 +1287,16 @@ cmd_remove() {
         git --git-dir="$WT_GIT_DIR" branch -D "$branch" >&2
     fi
     git --git-dir="$WT_GIT_DIR" worktree prune
-    [[ "$WT_MODE" == "orchestration" ]] && release_port "$WT_ROOT" "$slug"
+    local hook_status=0
+    if [[ "$WT_MODE" == "orchestration" ]]; then
+        release_port "$WT_ROOT" "$slug"
+        # Runs after the port is released and the containers are gone, which
+        # is the only point where the per-worktree database, volumes, and any
+        # external registration can actually be cleaned up.
+        run_hook post-remove "$WT_ROOT" "$dest" || hook_status=1
+    fi
     log "removed $dest"
+    return "$hook_status"
 }
 
 cmd_prune() {
