@@ -474,6 +474,31 @@ test_toggle_default_installs_all() {
     teardown_test_env
 }
 
+# Regression: wt lived only in dotfiles-bin/, which PATH does not recurse into,
+# so it resolved through the shell function alone. Subprocesses do not inherit
+# functions, so agents following agent-prompts/worktrees.md got command-not-found.
+test_wt_resolves_on_path_without_shell_functions() {
+    _setup_toggle_env
+    mkdir -p "$TEST_TEMP_DIR/dotfiles/bin"
+    echo '#!/bin/sh' > "$TEST_TEMP_DIR/dotfiles/bin/wt"
+    chmod +x "$TEST_TEMP_DIR/dotfiles/bin/wt"
+
+    create_symlinks &>/dev/null
+
+    assert_symlink "$TEST_TEMP_DIR/home/.local/bin/wt" "$TEST_TEMP_DIR/dotfiles/bin/wt" \
+        "wt should be linked directly into ~/.local/bin, not only dotfiles-bin/"
+
+    # The property that actually broke: resolvable with no shell init at all.
+    if env "PATH=$TEST_TEMP_DIR/home/.local/bin" \
+        /bin/bash --noprofile --norc -c 'command -v wt' >/dev/null 2>&1; then
+        test_pass "wt resolves in a shell with no functions sourced"
+    else
+        test_fail "wt should resolve in a shell with no functions sourced"
+    fi
+
+    teardown_test_env
+}
+
 test_default_installs_shared_agent_hooks() {
     _setup_toggle_env
     unset DOTFILES_NO_AI_TOOLS 2>/dev/null || true
@@ -806,6 +831,7 @@ main() {
     test_toggle_no_ai_tools_skips_codex_config
     test_toggle_no_git_hooks_skips_hooks
     test_toggle_default_installs_all
+    test_wt_resolves_on_path_without_shell_functions
     test_default_installs_shared_agent_hooks
     test_codex_config_is_managed_copy
     test_codex_container_config_overwrites_persisted_host_variant
