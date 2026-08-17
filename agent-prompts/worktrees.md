@@ -8,6 +8,8 @@ Publication policy is per-tool, because what an agent may push or open without a
 
 - One agent per worktree, never two agents editing one checkout.
 - Create with `wt add <name>` (prints the path); tear down with `wt remove <name>` -- it kills the worktree's containers, releases its ports, and refuses dirty trees. Never `rm -rf` a worktree.
+- A nonzero exit from `add` does not mean nothing was created: a failing `post-add` hook keeps the worktree and reports the failure, so read the printed path and fix forward rather than retrying into `already exists`.
+- The command surface documents itself -- `wt --help` and `wt <command> --help` are generated from one table, so read them rather than working from memory. `add`, `list`, `doctor` and `version` take `--json` when you want structured output instead of log lines.
 - Layouts are auto-detected: an orchestration dir (bare `repo.git` + `local/` + `state/` + `wt/`) provisions local dev files and `.env.worktree`; a plain clone gets a sibling `<repo>-worktrees/` tree.
 - Run project builds and tests in the project's dev container -- `wt container exec <name> -- <command>` from the host -- and keep the host toolchain-free. When the project provides `./dev verify`, it is the pre-handoff gate.
 - Reach for a worktree for any task expected to produce commits; quick reads and answers need none. One task, one worktree, one branch -- never switch branches inside a worktree, and never touch another worktree's files.

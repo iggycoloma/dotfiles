@@ -9,12 +9,12 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | File | Loaded when | Loads / triggers | Lines | ~Tokens (excl) | ~Tokens (incl) | vs Codex 32 KiB |
 |------|-------------|------------------|-------|----------------|----------------|-----------------|
-| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports all 3 `agent-prompts/` fragments at launch | 99 | 2016 | 5985 | -- |
-| `codex/AGENTS.md` | every Codex session, all projects (deployed to ~/.codex) | directs a session-start read of the fragments (worktrees.md only for worktree tasks) | 78 | 1440 | 5409 | -- |
-| `copilot/copilot-instructions.md` | every Copilot session, all projects (deployed to ~/.copilot) | same session-start directive as Codex | 47 | 862 | 4832 | -- |
+| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports all 3 `agent-prompts/` fragments at launch | 99 | 2016 | 6105 | -- |
+| `codex/AGENTS.md` | every Codex session, all projects (deployed to ~/.codex) | directs a session-start read of the fragments (worktrees.md only for worktree tasks) | 78 | 1440 | 5529 | -- |
+| `copilot/copilot-instructions.md` | every Copilot session, all projects (deployed to ~/.copilot) | same session-start directive as Codex | 47 | 862 | 4952 | -- |
 | `agent-prompts/writing-style.md` | via each global file above | nothing | 74 | 1516 | 1516 | -- |
 | `agent-prompts/engineering-conventions.md` | via each global file above | nothing | 87 | 1883 | 1883 | -- |
-| `agent-prompts/worktrees.md` | Claude: always (import); Codex/Copilot: worktree tasks | nothing | 16 | 569 | 569 | -- |
+| `agent-prompts/worktrees.md` | Claude: always (import); Codex/Copilot: worktree tasks | nothing | 18 | 689 | 689 | -- |
 | `AGENTS.md` | every session in this repo, all tools | triggers `docs/wt-maintenance.md` before editing wt implementation files | 179 | 3015 | 3015 | 36% |
 | `CLAUDE.md` | every Claude session in this repo | imports `@AGENTS.md` at launch | 8 | 127 | 3142 | -- |
 | `.claude/rules/deny-list-semantics.md` | Claude touches `claude-code/settings*.json` or `claude-code/commands/**` | nothing | 64 | 2044 | 2044 | -- |
@@ -25,9 +25,9 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | Harness | Composition | ~Tokens |
 |---------|-------------|---------|
-| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 9127 |
-| Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8424 |
-| Copilot | global instructions + session-start fragments + repo instructions | 5375 |
+| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 9247 |
+| Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8544 |
+| Copilot | global instructions + session-start fragments + repo instructions | 5495 |
 
 Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (1977 tokens, explicit trigger), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
 

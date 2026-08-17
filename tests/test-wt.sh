@@ -1175,6 +1175,84 @@ rm -f local/hooks/post-remove
 cd "$TMP" || exit 1
 
 # ============================================================
+# Test Suite: escaping, port probing, symlink resolution
+# ============================================================
+test_suite "escaping, port probing, symlink resolution"
+
+# A path or a branch name may legally contain either of these, and an
+# unescaped one terminates the JSON string early -- every --json consumer
+# then sees malformed output rather than an error.
+esc_bs="$(bash -c "source '$WT'; json_escape 'a\\b'")"
+assert_equals 'a\\b' "$esc_bs" "json_escape doubles a backslash"
+esc_q="$(bash -c "source '$WT'; json_escape 'say \"hi\"'")"
+assert_equals 'say \"hi\"' "$esc_q" "json_escape escapes a double quote"
+
+if command -v jq >/dev/null 2>&1; then
+    # End to end: git permits a double quote in a branch name.
+    cd "$TMP/p2" || exit 1
+    "$WT" add 'quote"branch' >/dev/null 2>&1
+    "$WT" list --json 2>/dev/null | jq -e . >/dev/null 2>&1
+    assert_equals 0 $? "list --json stays parseable when a branch name contains a quote"
+
+    # The deployed executable is a symlink, so the resolved path is the case
+    # that matters and the one version must report.
+    ln -sf "$WT" "$TMP/wt-link"
+    wt_expected="$(cd -P "$(dirname "$WT")" && pwd)/$(basename "$WT")"
+    assert_equals "$wt_expected" "$("$TMP/wt-link" version --json 2>/dev/null | jq -r .path)" \
+        "version resolves a symlinked executable back to the real file"
+    cd "$TMP" || exit 1
+else
+    echo "  (jq not installed -- skipping the --json parseability and symlink checks)"
+fi
+
+# port_in_use's free branch is covered by the port-block suite; this is the
+# branch the probe exists for. Binding a socket needs a helper that is not on
+# every platform CI covers, so it skips rather than fails when absent.
+probe_port=39871
+listener_pid=""
+if command -v perl >/dev/null 2>&1; then
+    # A deep backlog, because nothing ever accepts: every probe leaves its
+    # connection queued, and a backlog of 1 would refuse the second one.
+    perl -MIO::Socket::INET -e '
+        my $s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0],
+                                      Listen => 128, ReuseAddr => 1) or exit 1;
+        sleep 30;
+    ' "$probe_port" &
+    listener_pid=$!
+elif command -v socat >/dev/null 2>&1; then
+    socat TCP-LISTEN:"$probe_port",bind=127.0.0.1,reuseaddr,fork /dev/null &
+    listener_pid=$!
+fi
+
+if [[ -n "$listener_pid" ]]; then
+    tries=0
+    until bash -c "source '$WT'; port_in_use $probe_port" 2>/dev/null || [[ $tries -ge 50 ]]; do
+        sleep 0.1
+        tries=$((tries + 1))
+    done
+    if bash -c "source '$WT'; port_in_use $probe_port" 2>/dev/null; then
+        assert_equals "0" "$(bash -c "source '$WT'; set +e; port_in_use $probe_port; echo \$?")" \
+            "port_in_use detects a real listener"
+        printf 'other\t1\t2\n' > "$TMP/probe.tsv"
+        assert_equals "1" "$(bash -c "source '$WT'; set +e; block_free $probe_port 2 '$TMP/probe.tsv' >/dev/null 2>&1; echo \$?")" \
+            "block_free rejects a block containing a listening port"
+    else
+        echo "  (could not bind $probe_port -- skipping the real-listener probe check)"
+    fi
+    kill "$listener_pid" 2>/dev/null || true
+    wait "$listener_pid" 2>/dev/null || true
+else
+    echo "  (no perl or socat -- skipping the real-listener probe check)"
+fi
+
+# Portable complement: stubbing the probe covers block_free's rejection path
+# even where nothing can bind a socket.
+printf 'other\t1\t2\n' > "$TMP/probe.tsv"
+assert_equals "1" \
+    "$(bash -c "source '$WT'; set +e; port_in_use() { [[ \$1 == 3402 ]]; }; block_free 3400 5 '$TMP/probe.tsv' >/dev/null 2>&1; echo \$?")" \
+    "block_free rejects a block whose middle port is busy"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
