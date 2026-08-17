@@ -202,7 +202,7 @@ test_suite "argument and help handling"
 output=$("$WT" add --help 2>&1)
 status=$?
 assert_equals 0 "$status" "wt add --help exits 0"
-assert_contains "$output" "Usage: wt add <name> [base]" "wt add --help prints add's usage"
+assert_contains "$output" "Usage: wt add <name|pr:N> [base]" "wt add --help prints add's usage"
 assert_file_not_exists "$TMP/slugproj-worktrees/help/.git" "wt add --help creates no worktree"
 
 # Help is answered before any layout detection, so it works anywhere.
@@ -233,7 +233,7 @@ assert_file_not_exists "$TMP/slugproj-worktrees/x/.git" "wt add -x creates no wo
 
 output=$("$WT" add one two three 2>&1)
 assert_not_equals 0 $? "wt add rejects extra positional arguments"
-assert_contains "$output" "usage: wt add <name> [base]" "arity error shows the synopsis"
+assert_contains "$output" "usage: wt add <name|pr:N> [base]" "arity error shows the synopsis"
 
 output=$("$WT" sync -x 2>&1)
 assert_not_equals 0 $? "wt sync -x fails"
@@ -698,11 +698,15 @@ assert_contains "$(cat state/hooklog 2>/dev/null)" "added:$dest" "post-add hook 
 "$WT" sync hooked >/dev/null 2>&1
 assert_contains "$(cat state/hooklog 2>/dev/null)" "synced:$dest" "post-sync hook runs after sync"
 
-# A failing hook warns but never fails the command.
+# A failing post-* hook keeps the worktree -- setup is retryable -- but the
+# failure must reach the exit status, or an agent proceeds against a tree it
+# believes is configured.
 printf '#!/usr/bin/env bash\nexit 1\n' > local/hooks/post-sync
 chmod +x local/hooks/post-sync
 "$WT" sync hooked >/dev/null 2>&1
-assert_equals 0 $? "sync succeeds despite a failing post-sync hook"
+assert_equals 1 $? "failing post-sync hook fails the command"
+assert_file_exists "$dest/.env.worktree" "failing post-sync hook still leaves the worktree provisioned"
+rm -f local/hooks/post-sync
 
 # Idempotent env write: unchanged content is not rewritten (a read-only
 # file would make a rewrite fail, so success proves the skip).
@@ -1007,6 +1011,117 @@ if command -v zsh >/dev/null 2>&1; then
 else
     echo "  (zsh not installed -- skipping compinit binding check)"
 fi
+
+# ============================================================
+# Test Suite: version and rename-aware output
+# ============================================================
+test_suite "version and rename-aware output"
+
+assert_contains "$("$WT" version)" "wt " "version prints the name and number"
+assert_contains "$("$WT" version --json)" '"version"' "version --json carries a version field"
+assert_contains "$("$WT" version --json)" '"path"' "version --json names the resolved executable"
+assert_contains "$("$WT" --version)" "wt " "--version is accepted as a flag"
+
+# A renamed copy must not tell the user to run a command they do not have.
+cp "$WT" "$TMP/wtx"
+assert_contains "$("$TMP/wtx" --help)" "Usage: wtx" "a renamed executable names itself in usage"
+assert_contains "$("$TMP/wtx" nope 2>&1)" "see 'wtx --help'" "a renamed executable names itself in errors"
+# argv0 reaches sed as a replacement string, so it must not be able to inject.
+assert_contains "$(WT_NAME='a/b' "$WT" --help)" "Usage: wt" "an unsafe WT_NAME falls back to wt"
+
+# ============================================================
+# Test Suite: port blocks
+# ============================================================
+test_suite "port blocks"
+
+# wt carries `set -e`, which sourcing imports; without set +e the probe shell
+# dies on the first non-zero return instead of reporting it.
+pcheck() { bash -c "source '$WT'; set +e; $1"; }
+
+# Port 1 is privileged and nothing in the test environment listens there.
+assert_equals "1" "$(pcheck 'port_in_use 1 >/dev/null 2>&1; echo $?')" \
+    "port_in_use reports a port nothing listens on as free"
+# block_free must treat both registry shapes as occupied: the two-column rows
+# written before ranges existed, and the current three-column ones.
+printf 'old\t3100\nnew\t3200\t3209\n' > "$TMP/ports.tsv"
+assert_equals "1" "$(pcheck "block_free 3100 5 '$TMP/ports.tsv' >/dev/null 2>&1; echo \$?")" \
+    "a legacy single-port row still blocks its block"
+assert_equals "1" "$(pcheck "block_free 3205 5 '$TMP/ports.tsv' >/dev/null 2>&1; echo \$?")" \
+    "an overlapping range blocks"
+assert_equals "0" "$(pcheck "block_free 3400 5 '$TMP/ports.tsv' >/dev/null 2>&1; echo \$?")" \
+    "a free block is free"
+
+# ============================================================
+# Test Suite: link provisioning, cache sharing, JSON, hooks
+# ============================================================
+test_suite "provisioning modes and structured output"
+
+make_remote "$TMP/r2.git"
+# Seed a project whose .gitignore legalises the provisioning destinations and
+# whose tracked conf asks for a cache path and a small port block.
+seed="$TMP/seed2"
+git clone -q "$TMP/r2.git" "$seed" 2>/dev/null
+printf '.env\n.env.*\nnode_modules/\nshared.txt\nlinked.txt\n' > "$seed/.gitignore"
+mkdir -p "$seed/.dev"
+printf 'CACHE_PATHS=node_modules\nPORT_BLOCK_SIZE=4\n' > "$seed/.dev/worktree.conf"
+git -C "$seed" add -A && git -C "$seed" commit -q -m conf && git -C "$seed" push -q origin HEAD
+rm -rf "$seed"
+
+"$WT" init "$TMP/r2.git" "$TMP/p2" >/dev/null 2>&1
+cd "$TMP/p2" || exit 1
+printf 'shared\n' > local/shared/shared.txt
+printf 'linked\n' > local/link/linked.txt
+mkdir -p main/node_modules && printf 'cached\n' > main/node_modules/pkg.txt
+
+out=$("$WT" add feat --json 2>/dev/null)
+d="$TMP/p2/wt/feat"
+assert_contains "$out" '"port_start"' "add --json reports the allocated port block"
+assert_contains "$out" '"branch":"feat"' "add --json reports the branch"
+assert_file_exists "$d/shared.txt" "local/shared is copied"
+assert_is_symlink "$d/linked.txt" "local/link is symlinked, not copied"
+assert_file_exists "$d/node_modules/pkg.txt" "a declared cache path is shared into the worktree"
+assert_not_symlink "$d/node_modules" "cache sharing copies by default rather than linking"
+assert_contains "$(cat "$d/.env.worktree")" "WORKTREE_PORT_END" "the env carries the port block bounds"
+
+# PORT_BLOCK_SIZE=4, so the first block allocated runs 3100-3103 rather than
+# handing out a single port.
+assert_contains "$(cat state/ports.tsv)" "3100	3103" "the block size from the tracked conf is honoured"
+
+assert_contains "$("$WT" list --json 2>/dev/null)" '"worktrees"' "list --json emits a worktrees array"
+assert_not_contains "$("$WT" list --names 2>/dev/null)" "repo.git" \
+    "the bare repo is never reported as a worktree"
+assert_contains "$("$WT" doctor --json 2>/dev/null)" '"checks"' "doctor --json emits its checks"
+
+# A cache path the project does not ignore is refused, exactly like local/.
+# The conf is tracked, so the change has to reach origin before a new worktree
+# checks it out.
+printf 'CACHE_PATHS=notignored\n' > main/.dev/worktree.conf
+git -C main add -A >/dev/null 2>&1
+git -C main commit -q -m "chore: point cache at a non-ignored path" >/dev/null 2>&1
+git -C main push -q origin HEAD >/dev/null 2>&1
+mkdir -p main/notignored && printf 'x\n' > main/notignored/f
+out=$("$WT" add cache-bad 2>&1)
+assert_contains "$out" "refusing to share non-ignored cache path" \
+    "a non-ignored cache path is refused"
+assert_file_not_exists "$TMP/p2/wt/cache-bad" "a refused cache path rolls the worktree back"
+
+# pre-* hooks gate the operation; post-* hooks report failure without
+# destroying the worktree.
+mkdir -p local/hooks
+printf '#!/usr/bin/env bash\nexit 1\n' > local/hooks/pre-add
+chmod +x local/hooks/pre-add
+"$WT" add blocked >/dev/null 2>&1
+assert_equals 1 $? "a failing pre-add hook fails the command"
+assert_file_not_exists "$TMP/p2/wt/blocked" "a failing pre-add hook creates no worktree"
+rm -f local/hooks/pre-add
+
+# pr:/mr: argument handling that needs no forge round-trip.
+assert_contains "$("$WT" add pr:abc 2>&1)" "not a request number" \
+    "a non-numeric request is rejected before any forge call"
+assert_contains "$(WT_FORGE=bitbucket "$WT" add pr:1 2>&1)" "WT_FORGE must be" \
+    "an unknown WT_FORGE is rejected"
+
+cd "$TMP" || exit 1
 
 # ============================================================
 # Summary
