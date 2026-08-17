@@ -10,7 +10,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUT="$DOTFILES_DIR/docs/prompt-stats.md"
+COMMITTED="$DOTFILES_DIR/docs/prompt-stats.md"
+OUT="$COMMITTED"
+
+# --check: regenerate to a temp file and fail if the committed doc differs,
+# so CI catches a prompt edit whose stats were not regenerated.
+CHECK=false
+if [[ "${1:-}" == "--check" ]]; then
+    CHECK=true
+    OUT="$(mktemp)"
+    trap 'rm -f "$OUT"' EXIT
+fi
 
 bytes() { wc -c < "$DOTFILES_DIR/$1"; }
 lines() { wc -l < "$DOTFILES_DIR/$1"; }
@@ -90,4 +100,14 @@ Conditional context on top of these: the deny-list rule ($(tok "$B_RULE_DENY") t
 TOTALS
 } > "$OUT"
 
-echo "wrote $OUT"
+if $CHECK; then
+    if cmp -s "$OUT" "$COMMITTED"; then
+        echo "prompt-stats: docs/prompt-stats.md is current"
+    else
+        echo "prompt-stats: docs/prompt-stats.md is stale -- run 'make prompt-stats' and commit the result" >&2
+        diff -u "$COMMITTED" "$OUT" >&2 || true
+        exit 1
+    fi
+else
+    echo "wrote $OUT"
+fi

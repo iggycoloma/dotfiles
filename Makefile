@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift prompt-stats sync-settings
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift prompt-stats lint-prompt-stats sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git).
 # .claude is excluded because Claude Code nests worktrees at
@@ -8,7 +8,7 @@
 # shell file in the repo to be going unchecked.
 SHELL_SCRIPTS := $(shell find . \( -name '*.sh' -o -name '*.bash' \) -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*') ./bin/wt
 
-lint: lint-settings-sync lint-settings-drift lint-prompt-drift lint-devcontainers
+lint: lint-settings-sync lint-settings-drift lint-prompt-drift lint-prompt-stats lint-devcontainers
 	shellcheck $(SHELL_SCRIPTS)
 
 # Regenerate claude-code/settings.container.json from settings.json. The two
@@ -41,6 +41,11 @@ lint-prompt-drift:
 # instruction files). Run after editing any prompt source; commit the result.
 prompt-stats:
 	@bin/prompt-stats.sh
+
+# Fail if docs/prompt-stats.md no longer matches what the generator would
+# write, i.e. a prompt file changed without regenerating the stats table.
+lint-prompt-stats:
+	@bin/prompt-stats.sh --check
 
 test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt
 
