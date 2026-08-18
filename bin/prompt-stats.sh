@@ -32,6 +32,7 @@ B_COPILOT_GLOBAL=$(bytes copilot/copilot-instructions.md)
 B_STYLE=$(bytes agent-prompts/writing-style.md)
 B_ENG=$(bytes agent-prompts/engineering-conventions.md)
 B_WT=$(bytes agent-prompts/worktrees.md)
+B_FORGE=$(bytes agent-prompts/forge.md)
 B_AGENTS_ROOT=$(bytes AGENTS.md)
 B_CLAUDE_ROOT=$(bytes CLAUDE.md)
 B_RULE_DENY=$(bytes .claude/rules/deny-list-semantics.md)
@@ -64,12 +65,13 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 |------|-------------|------------------|-------|----------------|----------------|-----------------|
 HEADER
 
-row claude-code/CLAUDE.md "every Claude session, all projects (deployed to ~/.claude)" "imports all 3 \`agent-prompts/\` fragments at launch" "$(lines claude-code/CLAUDE.md)" "$B_CLAUDE_GLOBAL" $(( B_CLAUDE_GLOBAL + FRAGS )) no
-row codex/AGENTS.md "every Codex session, all projects (deployed to ~/.codex)" "directs a session-start read of the fragments (worktrees.md only for worktree tasks)" "$(lines codex/AGENTS.md)" "$B_CODEX_GLOBAL" $(( B_CODEX_GLOBAL + FRAGS )) no
+row claude-code/CLAUDE.md "every Claude session, all projects (deployed to ~/.claude)" "imports 3 \`agent-prompts/\` fragments at launch; triggers forge.md for forge tasks" "$(lines claude-code/CLAUDE.md)" "$B_CLAUDE_GLOBAL" $(( B_CLAUDE_GLOBAL + FRAGS )) no
+row codex/AGENTS.md "every Codex session, all projects (deployed to ~/.codex)" "directs a session-start read of the fragments (worktrees.md and forge.md only for matching tasks)" "$(lines codex/AGENTS.md)" "$B_CODEX_GLOBAL" $(( B_CODEX_GLOBAL + FRAGS )) no
 row copilot/copilot-instructions.md "every Copilot session, all projects (deployed to ~/.copilot)" "same session-start directive as Codex" "$(lines copilot/copilot-instructions.md)" "$B_COPILOT_GLOBAL" $(( B_COPILOT_GLOBAL + FRAGS )) no
 row agent-prompts/writing-style.md "via each global file above" "nothing" "$(lines agent-prompts/writing-style.md)" "$B_STYLE" "$B_STYLE" no
 row agent-prompts/engineering-conventions.md "via each global file above" "nothing" "$(lines agent-prompts/engineering-conventions.md)" "$B_ENG" "$B_ENG" no
 row agent-prompts/worktrees.md "Claude: always (import); Codex/Copilot: worktree tasks" "nothing" "$(lines agent-prompts/worktrees.md)" "$B_WT" "$B_WT" no
+row agent-prompts/forge.md "all tools: forge tasks only (trigger line or forge/review-pr/pr-create skill)" "nothing" "$(lines agent-prompts/forge.md)" "$B_FORGE" "$B_FORGE" no
 row AGENTS.md "every session in this repo, all tools" "triggers \`docs/wt-maintenance.md\` before editing wt implementation files" "$(lines AGENTS.md)" "$B_AGENTS_ROOT" "$B_AGENTS_ROOT" yes
 row CLAUDE.md "every Claude session in this repo" "imports \`@AGENTS.md\` at launch" "$(lines CLAUDE.md)" "$B_CLAUDE_ROOT" $(( B_CLAUDE_ROOT + B_AGENTS_ROOT )) no
 row .claude/rules/deny-list-semantics.md "Claude touches \`claude-code/settings*.json\` or \`claude-code/commands/**\`" "nothing" "$(lines .claude/rules/deny-list-semantics.md)" "$B_RULE_DENY" "$B_RULE_DENY" no
@@ -90,7 +92,7 @@ cat <<TOTALS
 | Codex | global AGENTS.md + session-start fragments + root AGENTS.md | $(tok $CODEX_TOTAL) |
 | Copilot | global instructions + session-start fragments + repo instructions | $(tok $COPILOT_TOTAL) |
 
-Conditional context on top of these: the deny-list rule ($(tok "$B_RULE_DENY") tokens, path-scoped), the wt runbook ($(tok "$B_WT_DOC") tokens, explicit trigger), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
+Conditional context on top of these: the deny-list rule ($(tok "$B_RULE_DENY") tokens, path-scoped), the wt runbook ($(tok "$B_WT_DOC") tokens, explicit trigger), the forge fragment ($(tok "$B_FORGE") tokens, forge tasks only, all tools), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
 
 ## Reading the numbers
 
