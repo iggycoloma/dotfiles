@@ -1470,6 +1470,47 @@ printf 'a\t3100\t3104\nb\t3115\t3119\n' > "$TMP/unaligned.tsv"
 assert_equals "0" "$(bash -c "source '$WT'; set +e; block_free 3105 10 '$TMP/unaligned.tsv' >/dev/null 2>&1; echo \$?")" \
     "an unaligned free range is recognised as free"
 
+# Anything at the lock path that is not a symlink can never be claimed or
+# judged, so it must be reported rather than timed out against.
+mkdir -p "$lockpath"
+out=$("$WT" add lockdirblocked 2>&1)
+assert_not_equals 0 $? "a non-symlink at the lock path fails the command"
+assert_contains "$out" "not a symlink" "the failure names the obstruction"
+out=$("$WT" doctor 2>&1)
+assert_not_equals 0 $? "doctor fails on a non-symlink lock path"
+assert_contains "$out" "not a symlink" "doctor names the obstruction too"
+rmdir "$lockpath"
+
+# ============================================================
+# Test Suite: provisioning failure propagation
+# ============================================================
+test_suite "provisioning failure propagation"
+
+# errexit is disabled inside a function evaluated as a condition, and every
+# caller runs these under `if ! ...`, so an unchecked copy failure would fall
+# through to `return 0` and report a partial worktree as good.
+shimdir="$TMP/shim"
+mkdir -p "$shimdir"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$shimdir/rsync"
+chmod +x "$shimdir/rsync"
+
+printf 'shared\n' > local/shared/shared.txt
+# shellcheck disable=SC2031  # the shimmed PATH is deliberate and scoped to this one call
+out=$(PATH="$shimdir:$PATH" "$WT" add copyfails 2>&1)
+assert_not_equals 0 $? "a failing copy fails add"
+assert_file_not_exists "$TMP/p2/wt/copyfails" "a failing copy rolls the worktree back"
+assert_not_contains "$(cat state/ports.tsv)" "copyfails" \
+    "a rolled-back worktree leaves no port reservation behind"
+rm -f "$shimdir/rsync"
+
+# Rollback releases the block directly, which is what keeps a failure between
+# allocation and the env write from stranding one.
+printf 'stranded\t3900\t3909\n' >> state/ports.tsv
+bash -c "source '$WT'; set +e; WT_MODE=orchestration WT_ROOT='$TMP/p2' WT_GIT_DIR='$TMP/p2/repo.git' \
+    rollback_add '$TMP/p2/wt/stranded' stranded 0" >/dev/null 2>&1
+assert_not_contains "$(cat state/ports.tsv)" "stranded" \
+    "rollback releases the slug's port reservation"
+
 cd "$TMP" || exit 1
 
 # ============================================================
