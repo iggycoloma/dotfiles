@@ -1395,50 +1395,80 @@ cd "$TMP" || exit 1
 test_suite "port lock lifecycle"
 
 cd "$TMP/p2" || exit 1
-lockdir="$TMP/p2/state/ports.lock.d"
+lockpath="$TMP/p2/state/ports.lock"
 
 # A lock whose owner is gone must be reclaimed, not waited out. Otherwise one
 # killed run disables allocation for the project permanently.
-mkdir -p "$lockdir"
-printf '999999\n' > "$lockdir/pid"   # a pid that cannot be running
+ln -sfn "999999:never_ran" "$lockpath"   # a pid that cannot be running
 out=$("$WT" add afterstale 2>&1)
 assert_equals 0 $? "a stale lock is reclaimed rather than waited out"
 assert_contains "$out" "reclaimed a port lock" "the reclaim is reported"
 assert_contains "$(cat state/ports.tsv)" "afterstale" "allocation proceeds after the reclaim"
-assert_file_not_exists "$lockdir" "the reclaimed lock is not left behind"
+assert_file_not_exists "$lockpath" "the reclaimed lock is not left behind"
 
-# A lock held by a live process is contention, not staleness, and must not be
-# stolen. The shell running this suite is a convenient live pid.
-mkdir -p "$lockdir"
-printf '%s\n' "$$" > "$lockdir/pid"
-assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockdir'; echo \$?")" \
+# A live owner is contention, not staleness, and must not be stolen. The token
+# has to match what the owner would publish now -- a bare pid would let a
+# recycled number pass for the original process.
+live_token="$(bash -c "source '$WT'; ports_lock_token $$")"
+ln -sfn "$live_token" "$lockpath"
+assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockpath'; echo \$?")" \
     "a lock owned by a running process is not stale"
+assert_equals "0" "$(bash -c "source '$WT'; set +e; ports_record_is_stale '$$:a_different_start_time'; echo \$?")" \
+    "a reused pid with a different start time reads as stale"
 assert_equals "0" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$TMP/nonexistent-lock'; echo \$?")" \
     "a lock with no recorded owner is treated as stale"
 
 out=$("$WT" doctor 2>&1)
 assert_contains "$out" "locked by a running process" "doctor distinguishes live contention"
-rm -rf "$lockdir"
+rm -f "$lockpath"
 
 # ...and reports the stale case as a problem, since it means a run was killed.
-mkdir -p "$lockdir"
-printf '999999\n' > "$lockdir/pid"
+ln -sfn "999999:never_ran" "$lockpath"
 out=$("$WT" doctor 2>&1)
 assert_not_equals 0 $? "doctor fails on a stale port lock"
 assert_contains "$out" "stale port lock" "doctor names the stale lock"
-rm -rf "$lockdir"
+rm -f "$lockpath"
 
 # The lock is released on the way out, including when a later step dies.
 "$WT" add lockcheck >/dev/null 2>&1
-assert_file_not_exists "$lockdir" "a normal run leaves no lock behind"
+assert_file_not_exists "$lockpath" "a normal run leaves no lock behind"
 
 # The abnormal path is the one that caused the bug: a process that acquires
 # the lock and then exits non-zero must still release it.
-bash -c "source '$WT'; with_ports_lock '$lockdir' >/dev/null 2>&1; exit 1" >/dev/null 2>&1
-assert_file_not_exists "$lockdir" "a run that exits non-zero still releases the lock"
+bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; exit 1" >/dev/null 2>&1
+assert_file_not_exists "$lockpath" "a run that exits non-zero still releases the lock"
 
-bash -c "source '$WT'; with_ports_lock '$lockdir' >/dev/null 2>&1; kill -TERM \$\$" >/dev/null 2>&1
-assert_file_not_exists "$lockdir" "a run killed with SIGTERM still releases the lock"
+# Cleanup is not enough on a signal: the handler must also terminate, or the
+# command carries on mutating the registry after the caller tried to stop it.
+bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; kill -TERM \$\$; echo SURVIVED" \
+    > "$TMP/sigterm.out" 2>&1
+sig_status=$?
+assert_file_not_exists "$lockpath" "a run killed with SIGTERM still releases the lock"
+assert_equals 143 "$sig_status" "SIGTERM yields a signal-derived exit status, not success"
+assert_not_contains "$(cat "$TMP/sigterm.out" 2>/dev/null)" "SURVIVED" \
+    "the process stops at the signal instead of continuing"
+
+# The lock publishes its owner in the same atomic step that claims the name, so
+# a second acquirer never sees an owner-less lock to mistake for abandoned.
+# The holder must outlive the acquirer's full retry window (50 x 0.1s), or the
+# second acquirer simply waits it out and the refusal is never exercised.
+bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; sleep 30" &
+lock_holder=$!
+tries=0
+while [[ ! -L "$lockpath" && $tries -lt 40 ]]; do sleep 0.05; tries=$((tries + 1)); done
+assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockpath'; echo \$?")" \
+    "a lock held by a live process never reads as stale, even right after acquisition"
+assert_equals "1" "$(bash -c "source '$WT'; set +e; with_ports_lock '$lockpath' >/dev/null 2>&1; echo \$?" \
+    < /dev/null)" "a second acquirer is refused while the first holds the lock"
+kill "$lock_holder" 2>/dev/null || true
+wait "$lock_holder" 2>/dev/null || true
+rm -f "$lockpath"
+
+# A free block that is not aligned to PORT_RANGE_START must still be found:
+# unrelated listeners do not land on wt's block boundaries.
+printf 'a\t3100\t3104\nb\t3115\t3119\n' > "$TMP/unaligned.tsv"
+assert_equals "0" "$(bash -c "source '$WT'; set +e; block_free 3105 10 '$TMP/unaligned.tsv' >/dev/null 2>&1; echo \$?")" \
+    "an unaligned free range is recognised as free"
 
 cd "$TMP" || exit 1
 
