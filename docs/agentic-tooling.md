@@ -88,7 +88,7 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 |-----------------|-------|------------------------------------------------------------------------|
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
-| Agents          | 1     | code-reviewer: fresh-context, read-only review via the review-pr rubric |
+| Agents          | 2     | code-reviewer (fresh-context diff review), verify (adversarial claim check) |
 | Shared skills   | 22    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
