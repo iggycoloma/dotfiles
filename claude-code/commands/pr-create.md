@@ -54,26 +54,15 @@ You are drafting a pull request or merge request.
    - Let paragraph lines run long; separate paragraphs with blank lines
    - Lists, headings, and code fences render as written and are fine
 
-   **Description template** (drop sections that do not apply):
-   ```markdown
-   ## Summary
-   Brief description of what this change does
+   **Body content and shape**: follow the "PR and MR descriptions" section of
+   `~/.claude/prompts/engineering-conventions.md`, which is the canonical
+   statement of both. It is already loaded in every session, so read it there
+   rather than working from a copy -- a second template here would drift from
+   it. In short: final form rather than lifecycle, and Summary / What changed /
+   Safety and compatibility / Testing / Known follow-up.
 
-   ## Changes
-   - Change 1
-   - Change 2
-
-   ## Testing
-   - [ ] Unit tests added/updated
-   - [ ] Integration tests passing
-   - [ ] Manual testing completed
-
-   ## Breaking Changes
-   None / List any breaking changes
-
-   ## Screenshots (if applicable)
-   [Add screenshots for UI changes]
-   ```
+   Add a Screenshots section for UI changes; it is outside that shape because
+   it applies to a minority of changes.
 
 5. **Link issues**:
    - `Closes #123` / `Fixes #456` work on both forges
