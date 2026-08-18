@@ -88,9 +88,8 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 |-----------------|-------|------------------------------------------------------------------------|
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
-| Agents          | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer     |
-| Shared skills   | 18    | commit, create-pr, forge, review-pr, plan-migration, review-design, ... |
-| Legacy commands | 5     | context-prime, deploy-checklist, docs, refactor, test                  |
+| Agents          | 1     | code-reviewer: fresh-context, read-only review via the review-pr rubric |
+| Shared skills   | 22    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
 The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
