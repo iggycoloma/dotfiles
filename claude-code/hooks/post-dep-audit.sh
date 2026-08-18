@@ -9,14 +9,16 @@
 #
 # Non-blocking by default: the tool call still succeeds even if the audit
 # finds issues (the warning lands in progress.txt for the agent to read next
-# iteration). Set RALPH_AUDIT_BLOCKING=1 to deny the tool call on
-# high/critical findings instead.
+# iteration). Set RALPH_AUDIT_BLOCKING=1 to feed a failed audit back to the
+# agent as blocking feedback (exit 2) instead.
 
 if ! command -v jq &>/dev/null; then
     exit 0
 fi
 
-read -r input
+# Slurp the whole stdin payload; read -r stops at the first newline and would
+# silently drop multi-line JSON.
+input=$(cat)
 
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 [[ "$TOOL_NAME" != "Bash" ]] && exit 0
@@ -128,10 +130,13 @@ fi
 # Also surface to stderr.
 printf 'post-dep-audit: %s audit exited %s (command: %s)\n' "$ecosystem" "$audit_rc" "$COMMAND" >&2
 
-# Blocking mode: deny the tool call on any non-zero audit exit.
+# Blocking mode: PostToolUse cannot deny or undo a call that already ran, so
+# "blocking" means exit 2 -- the hook's stderr is fed back to the agent, which
+# must address the audit failure before continuing.
 if [[ "${RALPH_AUDIT_BLOCKING:-0}" == "1" ]]; then
-    jq -n -c --arg reason "Dependency audit failed ($ecosystem, exit $audit_rc). See $AUDIT_LOG." \
-        '{hookSpecificOutput: {hookEventName: "PostToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+    printf 'Dependency audit failed (%s, exit %s). Review and fix the findings before continuing; full output in %s.\n' \
+        "$ecosystem" "$audit_rc" "$AUDIT_LOG" >&2
+    exit 2
 fi
 
 exit 0

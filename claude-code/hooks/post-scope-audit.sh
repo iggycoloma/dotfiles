@@ -15,7 +15,9 @@ if ! command -v jq &>/dev/null; then
     exit 0
 fi
 
-read -r input
+# Slurp the whole stdin payload; read -r stops at the first newline and would
+# silently drop multi-line JSON.
+input=$(cat)
 
 TOOL_NAME=$(echo "$input" | jq -r '.tool_name // empty')
 case "$TOOL_NAME" in
