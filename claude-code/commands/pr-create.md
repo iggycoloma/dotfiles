@@ -47,19 +47,12 @@ You are drafting a pull request or merge request.
    - If the project squashes on merge, the title becomes the permanent commit
      message -- write it to stand alone in `git blame`
 
-   **Body formatting** -- GitHub and GitLab both render every newline in the
-   body as a hard line break, so:
-   - Never hard-wrap paragraphs to a column; a 72-column wrap displays as a
-     narrow ragged column
-   - Let paragraph lines run long; separate paragraphs with blank lines
-   - Lists, headings, and code fences render as written and are fine
-
-   **Body content and shape**: follow the "PR and MR descriptions" section of
-   `~/.claude/prompts/engineering-conventions.md`, which is the canonical
-   statement of both. It is already loaded in every session, so read it there
-   rather than working from a copy -- a second template here would drift from
-   it. In short: final form rather than lifecycle, and Summary / What changed /
-   Safety and compatibility / Testing / Known follow-up.
+   **Body formatting, content, and shape**: read `~/.claude/prompts/forge.md`,
+   the canonical statement of both. It is NOT loaded by default, so read the
+   file rather than working from memory -- a second template here would drift
+   from it. In short: no hard-wrapping (every newline renders as a break),
+   final form rather than lifecycle, and Summary / What changed / Safety and
+   compatibility / Testing / Known follow-up.
 
    Add a Screenshots section for UI changes; it is outside that shape because
    it applies to a minority of changes.

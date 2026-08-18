@@ -71,6 +71,10 @@ Cross-tool conventions (preferred CLI tools, code-comment policy, markdown forma
 
 @~/.claude/prompts/engineering-conventions.md
 
+Forge interaction is deliberately NOT imported, to keep it out of sessions that never touch a forge:
+before drafting or editing a PR/MR description, issue, or forge comment, or reaching for `gh api` / `glab api`, read `~/.claude/prompts/forge.md`.
+The `forge`, `review-pr`, and `pr-create` skills load it themselves.
+
 ## Communication style
 
 @~/.claude/prompts/writing-style.md

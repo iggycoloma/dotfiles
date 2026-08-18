@@ -157,20 +157,23 @@ test_worktree_fragment_single_sourced() {
 
 STYLE_FRAGMENT="$DOTFILES_DIR/agent-prompts/writing-style.md"
 ENG_FRAGMENT="$DOTFILES_DIR/agent-prompts/engineering-conventions.md"
+FORGE_FRAGMENT="$DOTFILES_DIR/agent-prompts/forge.md"
 
 # Anchors for the personal-process rules that must live in the shared
 # fragments and only there: the handoff-report contract in writing-style,
-# the pre-handoff comment sweep in engineering-conventions. Repo-scoped
-# instruction files describe the desired artifact, not the author's process,
-# so the same anchors must not appear in them.
+# the pre-handoff comment sweep in engineering-conventions, the forge CLI
+# and PR/MR description rules in forge.md. Repo-scoped instruction files
+# describe the desired artifact, not the author's process, so the same
+# anchors must not appear in them.
 STYLE_ANCHOR='material gaps or risks'
 ENG_ANCHOR='Before handoff, sweep'
 # shellcheck disable=SC2016  # backticks are literal markdown, not a subshell
 FORGE_CLI_ANCHOR='Prefer purpose-built `gh` and `glab` subcommands'
+FORGE_DESC_ANCHOR='Describe the change in its final form'
 
 test_shared_fragments_referenced() {
     local fragment name file basename
-    for fragment in "$STYLE_FRAGMENT" "$ENG_FRAGMENT"; do
+    for fragment in "$STYLE_FRAGMENT" "$ENG_FRAGMENT" "$FORGE_FRAGMENT"; do
         name="$(basename "$fragment")"
         if [[ -f "$fragment" ]]; then
             test_pass "agent-prompts/$name exists"
@@ -203,11 +206,29 @@ test_personal_process_rules_in_fragments() {
         test_fail "Pre-handoff comment sweep missing from engineering-conventions.md"
     fi
 
-    if grep -Fq -e "$FORGE_CLI_ANCHOR" "$ENG_FRAGMENT"; then
-        test_pass "Forge CLI subcommands-over-api rule present in engineering-conventions.md"
+    if grep -Fq -e "$FORGE_CLI_ANCHOR" "$FORGE_FRAGMENT"; then
+        test_pass "Forge CLI subcommands-over-api rule present in forge.md"
     else
-        test_fail "Forge CLI subcommands-over-api rule missing from engineering-conventions.md"
+        test_fail "Forge CLI subcommands-over-api rule missing from forge.md"
     fi
+
+    if grep -Fq -e "$FORGE_DESC_ANCHOR" "$FORGE_FRAGMENT"; then
+        test_pass "PR/MR description rules present in forge.md"
+    else
+        test_fail "PR/MR description rules missing from forge.md"
+    fi
+
+    # forge.md is conditionally loaded; if its rules creep back into the
+    # always-loaded engineering-conventions fragment, the extraction that
+    # keeps them out of every session has been undone.
+    local anchor
+    for anchor in "$FORGE_CLI_ANCHOR" "$FORGE_DESC_ANCHOR"; do
+        if grep -Fq -e "$anchor" "$ENG_FRAGMENT"; then
+            test_fail "Forge rule re-inlined in engineering-conventions.md: $anchor"
+        else
+            test_pass "Forge rule not duplicated in engineering-conventions.md: $anchor"
+        fi
+    done
 }
 
 test_personal_process_rules_not_in_repo_files() {
@@ -220,7 +241,7 @@ test_personal_process_rules_not_in_repo_files() {
             test_fail "Repo-scoped instruction file missing: $basename"
             continue
         fi
-        for anchor in "$STYLE_ANCHOR" "$ENG_ANCHOR" "$FORGE_CLI_ANCHOR"; do
+        for anchor in "$STYLE_ANCHOR" "$ENG_ANCHOR" "$FORGE_CLI_ANCHOR" "$FORGE_DESC_ANCHOR"; do
             if grep -Fq -e "$anchor" "$file"; then
                 test_fail "Personal process rule duplicated in repo-scoped $basename: $anchor"
             else
