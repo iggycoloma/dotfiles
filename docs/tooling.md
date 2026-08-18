@@ -173,6 +173,11 @@ gitleaks runs as a global `pre-commit` hook, scanning staged changes for API
 keys, passwords, and tokens. Silently passes if gitleaks is not installed.
 Per-repo hooks via `.git/hooks/pre-commit.local`.
 
+The global `pre-push` dispatcher scans every outgoing commit range as a second
+checkpoint, chains Git LFS, and delegates to `.git/hooks/pre-push.local`.
+Local hooks are bypassable; forge push protection and repository rulesets are
+the authoritative team-level controls.
+
 ## Prompt and tool configuration
 
 ### Starship (`config/starship.toml`)

@@ -10,7 +10,7 @@
 - Deny path traversal patterns (`../`) unless the user explicitly asks and confirms
 - Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks
 
-Enforcement: `settings.json` permission rules carry the credential deny lists and `pre-security.sh` blocks the same paths for the file tools; `sandbox.credentials` blocks them for Bash subprocesses at the OS level. `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook.
+Enforcement: `settings.json` permission rules carry the credential deny lists and `pre-security.sh` blocks the same paths for structured file tools; `sandbox.credentials` blocks them for Bash subprocesses at the OS level. `pre-code-no-emoji.sh` blocks decorative emojis in code files, and git's `commit-msg` hook (wired via `core.hooksPath`) enforces commit messages -- not a PreToolUse agent hook. The shared `pre-hookspath-guard.sh` denies `git config` writes to `core.hooksPath` (reads and unsets pass).
 
 ## Outward-facing writes
 

@@ -451,23 +451,45 @@ _setup_copilot() {
 _setup_codex_notify() {
     [[ -f "$HOME/.codex/hooks/notify.sh" ]] || return 0
 
-    if [[ -f "$HOME/.codex/config.toml" ]]; then
-        if grep -q '^notify\s*=\s*"' "$HOME/.codex/config.toml"; then
+    local cfg="$HOME/.codex/config.toml"
+    local notify_line
+    notify_line=$(printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]' "$HOME")
+
+    if [[ ! -f "$cfg" ]]; then
+        log_info "Creating ~/.codex/config.toml with notify hook"
+        printf '%s\n' "$notify_line" > "$cfg"
+        return 0
+    fi
+
+    # notify must be a TOML top-level key, so it has to sit before the first
+    # table header ([features], [mcp_servers.*], ...). Appending at EOF lands
+    # inside whichever table is last -- Codex then rejects the whole config
+    # ("invalid type: sequence, expected a boolean") -- so insert at the top,
+    # and migrate any line a previous append left inside a table.
+    local first_table notify_at
+    first_table=$(grep -n '^\[' "$cfg" | head -1 | cut -d: -f1)
+    notify_at=$(grep -n '^notify[[:space:]]*=' "$cfg" | head -1 | cut -d: -f1)
+
+    if [[ -n "$notify_at" && ( -z "$first_table" || "$notify_at" -lt "$first_table" ) ]]; then
+        # Correctly placed; only normalize the legacy string form.
+        if grep -q '^notify[[:space:]]*=[[:space:]]*"' "$cfg"; then
             log_info "Fixing notify hook format in ~/.codex/config.toml (string -> array)"
             if has_tool sd; then
                 # shellcheck disable=SC2016  # $1 is a regex capture group, not a shell variable
-                sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$HOME/.codex/config.toml"
+                sd '^notify\s*=\s*"bash (.+)"' 'notify = ["bash", "$1"]' "$cfg"
             else
-                sed -i 's|^notify\s*=\s*"bash \(.*\)"|notify = ["bash", "\1"]|' "$HOME/.codex/config.toml"
+                sed -i 's|^notify\s*=\s*"bash \(.*\)"|notify = ["bash", "\1"]|' "$cfg"
             fi
-        elif ! grep -q '^notify\s*=' "$HOME/.codex/config.toml"; then
-            log_info "Adding notify hook to ~/.codex/config.toml"
-            printf '\nnotify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" >> "$HOME/.codex/config.toml"
         fi
-    else
-        log_info "Creating ~/.codex/config.toml with notify hook"
-        printf 'notify = ["bash", "%s/.codex/hooks/notify.sh"]\n' "$HOME" > "$HOME/.codex/config.toml"
+        return 0
     fi
+
+    log_info "Placing notify hook at the top of ~/.codex/config.toml"
+    local tmp
+    tmp=$(mktemp) || return 0
+    printf '%s\n\n' "$notify_line" > "$tmp"
+    grep -v '^notify[[:space:]]*=' "$cfg" >> "$tmp"
+    mv "$tmp" "$cfg"
 }
 
 create_symlinks() {

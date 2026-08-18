@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# SessionStart hook - print a reminder banner.
+# SessionStart hook - print an unattended-mode banner.
 #
-# Prints a stricter banner when CLAUDE_UNATTENDED=1 so the agent knows it is
-# running without a human in the loop and should behave more conservatively.
+# Attended sessions get nothing: the always-loaded ~/.claude/CLAUDE.md already
+# carries the guardrail reminders verbatim, and instructions are re-loaded
+# after compaction, so an attended banner only duplicated context. The
+# unattended banner stays because it states rules CLAUDE.md does not.
 
-if [[ "${CLAUDE_UNATTENDED:-0}" == "1" ]]; then
-    cat <<'EOF'
+[[ "${CLAUDE_UNATTENDED:-0}" == "1" ]] || exit 0
+
+cat <<'EOF'
 Reminder (UNATTENDED MODE): no human is reviewing each step. Prefer the smallest
 change that closes the task. Run tests after every change. If a test fails,
 revert and document the failure in progress.txt rather than pushing through.
@@ -15,7 +18,3 @@ generated credentials. Do not write outside the worktree. No emojis in code or
 commits. Use conventional commits. Never read .env or credential files. Do not
 add AI attribution or Co-Authored-By to commits.
 EOF
-    exit 0
-fi
-
-echo "Reminder: no emojis in code or commits. Use conventional commits. Never read .env or credential files. Do not add AI attribution or Co-Authored-By to commits. Prefer: ast-grep (sg) for structural search, difft for diffs, sd for find/replace, scc for code stats, yq for YAML/TOML editing."

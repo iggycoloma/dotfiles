@@ -234,6 +234,25 @@ test_apply_patch_safe_paths() {
     assert_allowed "$(run_apply_patch_hook "$patch")" "apply_patch allows safe add path"
 }
 
+test_structured_mcp_paths() {
+    local json result
+    json='{"tool_name":"mcp__filesystem__read_file","tool_input":{"path":"/home/user/.ssh/config"}}'
+    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    if echo "$result" | jq -e '.hookSpecificOutput.permissionDecision == "ask" or .hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1; then
+        test_pass "Structured MCP path blocks a sensitive read"
+    else
+        test_fail "Structured MCP path should block a sensitive read"
+    fi
+
+    json='{"tool_name":"mcp__filesystem__read_file","tool_input":{"path":"/home/user/project/README.md"}}'
+    result=$(echo "$json" | bash "$HOOK" 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        test_pass "Structured MCP path allows a safe read"
+    else
+        test_fail "Structured MCP path should allow a safe read"
+    fi
+}
+
 test_non_bash_tool_passthrough() {
     # Tools other than Read/Write/Edit/apply_patch should pass through
     local json='{"tool_name":"Glob","tool_input":{"pattern":"**/*.js"}}'
@@ -273,6 +292,9 @@ main() {
     test_suite "Codex apply_patch Checks"
     test_apply_patch_sensitive_paths
     test_apply_patch_safe_paths
+
+    test_suite "Structured MCP Path Checks"
+    test_structured_mcp_paths
 
     test_suite "Pass-through"
     test_non_bash_tool_passthrough

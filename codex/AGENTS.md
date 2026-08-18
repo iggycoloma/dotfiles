@@ -8,6 +8,10 @@
 - Never access credential files: `~/.npmrc`, `~/.pypirc`, `~/.netrc`, `~/.git-credentials`, `~/.pgpass`, `~/.my.cnf`, `~/.mongorc.js`, `*.tfvars`, `*.ppk`, `*.jks`, `*.keystore`, `*.pfx`, `*.p12`, `settings.local.json`, `~/.claude/.credentials.json`
 - Deny path traversal patterns (for example paths containing `../`) unless the user explicitly asks and confirms
 - Never set repo-local `core.hooksPath`: it silently disables the global secret-scanning and commit-message hooks
+
+Enforcement: shared hooks guard structured sensitive paths and file edits,
+block direct `core.hooksPath` writes, audit dependency and scope changes, and
+record metadata-only session, shell-result, and subagent lifecycle events.
 - Do not add decorative emoji characters to code, docs, or commit messages
 - Use conventional commits and do not include AI attribution or `Co-Authored-By` lines
 

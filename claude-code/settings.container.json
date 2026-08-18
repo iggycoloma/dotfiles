@@ -270,6 +270,17 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "~/.agent-hooks/pre-hookspath-guard.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -278,7 +289,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/post-scope-audit.sh",
+            "command": "~/.agent-hooks/post-scope-audit.sh",
             "timeout": 5
           }
         ]
@@ -288,15 +299,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/post-dep-audit.sh",
+            "command": "~/.agent-hooks/post-dep-audit.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/tool-telemetry.sh claude",
+            "timeout": 5
           }
         ]
       }
     ],
     "Notification": [
       {
-        "matcher": "idle_prompt",
+        "matcher": "idle_prompt|permission_prompt|agent_needs_input",
         "hooks": [
           {
             "type": "command",
@@ -312,6 +328,16 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/session-start-banner.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/hook-health.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/session-audit.sh claude",
+            "timeout": 5
           }
         ]
       }
@@ -334,6 +360,68 @@
             "type": "command",
             "command": "~/.claude/hooks/worktree-remove.sh",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/tool-telemetry.sh claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-end-ledger.sh",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/session-audit.sh claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/subagent-audit.sh claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/subagent-audit.sh claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "matcher": "user_settings|project_settings|local_settings|skills",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/config-change-guard.sh",
+            "timeout": 5
           }
         ]
       }
