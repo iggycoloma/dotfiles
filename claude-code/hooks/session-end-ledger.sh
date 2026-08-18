@@ -19,7 +19,10 @@ TRANSCRIPT=$(echo "$input" | jq -r '.transcript_path // empty')
 CWD=$(echo "$input" | jq -r '.cwd // empty')
 [[ -f "$TRANSCRIPT" ]] || exit 0
 
-LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-code"
+# The parser is Claude-specific but the log root is not: everything the hook
+# layer records lives under one agent-hooks state dir so the observability
+# story stays greppable in one place.
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agent-hooks"
 mkdir -p "$LOG_DIR" 2>/dev/null || exit 0
 LEDGER="$LOG_DIR/session-ledger.csv"
 

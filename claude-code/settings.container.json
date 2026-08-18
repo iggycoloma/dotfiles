@@ -301,6 +301,11 @@
             "type": "command",
             "command": "~/.agent-hooks/post-dep-audit.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/tool-telemetry.sh claude",
+            "timeout": 5
           }
         ]
       }

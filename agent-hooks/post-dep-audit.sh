@@ -68,6 +68,6 @@ printf '%s ecosystem=%s rc=%s project=%s\n' "$(date -Is)" "$ecosystem" "$audit_r
 [[ $audit_rc -ne 0 ]] || exit 0
 printf '%s\n' "$audit_output" >> "$audit_log"
 printf 'dependency audit failed (%s, exit %s); review %s\n' "$ecosystem" "$audit_rc" "$audit_log" >&2
-if [[ "${AGENT_DEP_AUDIT_FEEDBACK:-${RALPH_AUDIT_BLOCKING:-0}}" == "1" ]]; then
+if [[ "${AGENT_DEP_AUDIT_FEEDBACK:-0}" == "1" ]]; then
     exit 2
 fi
