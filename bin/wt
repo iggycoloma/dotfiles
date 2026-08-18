@@ -1016,14 +1016,11 @@ detect_forge() {
     case "$url" in
         *gitlab*) printf 'gitlab\n' ;;
         *github*) printf 'github\n' ;;
-        *)
-            # Unrecognised host: fall back to whichever CLI exists rather than
-            # guessing a vendor from an arbitrary domain.
-            if command -v gh >/dev/null 2>&1; then printf 'github\n'
-            elif command -v glab >/dev/null 2>&1; then printf 'gitlab\n'
-            else die "cannot tell which forge $url belongs to; set WT_FORGE=github|gitlab"
-            fi
-            ;;
+        # An unrecognised host requires explicit configuration. Installed
+        # CLIs are a property of the machine, not the repository -- a
+        # self-hosted GitLab remote on a machine with gh would fetch
+        # refs/pull/N/head and fail confusingly.
+        *) die "cannot tell which forge $url belongs to; set WT_FORGE=github|gitlab" ;;
     esac
 }
 

@@ -1328,6 +1328,13 @@ fork_sha="$(git -C main rev-parse HEAD)"
 git -C main push -q origin "HEAD:refs/pull/1/head"
 git -C main reset --hard -q HEAD~1
 
+# The origin here is a local path, which no hostname heuristic recognises.
+# Installed CLIs are a property of the machine, not the repository, so an
+# unrecognised host must demand configuration rather than guess from them.
+out=$("$WT" add pr:1 2>&1)
+assert_not_equals 0 $? "an unrecognised origin host fails rather than guessing the forge"
+assert_contains "$out" "WT_FORGE" "the failure names the configuration that resolves it"
+
 WT_FORGE=github "$WT" add pr:1 >/dev/null 2>&1
 assert_equals 0 $? "a request whose branch exists only as a fork ref still resolves"
 assert_dir_exists "$TMP/p2/wt/pr-1" "the request worktree is created under a pr-N name"
