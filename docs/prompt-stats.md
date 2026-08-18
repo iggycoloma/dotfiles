@@ -9,7 +9,7 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | File | Loaded when | Loads / triggers | Lines | ~Tokens (excl) | ~Tokens (incl) | vs Codex 32 KiB |
 |------|-------------|------------------|-------|----------------|----------------|-----------------|
-| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports 3 `agent-prompts/` fragments at launch; triggers forge.md for forge tasks | 100 | 1906 | 5749 | -- |
+| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports 3 `agent-prompts/` fragments at launch; triggers forge.md for forge tasks | 100 | 1930 | 5773 | -- |
 | `codex/AGENTS.md` | every Codex session, all projects (deployed to ~/.codex) | directs a session-start read of the fragments (worktrees.md and forge.md only for matching tasks) | 62 | 1164 | 5007 | -- |
 | `copilot/copilot-instructions.md` | every Copilot session, all projects (deployed to ~/.copilot) | same session-start directive as Codex | 48 | 908 | 4750 | -- |
 | `agent-prompts/writing-style.md` | via each global file above | nothing | 74 | 1516 | 1516 | -- |
@@ -26,7 +26,7 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | Harness | Composition | ~Tokens |
 |---------|-------------|---------|
-| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 8991 |
+| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 9016 |
 | Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8122 |
 | Copilot | global instructions + session-start fragments + repo instructions | 5294 |
 

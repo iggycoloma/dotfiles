@@ -30,5 +30,13 @@ _pushover_resolve_creds || exit 0
 
 INPUT=$(cat)
 LABEL=$(notify_session_label "$INPUT" CLAUDE_SESSION_NAME session_id)
-send_pushover "Claude Code" "$LABEL ready for input"
+
+# The matcher fires for more than idle_prompt (permission_prompt,
+# agent_needs_input), so prefer the notification's own message when the
+# payload carries one; fall back to the generic idle wording.
+MESSAGE=""
+if command -v jq &>/dev/null; then
+    MESSAGE=$(echo "$INPUT" | jq -r '.message // empty' 2>/dev/null)
+fi
+send_pushover "Claude Code" "$LABEL ${MESSAGE:-ready for input}"
 exit 0

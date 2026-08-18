@@ -25,6 +25,7 @@ CLAUDE_SETTINGS="$DOTFILES_DIR_REAL/claude-code/settings.json"
 CODEX_HOOKS="$DOTFILES_DIR_REAL/codex/hooks.json"
 SECURITY_HOOK="$DOTFILES_DIR_REAL/agent-hooks/pre-security.sh"
 EMOJI_HOOK="$DOTFILES_DIR_REAL/agent-hooks/pre-code-no-emoji.sh"
+HOOKSPATH_HOOK="$DOTFILES_DIR_REAL/claude-code/hooks/pre-hookspath-guard.sh"
 
 # Pin HOME so the hooks' $HOME-anchored path checks match the fixtures below.
 FIXTURE_HOME=/home/vscode
@@ -103,6 +104,14 @@ probe_payload() {
                     ;;
             esac
             ;;
+        "$HOOKSPATH_HOOK")
+            case "$tool" in
+                Bash)
+                    jq -n -c --arg t "$tool" \
+                        '{tool_name:$t,tool_input:{command:"git config core.hooksPath .githooks"}}'
+                    ;;
+            esac
+            ;;
     esac
 }
 
@@ -131,6 +140,7 @@ resolve_hook() {
     case "$1" in
         *pre-security.sh) printf '%s' "$SECURITY_HOOK" ;;
         *pre-code-no-emoji.sh) printf '%s' "$EMOJI_HOOK" ;;
+        *pre-hookspath-guard.sh) printf '%s' "$HOOKSPATH_HOOK" ;;
         *) printf '' ;;
     esac
 }
@@ -213,6 +223,7 @@ assert_file_exists "$CLAUDE_SETTINGS" "claude-code/settings.json exists"
 assert_file_exists "$CODEX_HOOKS" "codex/hooks.json exists"
 assert_file_exists "$SECURITY_HOOK" "agent-hooks/pre-security.sh exists"
 assert_file_exists "$EMOJI_HOOK" "agent-hooks/pre-code-no-emoji.sh exists"
+assert_file_exists "$HOOKSPATH_HOOK" "claude-code/hooks/pre-hookspath-guard.sh exists"
 
 jq -e . "$CODEX_HOOKS" >/dev/null 2>&1
 assert_return_code 0 $? "codex/hooks.json is valid JSON"
