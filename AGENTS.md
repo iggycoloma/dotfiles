@@ -67,7 +67,7 @@ edit the tracked source and redeploy, never the deployed copy.
 | `agent-prompts/*.md` | Global (all projects) | Shared fragments, deployed to each tool's `prompts/` dir |
 
 Cross-tool content (communication style, CLI tool preferences, comment policy,
-markdown formatting, worktree operational rules) is single-sourced in
+markdown formatting, worktree operational rules, forge interaction) is single-sourced in
 `agent-prompts/` and deployed to `~/.claude/prompts/`, `~/.codex/prompts/`, and
 `~/.copilot/prompts/` by `bootstrap/symlinks.sh` (whole-directory, so a new
 fragment needs no manifest entry). Claude loads it via native

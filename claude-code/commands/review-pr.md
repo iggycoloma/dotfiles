@@ -23,6 +23,7 @@ The target is `$ARGUMENTS`.
 - **Non-empty** -- a PR/MR number or URL.
   Fetch it with `gh pr view` / `gh pr diff`, or `glab mr view` / `glab mr diff` on a GitLab remote.
   Check `git remote -v` if it is not obvious which.
+  If the higher-level subcommands seem insufficient, read `~/.claude/prompts/forge.md` before reaching for `gh api` / `glab api` -- it covers what current `gh` and `glab` already expose.
 - **Empty** -- review the working diff.
   Determine the base rather than assuming `main`: `git symbolic-ref refs/remotes/origin/HEAD`, or the project's config.
   Then read `git diff <base>...HEAD` for committed work **and** `git diff HEAD` for uncommitted work -- the range form excludes the working tree, so on a dirty tree it silently reviews the wrong thing.

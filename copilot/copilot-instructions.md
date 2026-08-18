@@ -31,6 +31,7 @@ At the start of a session, read and apply:
 - `~/.copilot/prompts/writing-style.md` -- communication style for explanations, reviews, and prose, plus what a handoff report must cover
 - `~/.copilot/prompts/engineering-conventions.md` -- preferred CLI tools, code-comment policy, markdown formatting
 - `~/.copilot/prompts/worktrees.md` -- operational rules for the `wt` worktree system, when the task involves worktrees
+- `~/.copilot/prompts/forge.md` -- forge interaction (`gh`/`glab` usage, PR/MR descriptions, forge comment formatting), only when the task touches a PR, MR, issue, or forge comment
 
 ## Working Style
 
