@@ -110,24 +110,19 @@ guardrail. Out of scope for the current PR.
 
 ## Shared Claude/Codex workflow sources
 
-**What's there today.** Claude Code has first-class slash commands and
-subagents in `claude-code/commands/` and `claude-code/agents/`. Codex has a
-lighter `codex/skills/claude-parity/` skill that maps the same user intents to
-Codex-native behavior. The overlap is conceptual, not structural: Claude
-frontmatter (`allowed-tools`, `argument-hint`, `$ARGUMENTS`, subagent
-dispatch) does not map cleanly to Codex skills.
+**What's there today.** Multi-step workflows use the portable Agent Skills
+format under `agent-skills/` and deploy directly to both Claude Code and Codex.
+Claude still has specialized subagents and a few legacy commands; tool-specific
+authority and role wiring remain outside the shared skills.
 
-**The spinoff.** Introduce a neutral workflow source tree that generates or
-checks both harness-specific outputs:
+**Remaining spinoff.** Share agent-role content across Claude and Codex once
+their role configuration and delegation semantics have a stable common
+boundary. Keep tool permissions, publication policy, hooks, and role dispatch
+outside portable skill bodies.
 
-- Claude slash command markdown and subagent prompts.
-- Codex skill reference files and pipeline role docs.
-
-**Trade-off.** This is premature until the workflows have been hardened through
-real use. Prompt drift is lower risk than hook or config drift, and a generator
-would add maintenance machinery before the right shared abstraction is obvious.
-Revisit when workflow drift causes real bugs or the Codex skill format settles
-enough for a clean one-to-one mapping.
+**Trade-off.** Sharing role prose could reduce drift, but generating two
+harness-specific role formats would add machinery and could hide meaningful
+differences in tool access and delegation. Revisit when Codex roles are added.
 
 ## Bash-only egress filtering inside containers
 

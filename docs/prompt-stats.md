@@ -9,15 +9,15 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | File | Loaded when | Loads / triggers | Lines | ~Tokens (excl) | ~Tokens (incl) | vs Codex 32 KiB |
 |------|-------------|------------------|-------|----------------|----------------|-----------------|
-| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports 3 `agent-prompts/` fragments at launch; triggers forge.md for forge tasks | 103 | 2095 | 5938 | -- |
-| `codex/AGENTS.md` | every Codex session, all projects (deployed to ~/.codex) | directs a session-start read of the fragments (worktrees.md and forge.md only for matching tasks) | 79 | 1485 | 5327 | -- |
+| `claude-code/CLAUDE.md` | every Claude session, all projects (deployed to ~/.claude) | imports 3 `agent-prompts/` fragments at launch; triggers forge.md for forge tasks | 100 | 1906 | 5749 | -- |
+| `codex/AGENTS.md` | every Codex session, all projects (deployed to ~/.codex) | directs a session-start read of the fragments (worktrees.md and forge.md only for matching tasks) | 62 | 1164 | 5007 | -- |
 | `copilot/copilot-instructions.md` | every Copilot session, all projects (deployed to ~/.copilot) | same session-start directive as Codex | 48 | 908 | 4750 | -- |
 | `agent-prompts/writing-style.md` | via each global file above | nothing | 74 | 1516 | 1516 | -- |
 | `agent-prompts/engineering-conventions.md` | via each global file above | nothing | 80 | 1636 | 1636 | -- |
 | `agent-prompts/worktrees.md` | Claude: always (import); Codex/Copilot: worktree tasks | nothing | 18 | 689 | 689 | -- |
-| `agent-prompts/forge.md` | all tools: forge tasks only (trigger line or forge/review-pr/pr-create skill) | nothing | 44 | 940 | 940 | -- |
-| `AGENTS.md` | every session in this repo, all tools | triggers `docs/wt-maintenance.md` before editing wt implementation files | 179 | 3019 | 3019 | 36% |
-| `CLAUDE.md` | every Claude session in this repo | imports `@AGENTS.md` at launch | 8 | 127 | 3147 | -- |
+| `agent-prompts/forge.md` | all tools: forge tasks only (trigger line or forge/review-pr/create-pr skill) | nothing | 44 | 940 | 940 | -- |
+| `AGENTS.md` | every session in this repo, all tools | triggers `docs/wt-maintenance.md` before editing wt implementation files | 185 | 3115 | 3115 | 38% |
+| `CLAUDE.md` | every Claude session in this repo | imports `@AGENTS.md` at launch | 8 | 127 | 3242 | -- |
 | `.claude/rules/deny-list-semantics.md` | Claude touches `claude-code/settings*.json` or `claude-code/commands/**` | nothing | 64 | 2044 | 2044 | -- |
 | `docs/wt-maintenance.md` | explicit trigger in AGENTS.md before wt edits | nothing | 27 | 2666 | 2666 | -- |
 | `.github/copilot-instructions.md` | every Copilot session in this repo | nothing | 43 | 543 | 543 | -- |
@@ -26,8 +26,8 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 
 | Harness | Composition | ~Tokens |
 |---------|-------------|---------|
-| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 9085 |
-| Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8347 |
+| Claude Code | global CLAUDE.md + 3 fragments + root CLAUDE.md + @AGENTS.md import | 8991 |
+| Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8122 |
 | Copilot | global instructions + session-start fragments + repo instructions | 5294 |
 
 Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (2666 tokens, explicit trigger), the forge fragment (940 tokens, forge tasks only, all tools), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.

@@ -278,6 +278,26 @@ _deploy_agent_prompts() {
     fi
 }
 
+# Agent Skills are an open format shared by Claude Code and Codex. Deploy
+# canonical skills one directory at a time so tool-owned/system skills survive.
+_deploy_agent_skills() {
+    local source_dir="$1" target_dir="$2"
+    [[ -d "$source_dir" ]] || return 0
+
+    mkdir -p "$target_dir"
+    local skill_dir skill_name
+    for skill_dir in "$source_dir"/*; do
+        [[ -d "$skill_dir" && -f "$skill_dir/SKILL.md" ]] || continue
+        skill_name=$(basename "$skill_dir")
+        if is_devcontainer; then
+            rm -rf "$target_dir/${skill_name:?}"
+            cp -rf "$skill_dir" "$target_dir/$skill_name"
+        else
+            create_symlink "$skill_dir" "$target_dir/$skill_name"
+        fi
+    done
+}
+
 _setup_agent_hooks() {
     [[ -d "$DOTFILES_DIR/agent-hooks" ]] || return 0
 
@@ -350,6 +370,7 @@ _setup_claude_code() {
     _deploy_notify_lib "$HOME/.claude/hooks"
 
     _deploy_agent_prompts "$HOME/.claude/prompts"
+    _deploy_agent_skills "$DOTFILES_DIR/agent-skills" "$HOME/.claude/skills"
 
     log_success "Claude Code configuration complete"
 }
@@ -393,25 +414,10 @@ _setup_codex() {
 
     _deploy_notify_lib "$HOME/.codex/hooks"
 
-    # Skills: copy subdirectories individually (preserves .system in devcontainer)
-    if [[ -d "$DOTFILES_DIR/codex/skills" ]]; then
-        if is_devcontainer; then
-            mkdir -p "$HOME/.codex/skills"
-            for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
-                [[ -d "$skill_dir" ]] || continue
-                local skill_name
-                skill_name=$(basename "$skill_dir")
-                rm -rf "$HOME/.codex/skills/$skill_name"
-                cp -rf "$skill_dir" "$HOME/.codex/skills/$skill_name"
-            done
-        else
-            mkdir -p "$HOME/.codex/skills"
-            for skill_dir in "$DOTFILES_DIR/codex/skills"/*; do
-                [[ -d "$skill_dir" ]] || continue
-                create_symlink "$skill_dir" "$HOME/.codex/skills/$(basename "$skill_dir")"
-            done
-        fi
-    fi
+    # Remove the retired umbrella skill; its workflows now live in the shared
+    # one-skill-per-intent tree. Preserve all unrelated and system skills.
+    rm -rf "$HOME/.codex/skills/claude-parity"
+    _deploy_agent_skills "$DOTFILES_DIR/agent-skills" "$HOME/.codex/skills"
 
     # config.toml: host vs container variant. Deploy as a real managed copy in
     # both environments because _setup_codex_notify appends a machine-specific

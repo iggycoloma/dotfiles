@@ -47,28 +47,11 @@ The baseline bias compresses explanations too aggressively; actively counteract 
 - Run relevant tests/lint after changes when practical and report what was run
 - If asked for a review, prioritize bugs/regressions/security issues first, then style
 
-## Claude-Style Workflow Intents
+## Shared Agent Skills
 
-When user intent matches these commands, use the equivalent workflow:
-
-- `context-prime`: load README + key project files, summarize stack, git state, and active work.
-- `commit`: inspect staged/uncommitted diff, propose conventional commit message, then commit.
-- `pr-create`: summarize changes, draft a complete PR body, and provide/run `gh pr create`.
-- `review-pr`: fetch a PR, MR, or the working diff; judge correctness, ordering, observability, repo fit and mechanism level; label each finding blocking or non-blocking; and name both the smallest correct change and the best available one.
-- `debug`: gather evidence, form hypotheses, identify root cause, implement minimal fix, add tests.
-- `test`: generate or update tests for changed behavior and run relevant suite.
-- `dependencies`: check outdated/vulnerable deps, classify risk, and update safely.
-- `security-audit`: scan for credential leaks, injection risk, authz gaps, and dependency CVEs.
-- `feature-spec`: produce a structured spec with stories, acceptance criteria, edge cases, and scope.
-- `pipeline`: run PM -> Architect -> Implementer -> QA stages with user checkpoints.
-
-## Pipeline Rules
-
-- Stage 1 (PM): create spec with clear acceptance criteria.
-- Stage 2 (Architect): validate design and write ADR-level decisions.
-- Stage 3 (Implementer): build exactly to spec/ADR and add tests.
-- Stage 4 (QA): verify requirements, run checks, and decide `DONE` vs `NEEDS_WORK`.
-- Pause between stages for user review before proceeding.
+Multi-step engineering workflows are deployed from the cross-tool `agent-skills/`
+source. Use the matching skill when its description fits the user's request;
+the skill owns its procedure, routing precedence, and output contract.
 
 ## Worktrees (parallel agent work)
 

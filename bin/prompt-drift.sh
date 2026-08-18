@@ -70,6 +70,13 @@ for fragment in "$DOTFILES_DIR"/agent-prompts/*.md; do
     done
 done
 
+for skill_dir in "$DOTFILES_DIR"/agent-skills/*; do
+    [[ -d "$skill_dir" && -f "$skill_dir/SKILL.md" ]] || continue
+    name="$(basename "$skill_dir")"
+    check_pair "$skill_dir/SKILL.md" "$HOME/.claude/skills/$name/SKILL.md"
+    check_pair "$skill_dir/SKILL.md" "$HOME/.codex/skills/$name/SKILL.md"
+done
+
 if [[ "$ERRORS" -gt 0 ]]; then
     log_error "prompt-drift: $ERRORS deployed instruction file(s) drifted from tracked sources"
     exit 1

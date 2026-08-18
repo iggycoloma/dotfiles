@@ -73,7 +73,7 @@ Cross-tool conventions (preferred CLI tools, code-comment policy, markdown forma
 
 Forge interaction is deliberately NOT imported, to keep it out of sessions that never touch a forge:
 before drafting or editing a PR/MR description, issue, or forge comment, or reaching for `gh api` / `glab api`, read `~/.claude/prompts/forge.md`.
-The `forge`, `review-pr`, and `pr-create` skills load it themselves.
+The `forge`, `review-pr`, and `create-pr` skills load it themselves.
 
 ## Communication style
 
@@ -85,14 +85,11 @@ Claude-specific corrections -- the baseline bias runs verbose and lexically elev
 - Do not turn straightforward engineering observations into named principles or lengthy taxonomies.
 - Stop once the question is adequately answered.
 
-## Skill trigger precedence
+## Shared Agent Skills
 
-Several skills have overlapping triggers. When multiple match, apply this order:
-
-- `review-pr` over `security-audit` unless the user explicitly asks for a security audit or the diff is clearly security-focused (auth/crypto/secrets). Incidental touches to a file in one of those areas do not promote to `security-audit`.
-- `debug` over everything else only when the user pastes a stack trace, stderr block, or failing test output. "The UI looks wrong" is not `debug`.
-- `fix-issue` over `debug` when the user references a filed issue or ticket (#NNN, an issue URL, or a tracker key like ENG-123). Without one, stay in `debug`.
-- Any diff-scoped review over `systems-review`. A change under review is always reviewed as a change; `systems-review` takes over only when the unit named is a subsystem rather than a diff. It also outranks `refactor` and `optimize` in the other direction -- when the question is which mechanism enforces an invariant, it is not a cleanup or a slowdown.
+Multi-step engineering workflows are deployed from the cross-tool `agent-skills/`
+source. Use the matching skill when its description fits the user's request;
+the skill owns its procedure, routing precedence, and output contract.
 
 ## Worktrees (parallel agent work)
 

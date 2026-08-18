@@ -518,7 +518,7 @@ test_mcp_guidance_present() {
 }
 
 # ============================================================================
-# Test Suite: Command Frontmatter
+# Test Suite: Command and Skill Frontmatter
 # ============================================================================
 
 # Emit the frontmatter of a markdown file -- the lines between the leading
@@ -545,6 +545,48 @@ test_command_frontmatter_present() {
         test_pass "All command files open with a frontmatter block"
     else
         test_fail "Command files with missing or unclosed frontmatter: ${missing[*]}"
+    fi
+}
+
+test_shared_skill_frontmatter_present() {
+    local expected=(
+        assess-release audit-security commit create-pr debug fix-issue forge
+        generate-changelog investigate-incident manage-dependencies
+        optimize-performance plan-migration review-design review-pr
+        review-system run-pipeline specify-feature teach-socratically
+    )
+    local missing=() invalid=() skill file frontmatter
+    for skill in "${expected[@]}"; do
+        file="$DOTFILES_DIR/agent-skills/$skill/SKILL.md"
+        if [[ ! -f "$file" ]]; then
+            missing+=("$skill")
+            continue
+        fi
+        frontmatter=$(extract_frontmatter "$file")
+        if ! printf '%s\n' "$frontmatter" | grep -Fqx "name: $skill" \
+            || ! printf '%s\n' "$frontmatter" | grep -q '^description:'; then
+            invalid+=("$skill")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 && ${#invalid[@]} -eq 0 ]]; then
+        test_pass "All 18 shared Agent Skills have portable frontmatter"
+    else
+        [[ ${#missing[@]} -eq 0 ]] || test_fail "Missing shared Agent Skills: ${missing[*]}"
+        [[ ${#invalid[@]} -eq 0 ]] || test_fail "Invalid shared Agent Skill frontmatter: ${invalid[*]}"
+    fi
+}
+
+test_shared_skills_are_platform_neutral() {
+    local hits
+    # shellcheck disable=SC2016  # Match literal skill placeholders and paths.
+    hits=$(grep -RInE '\$ARGUMENTS|\$[0-9]|~/\.(claude|codex)/' \
+        "$DOTFILES_DIR/agent-skills" || true)
+    if [[ -z "$hits" ]]; then
+        test_pass "Shared Agent Skills contain no Claude- or Codex-specific paths or arguments"
+    else
+        test_fail "Shared Agent Skills contain platform-specific content"
+        test_info "$hits"
     fi
 }
 
@@ -663,6 +705,10 @@ main() {
     test_command_frontmatter_present
     test_no_packed_permission_rules
     test_frontmatter_bracket_values_parse
+
+    test_suite "Shared Agent Skills"
+    test_shared_skill_frontmatter_present
+    test_shared_skills_are_platform_neutral
 
     test_suite "Dotfiles State Self-Heal Link List"
     test_state_heal_links_match

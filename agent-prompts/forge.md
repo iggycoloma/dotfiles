@@ -2,7 +2,7 @@
 
 Conventions for working with GitHub and GitLab: fetching change context and writing anything the forge renders.
 This file is deliberately not part of the always-loaded context.
-Load it when a task touches a PR, MR, issue, or forge comment -- via the trigger line in the global instruction file, or via the `forge`, `review-pr`, and `pr-create` skills, which reference it.
+Load it when a task touches a PR, MR, issue, or forge comment -- via the trigger line in the global instruction file, or via the `forge`, `review-pr`, and `create-pr` skills, which reference it.
 
 ## Forge CLIs: subcommands over raw API
 
