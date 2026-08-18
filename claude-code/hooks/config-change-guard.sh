@@ -19,10 +19,10 @@ source_kind="unknown"
 config_path=""
 if command -v jq &>/dev/null; then
     input=$(cat)
-    source_kind=$(echo "$input" | jq -r '.config_source // "unknown"')
-    config_path=$(echo "$input" | jq -r '.config_path // empty')
+    source_kind=$(echo "$input" | jq -r '.source // "unknown"')
+    config_path=$(echo "$input" | jq -r '.file_path // empty')
 fi
 
-printf 'Blocked a mid-session %s reload (%s). The file change is intact and applies on the next session start. If this change was explicitly requested by the user, re-run with DOTFILES_ALLOW_CONFIG_RELOAD=1.\n' \
+printf 'Blocked a mid-session %s reload (%s); inspect the ConfigChange debug log for this silent guard.\n' \
     "$source_kind" "${config_path:-unknown path}" >&2
 exit 2

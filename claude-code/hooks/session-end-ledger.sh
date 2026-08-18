@@ -40,7 +40,7 @@ row=$(jq -R -r -n '
       }
     | [.duration_s, .input_tokens, .output_tokens,
        .cache_read_tokens, .cache_creation_tokens, .cost_usd]
-    | @csv
+    | @json
 ' < "$TRANSCRIPT" 2>/dev/null) || exit 0
 [[ -n "$row" ]] || exit 0
 
@@ -48,5 +48,8 @@ if [[ ! -f "$LEDGER" ]]; then
     echo 'ended_at,session_id,project,duration_s,input_tokens,output_tokens,cache_read_tokens,cache_creation_tokens,cost_usd' > "$LEDGER"
 fi
 
-printf '%s,%s,%s,%s\n' "$(date -Is)" "$SESSION_ID" "$(basename "${CWD:-unknown}")" "$row" >> "$LEDGER"
+metrics=$(printf '%s' "$row" | jq -c '.') || exit 0
+jq -nr --arg ended "$(date -Is)" --arg session "$SESSION_ID" \
+    --arg project "$(basename "${CWD:-unknown}")" --argjson metrics "$metrics" \
+    '[$ended,$session,$project] + $metrics | @csv' >> "$LEDGER"
 exit 0

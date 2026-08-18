@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Pre-tool security hook - Block access to sensitive files
 #
-# Scope is file-path arguments only: Claude's Read/Write/Edit/MultiEdit and
-# Codex's apply_patch. There is deliberately no Bash branch. Scanning a command
+# Scope is structured file-path arguments: Claude's file tools, Codex's
+# apply_patch, and MCP/local tools that expose path/file_path fields. There is
+# deliberately no Bash branch. Scanning a command
 # string for credential filenames cannot distinguish naming a path from opening
 # one, and cannot model quoting or expansion, so it produced steady false
 # prompts while missing any non-literal access. On hosts that job belongs to
@@ -170,11 +171,19 @@ if [[ "$TOOL_NAME" == "apply_patch" ]]; then
     exit 0
 fi
 
-if [[ "$TOOL_NAME" != "Read" && "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "MultiEdit" ]]; then
-    exit 0
-fi
-
-FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
-check_file_path "$FILE_PATH" && exit 0
+case "$TOOL_NAME" in
+    Read|Write|Edit|MultiEdit|NotebookEdit)
+        FILE_PATH=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+        check_file_path "$FILE_PATH" && exit 0
+        ;;
+    mcp__*|read_file|write_file|edit_file)
+        while IFS= read -r FILE_PATH; do
+            [[ -n "$FILE_PATH" ]] || continue
+            check_file_path "$FILE_PATH" && exit 0
+        done < <(echo "$input" | jq -r '
+            [.tool_input.file_path?, .tool_input.path?, .tool_input.paths[]?]
+            | .[] | select(type == "string")')
+        ;;
+esac
 
 exit 0

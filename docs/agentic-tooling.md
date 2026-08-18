@@ -87,7 +87,7 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Component       | Count | Purpose                                                                |
 |-----------------|-------|------------------------------------------------------------------------|
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
-| Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
+| Hooks           | 12    | Shared guardrails, dependency/scope audits, lifecycle telemetry, notifications |
 | Agents          | 2     | code-reviewer (fresh-context diff review), verify (adversarial claim check) |
 | Shared skills   | 22    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
@@ -110,9 +110,14 @@ Summary:
 
 | Hook                      | Trigger (Claude Code) | Action                                                         |
 |---------------------------|------------------|---------------------------------------------------------------------|
-| `pre-security.sh`         | Read/Write/Edit  | Blocks ~50 sensitive file patterns and credential directories       |
-| `pre-code-no-emoji.sh`    | Write/Edit       | Blocks decorative emoji in code files                               |
-| `notify.sh`               | Notification     | Pushover notification when Claude is idle and waiting for input     |
+| `pre-security.sh`         | Structured file tools | Blocks sensitive file patterns and credential directories       |
+| `pre-code-no-emoji.sh`    | File edits       | Blocks decorative emoji in added content                            |
+| `pre-hookspath-guard.sh`  | Bash             | Blocks writes to `core.hooksPath`                                   |
+| `post-scope-audit.sh`     | File edits       | Audits writes outside the project                                   |
+| `post-dep-audit.sh`       | Bash             | Audits resolved dependencies after installs                         |
+| `tool-telemetry.sh`       | Shell result     | Records metadata-only reliability events                            |
+| `session-audit.sh`        | Session lifecycle | Records metadata-only starts and ends                              |
+| `subagent-audit.sh`       | Subagent lifecycle | Records metadata-only starts, stops, and duration                  |
 
 Exit codes: `0` = continue, `2` = block (stderr shown as denial reason).
 Other non-zero codes are logged but don't block.
@@ -140,22 +145,14 @@ Codex has no `Read`, `Write`, or `Edit` tool -- file edits arrive as
 A matcher using Claude's tool names is dead wiring, which is what
 `tests/test-hook-matchers.sh` exists to catch.
 
-`apply_patch` did not emit hook events at all until Codex 0.123.0
-([#16732](https://github.com/openai/codex/issues/16732),
-[#17794](https://github.com/openai/codex/issues/17794)).
-On anything older no guard is live at all; check with `codex --version`.
-
-Credential-read blocking is not achievable on Codex at any version.
-Its `read_file` and `grep` handlers implement no `pre_tool_use_payload`, so no
-hook fires ([#20204](https://github.com/openai/codex/issues/20204),
-[#18491](https://github.com/openai/codex/issues/18491)).
-The Bash scan used to be the partial mitigation for shell-based reads such as
-`cat ~/.ssh/id_rsa`; it was retired because it could not model quoting or
-expansion and prompted on ordinary commands
-(see [sandbox.md](sandbox.md#why-there-is-no-bash-scan)).
-On Claude Code `sandbox.credentials` replaces it. Codex has no equivalent, so on
-Codex the remaining boundary is its native `sandbox_mode` -- `workspace-write`
-with network off by default on hosts, the container in devcontainers.
+Current Codex releases dispatch hooks for Bash, `apply_patch`, MCP calls, and
+most local function tools. Structured MCP/local tools are guarded when their
+input exposes `path`, `file_path`, or `paths`; specialized or hosted tool paths
+may opt out, so this remains defense in depth rather than a complete boundary.
+Arbitrary Bash credential-path parsing remains retired because it cannot model
+shell quoting or expansion. Claude's `sandbox.credentials`, Codex's native
+sandbox, container isolation, and server-side controls remain the durable
+boundaries for subprocess and hosted-tool behavior.
 
 `tests/test-hook-matchers.sh` locks this down: it checks that every matcher in
 `claude-code/settings.json` and `codex/hooks.json` names a tool its platform
@@ -185,12 +182,12 @@ Lives at `codex/`. Deployed to `~/.codex/`.
   `approval_policy = "on-request"` (independent of sandbox mode).
 - `agent-skills/` is deployed to both Claude Code and Codex as one portable
   skill per workflow.
-- `hooks.json` wires Codex PreToolUse hooks through `~/.codex/hooks/`
-  wrappers, which exec the shared `~/.agent-hooks/` implementations. Matchers
-  name Codex's own tools (`Bash`, `apply_patch`) -- not Claude's
-  `Read`/`Write`/`Edit`, which Codex never emits. Behavior is shared, but
-  coverage is narrower than Claude Code's; see
-  [Coverage is not symmetric across tools](#coverage-is-not-symmetric-across-tools).
+- `hooks.json` wires shared PreToolUse, PostToolUse, session, and subagent hooks.
+  Codex-specific wrappers remain only where the invocation contract differs.
+  Both config variants explicitly enable the hooks feature. Codex hashes and
+  requires trust for non-managed hook definitions; organizations that require
+  non-bypassable policy must redeploy the shared scripts through MDM and define
+  them as managed hooks in `requirements.toml` rather than relying on dotfiles.
   Commit messages are validated by git's `commit-msg` hook, not by an agent hook.
 - `hooks/notify.sh` sends Pushover notifications when idle.
 - Shell aliases: `cx` (codex), `cxe` (codex exec), `cxr`

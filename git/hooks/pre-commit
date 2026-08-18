@@ -2,7 +2,7 @@
 # Global pre-commit hook: secret scanning via gitleaks
 #
 # Scans staged changes for secrets (API keys, passwords, tokens).
-# Silently passes if gitleaks is not installed.
+# Warns if gitleaks is unavailable; forge push protection remains authoritative.
 # Applied globally via core.hooksPath = ~/.config/git/hooks
 #
 # Bypass (emergency): git commit --no-verify
@@ -16,9 +16,9 @@ if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" || exit $?
 fi
 
-# Gitleaks secret scanning (skip if not installed)
+# Gitleaks secret scanning.
 if command -v gitleaks &>/dev/null; then
-    gitleaks protect --staged --no-banner
+    gitleaks git --staged --no-banner --redact .
     exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         echo ""
@@ -30,4 +30,6 @@ if command -v gitleaks &>/dev/null; then
         echo "  2. Use: git commit --no-verify (not recommended)"
         exit 1
     fi
+else
+    echo "warning: gitleaks is unavailable; staged changes were not scanned for secrets" >&2
 fi

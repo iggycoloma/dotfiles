@@ -55,4 +55,3 @@ git/hooks/hooks
 # needed for that hook (and would show as a tracked-file modification if run).
 git/hooks/post-commit
 git/hooks/post-merge
-git/hooks/pre-push
