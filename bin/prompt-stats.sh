@@ -71,7 +71,7 @@ row copilot/copilot-instructions.md "every Copilot session, all projects (deploy
 row agent-prompts/writing-style.md "via each global file above" "nothing" "$(lines agent-prompts/writing-style.md)" "$B_STYLE" "$B_STYLE" no
 row agent-prompts/engineering-conventions.md "via each global file above" "nothing" "$(lines agent-prompts/engineering-conventions.md)" "$B_ENG" "$B_ENG" no
 row agent-prompts/worktrees.md "Claude: always (import); Codex/Copilot: worktree tasks" "nothing" "$(lines agent-prompts/worktrees.md)" "$B_WT" "$B_WT" no
-row agent-prompts/forge.md "all tools: forge tasks only (trigger line or forge/review-pr/pr-create skill)" "nothing" "$(lines agent-prompts/forge.md)" "$B_FORGE" "$B_FORGE" no
+row agent-prompts/forge.md "all tools: forge tasks only (trigger line or forge/review-pr/create-pr skill)" "nothing" "$(lines agent-prompts/forge.md)" "$B_FORGE" "$B_FORGE" no
 row AGENTS.md "every session in this repo, all tools" "triggers \`docs/wt-maintenance.md\` before editing wt implementation files" "$(lines AGENTS.md)" "$B_AGENTS_ROOT" "$B_AGENTS_ROOT" yes
 row CLAUDE.md "every Claude session in this repo" "imports \`@AGENTS.md\` at launch" "$(lines CLAUDE.md)" "$B_CLAUDE_ROOT" $(( B_CLAUDE_ROOT + B_AGENTS_ROOT )) no
 row .claude/rules/deny-list-semantics.md "Claude touches \`claude-code/settings*.json\` or \`claude-code/commands/**\`" "nothing" "$(lines .claude/rules/deny-list-semantics.md)" "$B_RULE_DENY" "$B_RULE_DENY" no

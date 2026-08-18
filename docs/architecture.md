@@ -47,6 +47,7 @@ dotfiles/
 |   |-- .gitmessage            # Conventional commit template
 |   +-- hooks/                 # Global git hooks (commit-msg, pre-commit)
 |-- agent-hooks/               # Shared Claude/Codex hook implementations
+|-- agent-skills/              # Portable Agent Skills deployed to Claude and Codex
 |-- claude-code/
 |   |-- CLAUDE.md              # Global Claude Code instructions
 |   |-- settings.json          # Host variant (sandbox.enabled=true)
@@ -54,13 +55,12 @@ dotfiles/
 |   |-- statusline.sh          # Status bar (git, context, model)
 |   |-- hooks/                 # Claude hook wrappers + notify
 |   |-- agents/                # PM, architect, implementer, QA, code reviewer
-|   +-- commands/              # 18 slash commands (/commit, /pipeline, ...)
+|   +-- commands/              # Remaining Claude-only legacy commands
 |-- codex/
 |   |-- AGENTS.md              # Global Codex instructions
 |   |-- config.toml            # Host variant (sandbox_mode=workspace-write)
 |   |-- config.container.toml  # Container variant (sandbox_mode=danger-full-access)
-|   |-- hooks/                 # Codex hook wrappers + notify
-|   +-- skills/                # Claude-parity workflow skills
+|   +-- hooks/                 # Codex hook wrappers + notify
 |-- copilot/
 |   +-- copilot-instructions.md # Global Copilot CLI instructions
 |-- config/                    # Starship, ripgrep, bat, bottom, lazygit, yazi

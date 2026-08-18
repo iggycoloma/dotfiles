@@ -398,6 +398,12 @@ _setup_toggle_env() {
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/settings.json" "{}"
     mock_file "$TEST_TEMP_DIR/dotfiles/claude-code/statusline.sh" "#!/bin/sh"
 
+    # Portable Agent Skills
+    mock_file "$TEST_TEMP_DIR/dotfiles/agent-skills/review-design/SKILL.md" \
+        $'---\nname: review-design\ndescription: Review a design.\n---'
+    mock_file "$TEST_TEMP_DIR/dotfiles/agent-skills/forge/SKILL.md" \
+        $'---\nname: forge\ndescription: Apply forge conventions.\n---'
+
     # Shared agent hooks
     mkdir -p "$TEST_TEMP_DIR/dotfiles/agent-hooks"
     mock_file "$TEST_TEMP_DIR/dotfiles/agent-hooks/pre-security.sh" "#!/bin/sh"
@@ -514,6 +520,26 @@ test_default_installs_shared_agent_hooks() {
         assert_is_symlink "$TEST_TEMP_DIR/home/.agent-hooks" \
             "Host shared agent hooks should be symlinked"
     fi
+
+    teardown_test_env
+}
+
+test_default_installs_shared_agent_skills() {
+    _setup_toggle_env
+    unset DOTFILES_NO_AI_TOOLS 2>/dev/null || true
+
+    create_symlinks &>/dev/null
+
+    assert_file_exists "$TEST_TEMP_DIR/home/.claude/skills/review-design/SKILL.md" \
+        "Claude should receive shared Agent Skills"
+    assert_file_exists "$TEST_TEMP_DIR/home/.codex/skills/review-design/SKILL.md" \
+        "Codex should receive shared Agent Skills"
+    assert_file_exists "$TEST_TEMP_DIR/home/.claude/skills/forge/SKILL.md" \
+        "Claude should receive the shared forge skill"
+    assert_file_exists "$TEST_TEMP_DIR/home/.codex/skills/forge/SKILL.md" \
+        "Codex should receive the shared forge skill"
+    assert_file_not_exists "$TEST_TEMP_DIR/home/.codex/skills/claude-parity/SKILL.md" \
+        "Retired Claude parity umbrella should not be deployed"
 
     teardown_test_env
 }
@@ -833,6 +859,7 @@ main() {
     test_toggle_default_installs_all
     test_wt_resolves_on_path_without_shell_functions
     test_default_installs_shared_agent_hooks
+    test_default_installs_shared_agent_skills
     test_codex_config_is_managed_copy
     test_codex_container_config_overwrites_persisted_host_variant
     test_toggle_no_ai_tools_log_message

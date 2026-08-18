@@ -65,6 +65,7 @@ edit the tracked source and redeploy, never the deployed copy.
 | `codex/AGENTS.md` | Global (all projects) | Codex CLI (deployed to `~/.codex/`) |
 | `copilot/copilot-instructions.md` | Global (all projects) | Copilot CLI (deployed to `~/.copilot/`) |
 | `agent-prompts/*.md` | Global (all projects) | Shared fragments, deployed to each tool's `prompts/` dir |
+| `agent-skills/*/SKILL.md` | Global, on demand | Portable engineering workflows deployed to Claude Code and Codex |
 
 Cross-tool content (communication style, CLI tool preferences, comment policy,
 markdown formatting, worktree operational rules, forge interaction) is single-sourced in
@@ -77,6 +78,11 @@ at session start" directive (best-effort). For that reason security-critical
 content stays inlined in every instruction file and remains covered by
 `tests/test-consistency.sh`; only preferences and conventions belong in
 `agent-prompts/`.
+
+Portable multi-step workflows are single-sourced as Agent Skills under
+`agent-skills/` and deployed to both `~/.claude/skills/` and
+`~/.codex/skills/`. Keep tool-specific permissions, hooks, publication policy,
+and agent-role wiring outside the shared skill body.
 
 Two inlined exceptions are load-bearing and deliberately not shared:
 

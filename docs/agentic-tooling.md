@@ -89,10 +89,11 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 3     | Security blocking, no-emoji, idle notification                          |
 | Agents          | 5     | PM spec, architect, implementer-tester, QA reviewer, code reviewer     |
-| Commands        | 18    | commit, pr-create, review-pr, debug, test, refactor, pipeline, ...     |
+| Shared skills   | 18    | commit, create-pr, forge, review-pr, plan-migration, review-design, ... |
+| Legacy commands | 5     | context-prime, deploy-checklist, docs, refactor, test                  |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
-The **4-stage pipeline** (`/pipeline`) runs PM Spec -> Architecture Review ->
+The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
 Implementation + Tests -> QA Review, with user checkpoints between stages.
 
 Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35
@@ -177,15 +178,14 @@ shapes. Behavioral tests live in `tests/test-commit-msg-hook.sh`.
 
 Lives at `codex/`. Deployed to `~/.codex/`.
 
-- `AGENTS.md` with Claude-parity guardrails and workflow intents
-  (context-prime, commit, pr-create, debug, test, dependencies,
-  security-audit, feature-spec, pipeline).
+- `AGENTS.md` with Codex guardrails and pointers to shared conventions.
 - `config.toml` (host) sets `sandbox_mode = "workspace-write"`,
   `approval_policy = "on-request"`.
 - `config.container.toml` (container) sets
   `sandbox_mode = "danger-full-access"` (container is the boundary),
   `approval_policy = "on-request"` (independent of sandbox mode).
-- `skills/claude-parity/` maps user intent to Claude Code-style workflows.
+- `agent-skills/` is deployed to both Claude Code and Codex as one portable
+  skill per workflow.
 - `hooks.json` wires Codex PreToolUse hooks through `~/.codex/hooks/`
   wrappers, which exec the shared `~/.agent-hooks/` implementations. Matchers
   name Codex's own tools (`Bash`, `apply_patch`) -- not Claude's
