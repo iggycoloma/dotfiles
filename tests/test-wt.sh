@@ -1397,72 +1397,66 @@ test_suite "port lock lifecycle"
 cd "$TMP/p2" || exit 1
 lockpath="$TMP/p2/state/ports.lock"
 
-# A lock whose owner is gone must be reclaimed, not waited out. Otherwise one
-# killed run disables allocation for the project permanently.
-ln -sfn "999999:never_ran" "$lockpath"   # a pid that cannot be running
-out=$("$WT" add afterstale 2>&1)
-assert_equals 0 $? "a stale lock is reclaimed rather than waited out"
-assert_contains "$out" "reclaimed a port lock" "the reclaim is reported"
-assert_contains "$(cat state/ports.tsv)" "afterstale" "allocation proceeds after the reclaim"
-assert_file_not_exists "$lockpath" "the reclaimed lock is not left behind"
+# The lock is a kernel flock, so the file's continued existence means
+# nothing: held or free is the only distinction, and the kernel frees it
+# when the holder dies -- any death, including kill -9.
+lock_is_free() {
+    (flock -n 9) 9>>"$1" 2>/dev/null
+}
 
-# A live owner is contention, not staleness, and must not be stolen. The token
-# has to match what the owner would publish now -- a bare pid would let a
-# recycled number pass for the original process.
-live_token="$(bash -c "source '$WT'; ports_lock_token $$")"
-ln -sfn "$live_token" "$lockpath"
-assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockpath'; echo \$?")" \
-    "a lock owned by a running process is not stale"
-assert_equals "0" "$(bash -c "source '$WT'; set +e; ports_record_is_stale '$$:a_different_start_time'; echo \$?")" \
-    "a reused pid with a different start time reads as stale"
-assert_equals "0" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$TMP/nonexistent-lock'; echo \$?")" \
-    "a lock with no recorded owner is treated as stale"
-
-out=$("$WT" doctor 2>&1)
-assert_contains "$out" "locked by a running process" "doctor distinguishes live contention"
-rm -f "$lockpath"
-
-# ...and reports the stale case as a problem, since it means a run was killed.
-ln -sfn "999999:never_ran" "$lockpath"
-out=$("$WT" doctor 2>&1)
-assert_not_equals 0 $? "doctor fails on a stale port lock"
-assert_contains "$out" "stale port lock" "doctor names the stale lock"
-rm -f "$lockpath"
-
-# The lock is released on the way out, including when a later step dies.
 "$WT" add lockcheck >/dev/null 2>&1
-assert_file_not_exists "$lockpath" "a normal run leaves no lock behind"
+assert_equals "0" "$(lock_is_free "$lockpath"; echo $?)" "a normal run leaves the lock free"
 
-# The abnormal path is the one that caused the bug: a process that acquires
-# the lock and then exits non-zero must still release it.
-bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; exit 1" >/dev/null 2>&1
-assert_file_not_exists "$lockpath" "a run that exits non-zero still releases the lock"
+bash -c "source '$WT'; acquire_ports_lock '$lockpath' >/dev/null 2>&1; exit 1" >/dev/null 2>&1
+assert_equals "0" "$(lock_is_free "$lockpath"; echo $?)" "a run that exits non-zero leaves the lock free"
 
-# Cleanup is not enough on a signal: the handler must also terminate, or the
-# command carries on mutating the registry after the caller tried to stop it.
-bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; kill -TERM \$\$; echo SURVIVED" \
+# The case no userspace cleanup can cover, and the reason the lock is an
+# flock rather than a symlink protocol: SIGKILL runs no handler.
+bash -c "source '$WT'; acquire_ports_lock '$lockpath' >/dev/null 2>&1; kill -9 \$\$" >/dev/null 2>&1
+assert_equals "0" "$(lock_is_free "$lockpath"; echo $?)" "a run killed with SIGKILL leaves the lock free"
+
+# With no signal traps installed, default disposition terminates the process:
+# the command must not carry on mutating state after the caller stops it.
+bash -c "source '$WT'; acquire_ports_lock '$lockpath' >/dev/null 2>&1; kill -TERM \$\$; echo SURVIVED" \
     > "$TMP/sigterm.out" 2>&1
 sig_status=$?
-assert_file_not_exists "$lockpath" "a run killed with SIGTERM still releases the lock"
 assert_equals 143 "$sig_status" "SIGTERM yields a signal-derived exit status, not success"
 assert_not_contains "$(cat "$TMP/sigterm.out" 2>/dev/null)" "SURVIVED" \
     "the process stops at the signal instead of continuing"
+assert_equals "0" "$(lock_is_free "$lockpath"; echo $?)" "a run killed with SIGTERM leaves the lock free"
 
-# The lock publishes its owner in the same atomic step that claims the name, so
-# a second acquirer never sees an owner-less lock to mistake for abandoned.
-# The holder must outlive the acquirer's full retry window (50 x 0.1s), or the
-# second acquirer simply waits it out and the refusal is never exercised.
-bash -c "source '$WT'; with_ports_lock '$lockpath' >/dev/null 2>&1; sleep 30" &
+# Contention. The holder must outlive the acquirer's wait window (flock -w 5),
+# or the second acquirer simply waits it out and the refusal is never
+# exercised.
+bash -c "source '$WT'; acquire_ports_lock '$lockpath' >/dev/null 2>&1; sleep 30" &
 lock_holder=$!
 tries=0
-while [[ ! -L "$lockpath" && $tries -lt 40 ]]; do sleep 0.05; tries=$((tries + 1)); done
-assert_equals "1" "$(bash -c "source '$WT'; set +e; ports_lock_is_stale '$lockpath'; echo \$?")" \
-    "a lock held by a live process never reads as stale, even right after acquisition"
-assert_equals "1" "$(bash -c "source '$WT'; set +e; with_ports_lock '$lockpath' >/dev/null 2>&1; echo \$?" \
-    < /dev/null)" "a second acquirer is refused while the first holds the lock"
+while lock_is_free "$lockpath" && [[ $tries -lt 40 ]]; do sleep 0.05; tries=$((tries + 1)); done
+
+out=$("$WT" doctor 2>&1)
+assert_contains "$out" "locked by a running process" "doctor distinguishes live contention"
+
+# Releasing the port block is part of remove's contract, so a remove that
+# cannot lock the registry must refuse before destroying anything, and a
+# direct release failure must be nonzero and loud rather than a silent
+# success that strands the reservation.
+out=$("$WT" remove lockcheck 2>&1)
+assert_not_equals 0 $? "remove fails when the registry cannot be locked"
+assert_contains "$out" "worktree left in place" "the refusal says nothing was removed"
+assert_dir_exists "$TMP/p2/wt/lockcheck" "the worktree survives a refused remove"
+assert_contains "$(cat state/ports.tsv)" "lockcheck" "the reservation survives a refused remove"
+
+rp_out="$(bash -c "source '$WT'; set +e; release_port '$TMP/p2' lockcheck 2>&1; echo status=\$?")"
+assert_contains "$rp_out" "status=1" "release_port propagates a lock failure as nonzero"
+assert_contains "$rp_out" "not released" "release_port names the reservation it left behind"
+
 kill "$lock_holder" 2>/dev/null || true
 wait "$lock_holder" 2>/dev/null || true
-rm -f "$lockpath"
+assert_equals "0" "$(lock_is_free "$lockpath"; echo $?)" "the holder's death frees the lock"
+
+out=$("$WT" remove lockcheck 2>&1)
+assert_equals 0 $? "remove succeeds once the lock is free"
+assert_not_contains "$(cat state/ports.tsv)" "lockcheck" "remove releases the reservation"
 
 # A free block that is not aligned to PORT_RANGE_START must still be found:
 # unrelated listeners do not land on wt's block boundaries.
@@ -1470,15 +1464,27 @@ printf 'a\t3100\t3104\nb\t3115\t3119\n' > "$TMP/unaligned.tsv"
 assert_equals "0" "$(bash -c "source '$WT'; set +e; block_free 3105 10 '$TMP/unaligned.tsv' >/dev/null 2>&1; echo \$?")" \
     "an unaligned free range is recognised as free"
 
-# Anything at the lock path that is not a symlink can never be claimed or
-# judged, so it must be reported rather than timed out against.
+# A symlink at the lock path is a leftover from the pre-flock scheme; opening
+# it would create a stray file named after its owner token, so it is refused
+# by name rather than followed.
+ln -sfn "999999:never_ran" "$lockpath"
+out=$("$WT" add legacyblocked 2>&1)
+assert_not_equals 0 $? "a legacy symlink at the lock path fails the command"
+assert_contains "$out" "older" "the failure attributes the symlink to the old scheme"
+out=$("$WT" doctor 2>&1)
+assert_not_equals 0 $? "doctor fails on a legacy symlink lock"
+assert_contains "$out" "symlink" "doctor names the legacy symlink"
+rm -f "$lockpath"
+
+# Anything else at the lock path that is not a regular file cannot be locked
+# and must be reported rather than timed out against.
 mkdir -p "$lockpath"
 out=$("$WT" add lockdirblocked 2>&1)
-assert_not_equals 0 $? "a non-symlink at the lock path fails the command"
-assert_contains "$out" "not a symlink" "the failure names the obstruction"
+assert_not_equals 0 $? "a non-file at the lock path fails the command"
+assert_contains "$out" "not a regular file" "the failure names the obstruction"
 out=$("$WT" doctor 2>&1)
-assert_not_equals 0 $? "doctor fails on a non-symlink lock path"
-assert_contains "$out" "not a symlink" "doctor names the obstruction too"
+assert_not_equals 0 $? "doctor fails on a non-file lock path"
+assert_contains "$out" "not a regular file" "doctor names the obstruction too"
 rmdir "$lockpath"
 
 # ============================================================

@@ -613,91 +613,42 @@ project_id() {
     basename "$WT_ROOT"
 }
 
-# The lock is a symlink whose target is the owner's record. `ln -s` creates the
-# name and publishes the owner in a single atomic step, which mkdir-then-write
-# cannot: there the lock exists for an instant carrying no owner, and a
-# concurrent allocator arriving in that window reads it as abandoned and steals
-# it, putting two processes in the critical section. flock is absent on macOS,
-# and symlink creation is atomic everywhere.
+# The registry lock is flock(2) on state/ports.lock, held through fd 9. The
+# kernel drops it when the holding process exits -- any exit, including
+# kill -9 -- so there is no staleness to judge, no owner to record, and no
+# signal trap to install. flock(1) ships in util-linux and busybox on Linux;
+# macOS lacks it in the base system, so the installer's brew list carries the
+# `flock` formula and acquisition fails loudly when the binary is absent.
 #
-# The record is "<pid>:<start time>". A pid alone is not enough, because pids
-# are reused: a dead owner's number can be held by an unrelated live process,
-# which would make an abandoned lock look held forever.
-WT_PORTS_LOCK=""
-
-ports_lock_token() {
-    local pid="$1" started
-    started="$(ps -o lstart= -p "$pid" 2>/dev/null | tr -s ' ' | tr ' ' '_')"
-    printf '%s:%s\n' "$pid" "${started:-unknown}"
+# The critical sections spawn nothing long-lived: a child inheriting fd 9
+# would keep the lock alive past this process, which is the one way an flock
+# can outstay its owner.
+acquire_ports_lock() {
+    local lockpath="$1"
+    command -v flock >/dev/null 2>&1 \
+        || { log "flock not found; install util-linux (Linux) or 'brew install flock' (macOS)"; return 1; }
+    # A symlink here was left by the pre-flock scheme, where the link target
+    # named the lock's owner; opening it would create a stray file named
+    # after that token. That scheme released on every exit, so nothing live
+    # holds one and removal is safe advice.
+    if [[ -L "$lockpath" ]]; then
+        log "port lock is a symlink left by an older $WT_NAME: $lockpath (remove it)"
+        return 1
+    fi
+    if [[ -e "$lockpath" && ! -f "$lockpath" ]]; then
+        log "port lock path exists and is not a regular file: $lockpath (remove it)"
+        return 1
+    fi
+    exec 9>>"$lockpath" || { log "cannot open port lock: $lockpath"; return 1; }
+    if ! flock -w 5 9; then
+        exec 9>&-
+        log "port registry is locked by another process: $lockpath"
+        return 1
+    fi
 }
 
 release_ports_lock() {
-    [[ -n "$WT_PORTS_LOCK" ]] || return 0
-    # Only drop a lock this process still owns. One reclaimed as stale while
-    # this process was stopped now belongs to someone else.
-    if [[ "$(readlink "$WT_PORTS_LOCK" 2>/dev/null || true)" == "$(ports_lock_token $$)" ]]; then
-        rm -f "$WT_PORTS_LOCK" 2>/dev/null || true
-    fi
-    WT_PORTS_LOCK=""
-}
-
-ports_record_is_stale() {
-    local record="$1" pid
-    [[ -n "$record" ]] || return 0
-    pid="${record%%:*}"
-    case "$pid" in ''|*[!0-9]*) return 0 ;; esac
-    kill -0 "$pid" 2>/dev/null || return 0
-    # A live pid, but possibly a different process wearing a reused number.
-    [[ "$(ports_lock_token "$pid")" == "$record" ]] && return 1
-    return 0
-}
-
-ports_lock_is_stale() {
-    ports_record_is_stale "$(readlink "$1" 2>/dev/null || true)"
-}
-
-with_ports_lock() {
-    local lockpath="$1" tries=0 token record aside
-    # Anything at this path that is not a symlink -- a directory left by an
-    # older scheme, or something made by hand -- can never be claimed or
-    # judged, so ln -s would retry the whole window and fail on every future
-    # run. Say so once instead of timing out silently.
-    if [[ -e "$lockpath" && ! -L "$lockpath" ]]; then
-        log "port lock path exists and is not a symlink: $lockpath (remove it)"
-        return 1
-    fi
-    token="$(ports_lock_token $$)"
-    until ln -s "$token" "$lockpath" 2>/dev/null; do
-        record="$(readlink "$lockpath" 2>/dev/null || true)"
-        if [[ -n "$record" ]] && ports_record_is_stale "$record"; then
-            # Renamed aside rather than removed in place: the rename is atomic,
-            # so of several processes reclaiming at once exactly one succeeds.
-            aside="$lockpath.stale.$$"
-            if mv "$lockpath" "$aside" 2>/dev/null; then
-                if [[ "$(readlink "$aside" 2>/dev/null || true)" == "$record" ]]; then
-                    rm -f "$aside"
-                    log "reclaimed a port lock whose owner is gone"
-                else
-                    # It changed hands between the check and the rename, so
-                    # this is somebody's live lock. Put it back.
-                    mv "$aside" "$lockpath" 2>/dev/null || rm -f "$aside"
-                fi
-                continue
-            fi
-        fi
-        tries=$((tries + 1))
-        [[ "$tries" -lt 50 ]] || return 1
-        sleep 0.1
-    done
-    WT_PORTS_LOCK="$lockpath"
-    # EXIT covers the die() paths between acquire and release. INT and TERM
-    # re-raise after cleaning up, so a caller that stops wt actually stops it:
-    # a handler that only released the lock would let the command carry on
-    # mutating the registry and the worktree.
-    trap release_ports_lock EXIT
-    trap 'release_ports_lock; trap - INT; kill -INT $$' INT
-    trap 'release_ports_lock; trap - TERM; kill -TERM $$' TERM
-    return 0
+    exec 9>&- 2>/dev/null || true
 }
 
 # A registry hit only proves no other worktree claimed the port. It says
@@ -758,7 +709,7 @@ allocate_ports() {
     mkdir -p "$root/state"
     touch "$registry"
 
-    with_ports_lock "$lockpath" || { log "warning: port registry is locked; skipping allocation"; return 1; }
+    acquire_ports_lock "$lockpath" || { log "warning: skipping port allocation"; return 1; }
 
     existing="$(awk -F'\t' -v s="$slug" '$1 == s { if (NF >= 3) print $2 "\t" $3; else print $2 "\t" $2; exit }' "$registry")"
     if [[ -n "$existing" ]]; then
@@ -787,14 +738,36 @@ allocate_ports() {
     return 1
 }
 
+# Rewrite the registry without the slug's row. The caller holds the lock.
+ports_registry_drop() {
+    local registry="$1" slug="$2" tmp
+    tmp="$registry.tmp.$$"
+    if ! awk -F'\t' -v s="$slug" '$1 != s' "$registry" > "$tmp"; then
+        rm -f "$tmp"
+        log "failed to rewrite port registry: $registry"
+        return 1
+    fi
+    if ! mv "$tmp" "$registry"; then
+        rm -f "$tmp"
+        log "failed to rewrite port registry: $registry"
+        return 1
+    fi
+}
+
 release_port() {
     local root="$1" slug="$2"
-    local registry="$root/state/ports.tsv" lockpath="$root/state/ports.lock" tmp
+    local registry="$root/state/ports.tsv" status=0
     [[ -f "$registry" ]] || return 0
-    with_ports_lock "$lockpath" || return 0
-    tmp="$registry.tmp.$$"
-    awk -F'\t' -v s="$slug" '$1 != s' "$registry" > "$tmp" && mv "$tmp" "$registry"
+    # A failure here must be loud and nonzero: swallowing it reports success
+    # while the reservation stays behind, eroding the pool until doctor
+    # notices the orphan.
+    acquire_ports_lock "$root/state/ports.lock" || {
+        log "warning: port reservation for $slug not released; '$WT_NAME doctor' reports it as orphaned"
+        return 1
+    }
+    ports_registry_drop "$registry" "$slug" || status=1
     release_ports_lock
+    return "$status"
 }
 
 # Generated per-worktree runtime identity. Written only when the project
@@ -1074,7 +1047,9 @@ rollback_add() {
     # The reservation is recorded before .env.worktree is written, so a
     # failure between the two would leave a block owned by a worktree that no
     # longer exists -- precisely what doctor reports as an orphan. Releasing
-    # is a no-op when nothing was allocated.
+    # is a no-op when nothing was allocated; when release itself fails it
+    # warns and names doctor, but must not mask the add failure being rolled
+    # back.
     if [[ "$WT_MODE" == "orchestration" ]]; then
         release_port "$WT_ROOT" "$(basename "$dest")" || true
     fi
@@ -1445,6 +1420,17 @@ cmd_remove() {
     fi
 
     teardown_containers "$slug"
+    # Releasing the port block is part of remove's contract, so the registry
+    # lock is taken before anything irreversible and held until the row is
+    # gone: if it cannot be held, the worktree survives untouched rather than
+    # being destroyed with its reservation left behind. Container teardown
+    # stays outside the hold -- it is slow, and restartable.
+    local ports_locked=0
+    if [[ "$WT_MODE" == "orchestration" && -f "$WT_ROOT/state/ports.tsv" ]]; then
+        acquire_ports_lock "$WT_ROOT/state/ports.lock" \
+            || die "port registry is locked; worktree left in place"
+        ports_locked=1
+    fi
     # --force only bypasses git's own dirtiness refusal, which counts
     # ignored files (.env.worktree, provisioned .env.*). The checks above
     # already guarantee nothing but ignored files remains.
@@ -1453,16 +1439,19 @@ cmd_remove() {
         git --git-dir="$WT_GIT_DIR" branch -D "$branch" >&2
     fi
     git --git-dir="$WT_GIT_DIR" worktree prune
-    local hook_status=0
+    local status=0
     if [[ "$WT_MODE" == "orchestration" ]]; then
-        release_port "$WT_ROOT" "$slug"
+        if [[ "$ports_locked" -eq 1 ]]; then
+            ports_registry_drop "$WT_ROOT/state/ports.tsv" "$slug" || status=1
+            release_ports_lock
+        fi
         # Runs after the port is released and the containers are gone, which
         # is the only point where the per-worktree database, volumes, and any
         # external registration can actually be cleaned up.
-        run_hook post-remove "$WT_ROOT" "$dest" || hook_status=1
+        run_hook post-remove "$WT_ROOT" "$dest" || status=1
     fi
     log "removed $dest"
-    return "$hook_status"
+    return "$status"
 }
 
 cmd_prune() {
@@ -1731,17 +1720,20 @@ cmd_doctor() {
         # keeps its reservation forever and the pool erodes silently. Doctor
         # is where that surfaces, because nothing else ever reads the registry
         # against the worktrees that actually exist.
-        local lockdir="$WT_ROOT/state/ports.lock"
-        if [[ -e "$lockdir" && ! -L "$lockdir" ]]; then
-            d_warn "port lock path is not a symlink: $lockdir -- allocation cannot proceed until it is removed"
+        local lockfile="$WT_ROOT/state/ports.lock"
+        if ! command -v flock >/dev/null 2>&1; then
+            d_warn "flock not found -- port allocation and release will fail; install util-linux (Linux) or 'brew install flock' (macOS)"
             failures=$((failures + 1))
-        elif [[ -L "$lockdir" ]]; then
-            if ports_lock_is_stale "$lockdir"; then
-                d_warn "stale port lock at $lockdir -- a run was killed while holding it; the next allocation reclaims it, or remove the link"
-                failures=$((failures + 1))
-            else
-                d_note "port registry is locked by a running process"
-            fi
+        elif [[ -L "$lockfile" ]]; then
+            d_warn "port lock is a symlink left by an older $WT_NAME: $lockfile -- remove it; the flock scheme needs a regular file"
+            failures=$((failures + 1))
+        elif [[ -e "$lockfile" && ! -f "$lockfile" ]]; then
+            d_warn "port lock path is not a regular file: $lockfile -- allocation cannot proceed until it is removed"
+            failures=$((failures + 1))
+        elif [[ -f "$lockfile" ]] && ! (exec 9>>"$lockfile" && flock -n 9) 2>/dev/null; then
+            # Held locks are informational: flock has no stale state to
+            # report, because the kernel drops the lock with its owner.
+            d_note "port registry is locked by a running process"
         fi
 
         local registry="$WT_ROOT/state/ports.tsv" live_slugs reg_slug orphans=0
