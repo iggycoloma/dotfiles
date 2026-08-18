@@ -19,8 +19,11 @@ source_kind="unknown"
 config_path=""
 if command -v jq &>/dev/null; then
     input=$(cat)
-    source_kind=$(echo "$input" | jq -r '.source // "unknown"')
-    config_path=$(echo "$input" | jq -r '.file_path // empty')
+    # Field names differ between docs (config_source/config_path) and observed
+    # payloads (source/file_path); accept both so only the message, never the
+    # block, depends on which one is live.
+    source_kind=$(echo "$input" | jq -r '.config_source // .source // "unknown"')
+    config_path=$(echo "$input" | jq -r '.config_path // .file_path // empty')
 fi
 
 printf 'Blocked a mid-session %s reload (%s); inspect the ConfigChange debug log for this silent guard.\n' \

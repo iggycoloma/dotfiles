@@ -11,7 +11,7 @@
           },
           {
             "type": "command",
-            "command": "~/.agent-hooks/session-audit.sh",
+            "command": "~/.agent-hooks/session-audit.sh codex",
             "timeout": 5
           }
         ]
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.agent-hooks/session-audit.sh",
+            "command": "~/.agent-hooks/session-audit.sh codex",
             "timeout": 3
           }
         ]
@@ -71,7 +71,7 @@
           },
           {
             "type": "command",
-            "command": "~/.agent-hooks/tool-telemetry.sh",
+            "command": "~/.agent-hooks/tool-telemetry.sh codex",
             "timeout": 5
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.agent-hooks/subagent-audit.sh",
+            "command": "~/.agent-hooks/subagent-audit.sh codex",
             "timeout": 5
           }
         ]
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.agent-hooks/subagent-audit.sh",
+            "command": "~/.agent-hooks/subagent-audit.sh codex",
             "timeout": 5
           }
         ]

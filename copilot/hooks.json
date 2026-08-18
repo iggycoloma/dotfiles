@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/pre-security.sh",
+            "command": "~/.agent-hooks/pre-security.sh",
             "timeout": 10
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/pre-code-no-emoji.sh",
+            "command": "~/.agent-hooks/pre-code-no-emoji.sh",
             "timeout": 10
           }
         ]

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Record start/stop metadata for Claude Code and Codex subagents.
+#
+# The harness comes from $1, set by each harness's own wiring; see
+# session-audit.sh for why payload sniffing was retired.
 
+harness="${1:-unknown}"
 command -v jq &>/dev/null || exit 0
 input=$(cat)
 event=$(printf '%s' "$input" | jq -r '.hook_event_name // empty')
@@ -16,8 +20,8 @@ if [[ "$event" == "SubagentStop" && -n "$agent_id" && -f "$log_file" ]]; then
         'select(.event == "SubagentStart" and .agent_id == $id and .session_id == $session) | .epoch' 2>/dev/null | tail -1)
     [[ "$start_epoch" =~ ^[0-9]+$ ]] && duration=$((now_epoch - start_epoch))
 fi
-printf '%s' "$input" | jq -c --arg ts "$(date -Is)" --argjson epoch "$now_epoch" --argjson duration "$duration" '
-    {ts:$ts,epoch:$epoch,event:.hook_event_name,harness:(if has("turn_id") then "codex" else "claude" end),
+printf '%s' "$input" | jq -c --arg ts "$(date -Is)" --arg harness "$harness" --argjson epoch "$now_epoch" --argjson duration "$duration" '
+    {ts:$ts,epoch:$epoch,event:.hook_event_name,harness:$harness,
      session_id:(.session_id // null),agent_id:(.agent_id // null),agent_type:(.agent_type // null),
      project:((.cwd // "unknown") | split("/")[-1]),duration_s:$duration}' >> "$log_file" 2>/dev/null
 
