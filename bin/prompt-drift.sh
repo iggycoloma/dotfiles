@@ -70,11 +70,18 @@ for fragment in "$DOTFILES_DIR"/agent-prompts/*.md; do
     done
 done
 
+# Every file in the skill directory, not just SKILL.md: skills may carry
+# disclosed reference files (implement-tdd's tests.md, mocking.md), and in
+# devcontainer copy mode each deployed file drifts independently.
 for skill_dir in "$DOTFILES_DIR"/agent-skills/*; do
     [[ -d "$skill_dir" && -f "$skill_dir/SKILL.md" ]] || continue
     name="$(basename "$skill_dir")"
-    check_pair "$skill_dir/SKILL.md" "$HOME/.claude/skills/$name/SKILL.md"
-    check_pair "$skill_dir/SKILL.md" "$HOME/.codex/skills/$name/SKILL.md"
+    for doc in "$skill_dir"/*.md; do
+        [[ -f "$doc" ]] || continue
+        docname="$(basename "$doc")"
+        check_pair "$doc" "$HOME/.claude/skills/$name/$docname"
+        check_pair "$doc" "$HOME/.codex/skills/$name/$docname"
+    done
 done
 
 if [[ "$ERRORS" -gt 0 ]]; then

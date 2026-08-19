@@ -12,7 +12,7 @@ Turn the requested feature into a decision-ready specification. Do not invent pr
 1. Identify the user, problem, desired outcome, and why the work matters now.
 2. Read relevant repository behavior, terminology, constraints, and existing adjacent features.
 3. Separate known facts, reasonable inferences, and unresolved product decisions.
-4. Ask only questions whose answers materially change scope or acceptance. If work can continue safely, record the assumption and proceed.
+4. Ask only questions whose answers materially change scope or acceptance. If work can continue safely, record the assumption and proceed. When the open decisions are numerous or interdependent, offer to run grill-plan first and feed its settled decisions into this spec.
 
 ## Required sections
 
@@ -39,6 +39,10 @@ Cover boundary inputs, empty and duplicate state, concurrency or retry behavior,
 ### Rollout and observability
 
 Describe migration order, feature gating, rollback, telemetry, and support diagnostics when the change has operational risk. Otherwise state that no special rollout is required and why.
+
+### Testing decisions
+
+Name the seams the feature will be verified at: the public interfaces where acceptance criteria become tests. Prefer existing seams to new ones, and the highest seam that still exercises the behavior directly; propose new seams only where no existing one reaches the behavior. Note prior art -- similar tests already in the codebase. Confirm the seams with the user before the spec is called ready.
 
 ### Dependencies and open decisions
 

@@ -2,7 +2,7 @@
 name: review-pr
 description: |
   Review a change -- a pull request, a merge request, or the working diff -- for
-  correctness, sequencing, observability, repo fit, and mechanism level, and name
+  correctness, spec conformance, sequencing, observability, repo fit, and mechanism level, and name
   both the smallest correct change and the best available one. TRIGGER when the
   user mentions a PR or MR by number or URL, asks to "review PR" / "review MR" /
   "look at this change", or asks for a review of the current diff. SKIP for a
@@ -41,13 +41,14 @@ Check git history on the modified lines when behaviour *changed* rather than got
 Judge against these, in order of how often they actually bite:
 
 1. **Correctness for untested cases.** What input or state does this mishandle that the author's tests do not cover?
-2. **Order.** Does this only work if something else merges first -- a config version, a cross-repo contract, a schema migration, a dependency widening, a secret? If so, is the predecessor named in the description? If it is not, that is a finding. Cross-repo ordering that lives only in someone's head inverts.
-3. **Visibility.** If this breaks in production, does anything fire? Silent-failure paths -- a swallowed catch, a new code path with no log, metric, or span, a surface with no error reporting. A silent break survives for months, because nothing is counting.
-4. **Evidence.** Does it change behaviour people already depend on? If so, did the author look at current usage first? Shipping into unmeasured territory is how a change gets rolled back rather than fixed.
-5. **Repo fit, at both altitudes.**
+2. **Spec conformance.** When the change has an originating issue, ticket, or spec, read it before judging the diff. Three findings live here: a requirement that is missing or partial, behaviour the spec did not ask for (scope creep), and a requirement that looks implemented but does the wrong thing. Cite the spec line for each. A change can follow every convention and still implement the wrong thing -- conformance and correctness fail independently, so check both. If there is no spec, say so once and move on.
+3. **Order.** Does this only work if something else merges first -- a config version, a cross-repo contract, a schema migration, a dependency widening, a secret? If so, is the predecessor named in the description? If it is not, that is a finding. Cross-repo ordering that lives only in someone's head inverts.
+4. **Visibility.** If this breaks in production, does anything fire? Silent-failure paths -- a swallowed catch, a new code path with no log, metric, or span, a surface with no error reporting. A silent break survives for months, because nothing is counting.
+5. **Evidence.** Does it change behaviour people already depend on? If so, did the author look at current usage first? Shipping into unmeasured territory is how a change gets rolled back rather than fixed.
+6. **Repo fit, at both altitudes.**
    - *Which utility* -- logger, error type, config loader, test shape. Flag a new one where an established one exists, and ask whether it is deliberate.
    - *Which mechanism* -- grep for the primitive the diff introduces (an advisory lock, `SELECT ... FOR UPDATE`, `SERIALIZABLE`, a mutex, a lease, a dedupe table, a retry wrapper, a cache). If it appears nowhere else in the repo, it is a new pattern even when it reads as domain logic, and it gets the same "deliberate or accidental?" question. This is the altitude that gets missed, because a lock does not look like a "pattern" the way a logger does.
-6. **Mechanism level.** Once a change is established as necessary, ask where its invariant lives. Invariants rank by durability, the same way documentation does:
+7. **Mechanism level.** Once a change is established as necessary, ask where its invariant lives. Invariants rank by durability, the same way documentation does:
 
    **schema constraint -> type -> application code -> runtime coordination**
 
@@ -56,12 +57,12 @@ Judge against these, in order of how often they actually bite:
    Do not assume the top rung is always available: a constraint cannot express a cross-row or cross-service rule, and a lock is the right mechanism for genuinely serializing work.
 
    "Right problem, wrong mechanism" is a legitimate finding. Name the specific alternative and what it costs -- not "consider X".
-7. **Content levels.** Comments that narrate the edit rather than explain the code -- past tense, "now handles X", "updated to Y", or anything that only parses if you know the previous version. That belongs in the change description. Also flag a comment a rename would delete.
-8. **Title and durability.** If the project squashes on merge with no commit-message template configured, **the title becomes the entire permanent commit message** -- check whether that is the case rather than assuming either way. Where it is, flag a title that will not stand alone in `git blame` in two years ("fix bug", "address feedback", "update parser"), or a missing ticket reference where the project uses one. Also flag load-bearing rationale that lives only in a branch commit body: squash deletes it, so it needs to be in the code or the description.
+8. **Content levels.** Comments that narrate the edit rather than explain the code -- past tense, "now handles X", "updated to Y", or anything that only parses if you know the previous version. That belongs in the change description. Also flag a comment a rename would delete.
+9. **Title and durability.** If the project squashes on merge with no commit-message template configured, **the title becomes the entire permanent commit message** -- check whether that is the case rather than assuming either way. Where it is, flag a title that will not stand alone in `git blame` in two years ("fix bug", "address feedback", "update parser"), or a missing ticket reference where the project uses one. Also flag load-bearing rationale that lives only in a branch commit body: squash deletes it, so it needs to be in the code or the description.
 
 ## Two changes, every review
 
-Items 1-8 find defects in the change as written; each asks "is this wrong?" and admits only *keep* or *flag*. There is no verdict for *replace*. So run one more pass on the change as a whole, and answer both halves explicitly:
+Items 1-9 find defects in the change as written; each asks "is this wrong?" and admits only *keep* or *flag*. There is no verdict for *replace*. So run one more pass on the change as a whole, and answer both halves explicitly:
 
 - **The smallest correct change** -- the minimal diff that fixes the actual problem. Usually what should merge.
 - **The best available change** -- what you would do with nothing off-limits.
@@ -115,7 +116,7 @@ Best available change
 
 The `Best available change` section is always present, even when the answer is that the diff is already it.
 
-If nothing survives verification: `No blocking issues. Checked correctness, ordering, observability, repo fit, mechanism level, and content levels.` Still answer `Best available change`.
+If nothing survives verification: `No blocking issues. Checked correctness, spec conformance, ordering, observability, repo fit, mechanism level, and content levels.` Still answer `Best available change`.
 
 No emojis. No attribution footer. Cite `path:line` for every finding.
 

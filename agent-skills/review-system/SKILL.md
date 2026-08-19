@@ -85,6 +85,8 @@ Ask which.
 - Does the subsystem own its data, or does something else read and write its store directly?
 - Is there one door in, or has the interface eroded into several?
 - What does it depend on that it should not, and what depends on it that should not?
+- Is the interface deep -- substantial behaviour behind a small surface -- or a shallow pass-through nearly as complex as what it hides? Apply the deletion test: delete the module in your head; if complexity vanishes, it was a pass-through, and if complexity reappears across N callers, it was earning its keep.
+- Does every seam earn its existence? One adapter behind a seam means the seam is hypothetical; two mean it is real. Flag indirection nothing actually varies across.
 
 ## 6. Failure behaviour
 
