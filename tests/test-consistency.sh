@@ -554,7 +554,7 @@ test_shared_skill_frontmatter_present() {
         draft-adr draft-tickets evaluate-technology exec-brief fix-issue forge
         generate-changelog grill-plan implement-tdd investigate-incident
         manage-dependencies optimize-performance plan-migration
-        plan-workstream resolve-conflicts review-design review-pr
+        plan-workstream resolve-conflicts review-design review-pr route-work
         review-system run-pipeline specify-feature teach-socratically
         write-agent-docs write-handoff write-postmortem
     )
