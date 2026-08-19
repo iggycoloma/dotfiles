@@ -1731,6 +1731,23 @@ cmd_doctor() {
             failures=$((failures + 1))
         fi
 
+        # Branches inherited from a pre-fix bare clone have no upstream, so a
+        # plain `git pull` in their worktrees fails with "no tracking
+        # information". Requests (pr-N/mr-N) are exempt: origin has no
+        # refs/heads/pr-N for them to track.
+        local up_path up_branch missing_upstreams=0
+        while IFS= read -r up_path; do
+            up_branch="$(git -C "$up_path" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+            [[ -n "$up_branch" ]] || continue
+            case "$up_branch" in pr-[0-9]*|mr-[0-9]*) continue ;; esac
+            git -C "$up_path" config --get "branch.$up_branch.merge" >/dev/null 2>&1 && continue
+            git --git-dir="$WT_GIT_DIR" rev-parse --verify --quiet "refs/remotes/origin/$up_branch" >/dev/null || continue
+            d_warn "no upstream for '$up_branch' ($up_path) -- plain 'git pull' fails there; fix: git -C '$up_path' branch --set-upstream-to='origin/$up_branch' '$up_branch'"
+            missing_upstreams=$((missing_upstreams + 1))
+            failures=$((failures + 1))
+        done < <(registered_worktrees)
+        [[ "$missing_upstreams" -gt 0 ]] || d_ok "upstreams: every branch with an origin counterpart tracks it"
+
         # Only orchestration mode: clone mode puts worktrees in a *sibling*
         # <repo>-worktrees/ dir, so an .ignore inside the clone cannot bound
         # them -- that layout needs one in the parent, which wt does not own.

@@ -572,6 +572,19 @@ assert_contains "$output" "no fetch refspec" "doctor names the missing refspec"
 assert_contains "$output" "config remote.origin.fetch" "doctor prints the repair command"
 git --git-dir="$TMP/proj/repo.git" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
 
+# A branch whose origin counterpart exists but which tracks nothing (the
+# pre-fix bare-clone state). Constructed explicitly rather than relying on
+# what init does about upstreams, so the test holds either way.
+git --git-dir="$TMP/proj/repo.git" config --unset branch.main.merge
+output=$("$WT" doctor 2>&1)
+assert_not_equals 0 $? "doctor fails when a branch with an origin counterpart has no upstream"
+assert_contains "$output" "no upstream for 'main'" "doctor names the branch missing its upstream"
+assert_contains "$output" "set-upstream-to" "doctor prints the upstream repair command"
+git -C "$TMP/proj/main" branch --set-upstream-to=origin/main main
+output=$("$WT" doctor 2>&1)
+assert_equals 0 $? "doctor passes once the upstream is restored"
+assert_contains "$output" "upstreams: every branch" "doctor reports upstreams healthy"
+
 # ============================================================
 # Test Suite: ignore generation
 # ============================================================
