@@ -4,7 +4,9 @@
 # Zsh automatically loads .zshrc after this file
 
 # Dotfiles directory -- resolve from symlink target if available
-if [[ -z "${DOTFILES_DIR:-}" ]]; then
+# Re-derive when the inherited value is not a real checkout: VS Code attach can
+# inject a literal, unresolved ${containerWorkspaceFolder} via remoteEnv
+if [[ -z "${DOTFILES_DIR:-}" || ! -f "$DOTFILES_DIR/shell/exports.sh" ]]; then
     if [[ -L "$HOME/.zshrc" ]]; then
         DOTFILES_DIR="$(cd "$(dirname "$(readlink "$HOME/.zshrc")")/.." && pwd)"
     else
