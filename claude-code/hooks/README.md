@@ -18,6 +18,7 @@ for Claude-specific events, notifications, transcript parsing, and worktrees.
 | config-change-guard.sh | ConfigChange | Silently blocks settings/skills reloads in the live session; edits remain on disk for review and the next session |
 | notify.sh | Notification: idle_prompt, permission_prompt, agent_needs_input | Pushover alert when Claude needs attention |
 | session-start-banner.sh | SessionStart | Prints the unattended-mode rules under `CLAUDE_UNATTENDED=1`; silent otherwise, since attended sessions already load the same rules from CLAUDE.md |
+| model-context.sh | SessionStart | Prints the `~/.claude/model-adjustments/` fragment matching the session's model id (e.g. Opus 5 verbosity corrections); silent when the optional `model` field is absent or no fragment matches |
 | session-end-ledger.sh | SessionEnd | Appends Claude transcript-derived usage totals to `~/.local/state/agent-hooks/session-ledger.csv`; this parser is intentionally harness-specific |
 | `~/.agent-hooks/session-audit.sh` | SessionStart/SessionEnd | Records metadata-only lifecycle events shared with Codex |
 | `~/.agent-hooks/subagent-audit.sh` | SubagentStart/SubagentStop | Records metadata-only subagent lifecycle and duration shared with Codex |

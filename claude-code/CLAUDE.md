@@ -85,6 +85,8 @@ Claude-specific corrections -- the baseline bias runs verbose and lexically elev
 - Do not turn straightforward engineering observations into named principles or lengthy taxonomies.
 - Stop once the question is adequately answered.
 
+Model-specific sharpening of these corrections (e.g. Opus 5's stronger verbosity bias) is injected at session start by the `model-context.sh` SessionStart hook from `~/.claude/model-adjustments/`, keyed on the session's model id so it never loads for other models.
+
 ## Shared Agent Skills
 
 Multi-step engineering workflows are deployed from the cross-tool `agent-skills/`

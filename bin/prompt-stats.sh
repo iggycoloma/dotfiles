@@ -39,6 +39,17 @@ B_RULE_DENY=$(bytes .claude/rules/deny-list-semantics.md)
 B_WT_DOC=$(bytes docs/wt-maintenance.md)
 B_COPILOT_REPO=$(bytes .github/copilot-instructions.md)
 
+# Per-model fragments load only for Claude sessions on their model, so they
+# count as conditional context rather than table rows; README.md documents the
+# mechanism and never loads.
+MODEL_ADJ=""
+for f in "$DOTFILES_DIR"/claude-code/model-adjustments/*.md; do
+    [[ -e "$f" ]] || continue
+    base="$(basename "$f" .md)"
+    [[ "$base" == "README" ]] && continue
+    MODEL_ADJ+="${MODEL_ADJ:+, }\`$base\` at $(tok "$(wc -c < "$f")") tokens"
+done
+
 FRAGS=$(( B_STYLE + B_ENG + B_WT ))
 CODEX_CAP=32768
 
@@ -92,7 +103,7 @@ cat <<TOTALS
 | Codex | global AGENTS.md + session-start fragments + root AGENTS.md | $(tok $CODEX_TOTAL) |
 | Copilot | global instructions + session-start fragments + repo instructions | $(tok $COPILOT_TOTAL) |
 
-Conditional context on top of these: the deny-list rule ($(tok "$B_RULE_DENY") tokens, path-scoped), the wt runbook ($(tok "$B_WT_DOC") tokens, explicit trigger), the forge fragment ($(tok "$B_FORGE") tokens, forge tasks only, all tools), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
+Conditional context on top of these: the deny-list rule ($(tok "$B_RULE_DENY") tokens, path-scoped), the wt runbook ($(tok "$B_WT_DOC") tokens, explicit trigger), the forge fragment ($(tok "$B_FORGE") tokens, forge tasks only, all tools), each \`claude-code/model-adjustments/\` fragment for every Claude session on its model ($MODEL_ADJ), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
 
 ## Reading the numbers
 
