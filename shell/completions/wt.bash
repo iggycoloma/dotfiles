@@ -37,6 +37,8 @@ _wt() {
                 if [[ "$COMP_CWORD" -eq 2 ]]; then
                     candidates="up exec"
                 elif [[ "${COMP_WORDS[COMP_CWORD-1]}" == "--config" ]]; then
+                    # -o filenames appends / to directories so descent works
+                    compopt -o filenames 2>/dev/null
                     # shellcheck disable=SC2207
                     COMPREPLY=( $(compgen -f -- "$cur") )
                     return 0
