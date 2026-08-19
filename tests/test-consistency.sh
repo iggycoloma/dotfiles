@@ -663,6 +663,33 @@ test_state_heal_links_match() {
 }
 
 # ============================================================================
+# Minimum git version
+# ============================================================================
+
+# bootstrap/versions.sh is the canonical floor. bin/wt and
+# claude-code/hooks/worktree-create.sh deploy as standalone scripts that
+# cannot source it at runtime, so they inline the value; keep the copies
+# from drifting.
+test_min_git_floor_matches() {
+    local canonical wt_floor wtc_floor
+    canonical=$(sed -n 's/^export DOTFILES_MIN_GIT="\(.*\)"$/\1/p' "$DOTFILES_DIR/bootstrap/versions.sh")
+    if [[ -z "$canonical" ]]; then
+        test_fail "bootstrap/versions.sh defines DOTFILES_MIN_GIT"
+        return
+    fi
+    test_pass "bootstrap/versions.sh defines DOTFILES_MIN_GIT ($canonical)"
+
+    wt_floor=$(sed -n 's/^WT_MIN_GIT="\(.*\)"$/\1/p' "$DOTFILES_DIR/bin/wt")
+    assert_equals "$canonical" "$wt_floor" \
+        "bin/wt WT_MIN_GIT matches bootstrap/versions.sh"
+
+    wtc_floor=$(sed -n 's/.*local rel="" min_git="\(.*\)"$/\1/p' \
+        "$DOTFILES_DIR/claude-code/hooks/worktree-create.sh")
+    assert_equals "$canonical" "$wtc_floor" \
+        "worktree-create.sh min_git matches bootstrap/versions.sh"
+}
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -712,6 +739,9 @@ main() {
 
     test_suite "Dotfiles State Self-Heal Link List"
     test_state_heal_links_match
+
+    test_suite "Minimum Git Version"
+    test_min_git_floor_matches
 
     print_test_summary
 }

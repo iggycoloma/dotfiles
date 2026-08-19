@@ -24,6 +24,8 @@ fi
 
 # shellcheck source=../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
+# shellcheck source=../bootstrap/versions.sh
+source "$DOTFILES_DIR/bootstrap/versions.sh"
 
 
 PROFILE="attended"
@@ -184,8 +186,13 @@ audit_file() {
         fixable=$(jq -r '.fixable // false' <<<"$rule")
         fix=$(jq -r '.fix // empty' <<<"$rule")
 
+        # The tracked minimum git version (bootstrap/versions.sh) reaches
+        # rules as $min_git in checks and {{MIN_GIT}} in messages, so the
+        # rubric never hardcodes a floor that can drift.
+        message="${message//\{\{MIN_GIT\}\}/$DOTFILES_MIN_GIT}"
+
         local failed
-        failed=$(jq "$check" <<<"$stripped" 2>/dev/null || echo "false")
+        failed=$(jq --arg min_git "$DOTFILES_MIN_GIT" "$check" <<<"$stripped" 2>/dev/null || echo "false")
         if [[ "$failed" != "true" ]]; then
             continue
         fi

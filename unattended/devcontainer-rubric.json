@@ -31,11 +31,11 @@
       "fixable": false
     },
     {
-      "id": "git-feature-os-provided",
+      "id": "git-feature-below-minimum",
       "profile": "all",
       "severity": "warn",
-      "message": "`git` feature installs the OS-provided git (no `version` set). Distro git can predate 2.48, which `extensions.relativeWorktrees` requires, so per-worktree containers fail postCreate with `fatal: not in a git directory`. Set `\"version\": \"latest\"` to build current git.",
-      "check": "(.features // {}) | to_entries | map(select((.key | test(\"/git:\")) and ((.value | if type == \"object\" then (.version // \"os-provided\") else tostring end) | IN(\"os-provided\", \"system\")))) | length > 0",
+      "message": "`git` feature resolves to a git older than {{MIN_GIT}}: no `version` (defaults to os-provided), explicit `os-provided`/`system`, or a pinned version below the floor. `extensions.relativeWorktrees` needs {{MIN_GIT}}, so per-worktree containers fail postCreate with `fatal: not in a git directory`. Set `\"version\": \"latest\"` (or pin >= {{MIN_GIT}}).",
+      "check": "def vnorm: split(\".\") | map(tonumber) | . + [0, 0, 0] | .[:3]; (.features // {}) | to_entries | map(select((.key | test(\"/git:\")) and ((.value | if type == \"object\" then (.version // \"os-provided\") else tostring end) as $v | ($v | IN(\"os-provided\", \"system\")) or (($v | test(\"^[0-9]+(\\\\.[0-9]+)*$\")) and (($v | vnorm) < ($min_git | vnorm)))))) | length > 0",
       "fixable": false
     },
     {

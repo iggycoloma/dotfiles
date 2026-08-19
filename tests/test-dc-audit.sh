@@ -119,12 +119,14 @@ output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.js
 assert_not_contains "$output" "fixed-volume-name-shared" \
     "no fixed-volume finding without volume mounts"
 
-test_suite "dc-audit: Detects os-provided git feature"
+test_suite "dc-audit: Detects git feature below the minimum version"
 
 output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/git-os-provided.json" 2>&1)
-assert_contains "$output" "git-feature-os-provided" \
+assert_contains "$output" "git-feature-below-minimum" \
     "flags git feature with no version (defaults to os-provided, can predate relativeWorktrees support)"
-osp_count=$(printf '%s\n' "$output" | grep -c "git-feature-os-provided") || true
+assert_contains "$output" "2.48" \
+    "finding message carries the tracked minimum, not a {{MIN_GIT}} placeholder"
+osp_count=$(printf '%s\n' "$output" | grep -c "git-feature-below-minimum") || true
 assert_equals 1 "$osp_count" "git-lfs and github-cli features do not fire the git rule"
 
 # An explicit os-provided is the same failure as the default.
@@ -132,17 +134,34 @@ scratch=$(mktemp)
 jq '.features["ghcr.io/devcontainers/features/git:1"].version = "os-provided"' \
     "$FIXTURES/git-os-provided.json" > "$scratch"
 output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
-assert_contains "$output" "git-feature-os-provided" "flags explicit version os-provided"
+assert_contains "$output" "git-feature-below-minimum" "flags explicit version os-provided"
+
+# So is a version pinned below the floor: it builds from source, but builds
+# a git that still lacks extensions.relativeWorktrees.
+jq '.features["ghcr.io/devcontainers/features/git:1"].version = "2.40"' \
+    "$FIXTURES/git-os-provided.json" > "$scratch"
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
+assert_contains "$output" "git-feature-below-minimum" "flags a pinned version below the floor"
 
 jq '.features["ghcr.io/devcontainers/features/git:1"].version = "latest"' \
     "$FIXTURES/git-os-provided.json" > "$scratch"
 output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
-assert_not_contains "$output" "git-feature-os-provided" "version latest passes"
+assert_not_contains "$output" "git-feature-below-minimum" "version latest passes"
+
+jq '.features["ghcr.io/devcontainers/features/git:1"].version = "2.48.0"' \
+    "$FIXTURES/git-os-provided.json" > "$scratch"
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
+assert_not_contains "$output" "git-feature-below-minimum" "a pin at the floor passes"
+
+jq '.features["ghcr.io/devcontainers/features/git:1"].version = "2.60.1"' \
+    "$FIXTURES/git-os-provided.json" > "$scratch"
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
+assert_not_contains "$output" "git-feature-below-minimum" "a pin above the floor passes"
 rm -f "$scratch"
 
 # No features block at all must not fire the rule.
 output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.json" 2>&1)
-assert_not_contains "$output" "git-feature-os-provided" "no finding without a features block"
+assert_not_contains "$output" "git-feature-below-minimum" "no finding without a features block"
 
 # The shipped template example must audit clean at every severity.
 output=$("$DC_AUDIT" --profile attended --strict --rubric "$RUBRIC" \
