@@ -30,6 +30,16 @@ if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" || exit $?
 fi
 
+# Opt-in project hooks (`git config dotfiles.projectHooks true`): chain the
+# repo's tracked .githooks/post-checkout, resolved per-worktree via
+# --show-toplevel so each checkout runs its own revision.
+if [[ "$(git config --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+    project_hook="$(git rev-parse --show-toplevel 2>/dev/null)/.githooks/post-checkout"
+    if [[ -x "$project_hook" ]]; then
+        "$project_hook" "$@" || exit $?
+    fi
+fi
+
 # Only the initial worktree checkout: old ref is all zeros and this is a
 # branch checkout (kind 1), not a file checkout (kind 0).
 [[ "$old_ref" =~ ^0+$ ]] || exit 0

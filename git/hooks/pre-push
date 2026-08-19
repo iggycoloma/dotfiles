@@ -17,6 +17,16 @@ if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" < "$input_file" || exit $?
 fi
 
+# Opt-in project hooks (`git config dotfiles.projectHooks true`): chain the
+# repo's tracked .githooks/pre-push instead of letting core.hooksPath
+# replace this dispatcher and disable the secret-scanning backstop below.
+if [[ "$(git config --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+    project_hook="$(git rev-parse --show-toplevel 2>/dev/null)/.githooks/pre-push"
+    if [[ -x "$project_hook" ]]; then
+        "$project_hook" "$@" < "$input_file" || exit $?
+    fi
+fi
+
 if ! command -v gitleaks &>/dev/null; then
     printf 'warning: gitleaks is unavailable; outgoing commits were not scanned for secrets\n' >&2
     exit 0

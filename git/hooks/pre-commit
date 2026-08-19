@@ -16,6 +16,18 @@ if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" || exit $?
 fi
 
+# Opt-in project hooks: a repo runs `git config dotfiles.projectHooks true`
+# once and its tracked .githooks/<hook> chains here, instead of setting
+# core.hooksPath, which would replace this dispatcher and silently disable
+# secret scanning. Resolved via --show-toplevel so each worktree runs its
+# own checked-out revision of the hook.
+if [[ "$(git config --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+    project_hook="$(git rev-parse --show-toplevel 2>/dev/null)/.githooks/pre-commit"
+    if [[ -x "$project_hook" ]]; then
+        "$project_hook" "$@" || exit $?
+    fi
+fi
+
 # Gitleaks secret scanning.
 if command -v gitleaks &>/dev/null; then
     gitleaks git --staged --no-banner --redact .
