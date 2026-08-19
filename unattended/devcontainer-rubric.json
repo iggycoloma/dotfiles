@@ -31,6 +31,14 @@
       "fixable": false
     },
     {
+      "id": "git-feature-os-provided",
+      "profile": "all",
+      "severity": "warn",
+      "message": "`git` feature installs the OS-provided git (no `version` set). Distro git can predate 2.48, which `extensions.relativeWorktrees` requires, so per-worktree containers fail postCreate with `fatal: not in a git directory`. Set `\"version\": \"latest\"` to build current git.",
+      "check": "(.features // {}) | to_entries | map(select((.key | test(\"/git:\")) and ((.value | if type == \"object\" then (.version // \"os-provided\") else tostring end) | IN(\"os-provided\", \"system\")))) | length > 0",
+      "fixable": false
+    },
+    {
       "id": "shutdown-action",
       "profile": "all",
       "severity": "info",

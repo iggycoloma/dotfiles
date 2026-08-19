@@ -119,6 +119,31 @@ output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.js
 assert_not_contains "$output" "fixed-volume-name-shared" \
     "no fixed-volume finding without volume mounts"
 
+test_suite "dc-audit: Detects os-provided git feature"
+
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/git-os-provided.json" 2>&1)
+assert_contains "$output" "git-feature-os-provided" \
+    "flags git feature with no version (defaults to os-provided, can predate relativeWorktrees support)"
+osp_count=$(printf '%s\n' "$output" | grep -c "git-feature-os-provided") || true
+assert_equals 1 "$osp_count" "git-lfs and github-cli features do not fire the git rule"
+
+# An explicit os-provided is the same failure as the default.
+scratch=$(mktemp)
+jq '.features["ghcr.io/devcontainers/features/git:1"].version = "os-provided"' \
+    "$FIXTURES/git-os-provided.json" > "$scratch"
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
+assert_contains "$output" "git-feature-os-provided" "flags explicit version os-provided"
+
+jq '.features["ghcr.io/devcontainers/features/git:1"].version = "latest"' \
+    "$FIXTURES/git-os-provided.json" > "$scratch"
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$scratch" 2>&1)
+assert_not_contains "$output" "git-feature-os-provided" "version latest passes"
+rm -f "$scratch"
+
+# No features block at all must not fire the rule.
+output=$("$DC_AUDIT" --profile attended --rubric "$RUBRIC" "$FIXTURES/minimal.json" 2>&1)
+assert_not_contains "$output" "git-feature-os-provided" "no finding without a features block"
+
 # The shipped template example must audit clean at every severity.
 output=$("$DC_AUDIT" --profile attended --strict --rubric "$RUBRIC" \
     "$DOTFILES_DIR/templates/worktree-project/devcontainer.json.example" 2>&1)
