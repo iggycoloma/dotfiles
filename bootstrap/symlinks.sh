@@ -365,7 +365,7 @@ _setup_claude_code() {
     # but moved to the unattended/ subtree. See _setup_unattended for deployment of
     # the ralph harness, templates, rubric, and egress allowlist.
     _deploy_configs "$DOTFILES_DIR/claude-code" "$HOME/.claude" \
-        CLAUDE.md statusline.sh -- hooks agents commands
+        CLAUDE.md statusline.sh -- hooks agents commands model-adjustments
 
     _deploy_notify_lib "$HOME/.claude/hooks"
 
