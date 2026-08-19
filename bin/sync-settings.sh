@@ -23,6 +23,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# A login shell may export a DOTFILES_DIR that no longer names a checkout
+# (moved repo, stale profile). Honouring it would source and lint the wrong
+# tree, so fall back to the checkout this script lives in. Test fixtures
+# that pass DOTFILES_DIR explicitly carry bootstrap/logging.sh and pass.
+[[ -f "$DOTFILES_DIR/bootstrap/logging.sh" ]] || DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
@@ -81,27 +86,44 @@ main() {
     local host="$DOTFILES_DIR/claude-code/settings.json"
     local container="$DOTFILES_DIR/claude-code/settings.container.json"
 
-    [[ -f "$host" ]] || log_and_return error 2 "host variant missing: $host"
+    # Under --check, validate the committed pair rather than the working
+    # tree. The deployed ~/.claude/settings.json is deliberately a symlink
+    # into this checkout, so runtime writes (/model, /config theme) surface
+    # here as uncommitted dogfood diffs awaiting triage; failing lint on
+    # them would punish the workflow that makes them visible. A committed
+    # edit that forgot 'make sync-settings' still fails, locally and in CI
+    # alike, because HEAD then carries the inconsistent pair. Outside a git
+    # checkout (test fixtures point DOTFILES_DIR at a bare tree) fall back
+    # to the files on disk.
+    local host_content container_content=""
+    if [[ "$CHECK_ONLY" == true ]] \
+        && host_content=$(git -C "$DOTFILES_DIR" show HEAD:claude-code/settings.json 2>/dev/null); then
+        container_content=$(git -C "$DOTFILES_DIR" show HEAD:claude-code/settings.container.json 2>/dev/null || true)
+    else
+        [[ -f "$host" ]] || log_and_return error 2 "host variant missing: $host"
+        host_content=$(<"$host")
+        if [[ -f "$container" ]]; then container_content=$(<"$container"); fi
+    fi
 
     local generated
-    if ! generated=$(jq --argjson sandbox "$CONTAINER_SANDBOX" \
+    if ! generated=$(printf '%s\n' "$host_content" | jq --argjson sandbox "$CONTAINER_SANDBOX" \
         --arg strip "$CONTAINER_ENV_STRIP" \
         '.sandbox = $sandbox
          | if has("env") then .env |= del(.[$strip]) else . end
          | if has("env") and (.env | length) == 0 then del(.env) else . end' \
-        "$host" 2>&1); then
+        2>&1); then
         log_and_return error 2 "host variant is not valid JSON: $generated"
         return 2
     fi
 
     if [[ "$CHECK_ONLY" == true ]]; then
-        if [[ -f "$container" ]] && diff -q <(printf '%s\n' "$generated") "$container" >/dev/null 2>&1; then
+        if [[ -n "$container_content" ]] && diff -q <(printf '%s\n' "$generated") <(printf '%s\n' "$container_content") >/dev/null 2>&1; then
             log_success "settings.container.json is current"
             return 0
         fi
         log_error "settings.container.json is stale -- run 'make sync-settings'"
-        if [[ -f "$container" ]]; then
-            diff <(printf '%s\n' "$generated") "$container" | sed 's/^/    /' || true
+        if [[ -n "$container_content" ]]; then
+            diff <(printf '%s\n' "$generated") <(printf '%s\n' "$container_content") | sed 's/^/    /' || true
         fi
         return 1
     fi

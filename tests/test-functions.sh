@@ -3,7 +3,10 @@
 
 set -e
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# An inherited DOTFILES_DIR may not name a checkout (moved repo, stale
+# profile); fall back to the checkout this test file lives in.
+[[ -f "$DOTFILES_DIR/bootstrap/logging.sh" ]] || DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FAILED=0
 PASSED=0
 

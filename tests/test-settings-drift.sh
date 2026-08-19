@@ -423,4 +423,54 @@ rm -rf "$tmp"
 
 # ---------------------------------------------------------------------------
 
+test_suite "drift is judged on the committed pair, not dogfood working-tree diffs"
+
+# The deployed ~/.claude/settings.json symlinks into the checkout on purpose:
+# runtime writes (/model, /config) surface as working-tree diffs to triage.
+# Both checks must ignore those until committed, then enforce the committed
+# pair. The fixture gets its own HOME so the user's global git config and
+# hooks stay out of it.
+tmp=$(setup_fixture)
+mkdir -p "$tmp/home"
+jq -n '{permissions: {allow: ["Read"], deny: ["Read(a)", "Edit(a)"]}, sandbox: {enabled: true}}' \
+    > "$tmp/claude-code/settings.json"
+DOTFILES_DIR="$tmp" "$SYNC" >/dev/null 2>&1
+cat > "$tmp/codex/config.toml" <<'TOML'
+sandbox_mode = "workspace-write"
+TOML
+cat > "$tmp/codex/config.container.toml" <<'TOML'
+sandbox_mode = "danger-full-access"
+TOML
+HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 git -C "$tmp" init -q
+HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 git -C "$tmp" add -A
+HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 git -C "$tmp" \
+    -c user.email=test@example.com -c user.name=test commit -q -m baseline
+
+# Claude Code's /model write: a runtime key lands in the working tree only.
+jq '.model = "claude-test-1"' "$tmp/claude-code/settings.json" \
+    > "$tmp/claude-code/settings.json.new"
+mv "$tmp/claude-code/settings.json.new" "$tmp/claude-code/settings.json"
+
+out=$(DOTFILES_DIR="$tmp" "$SYNC" --check 2>&1)
+rc=$?
+assert_equals 0 "$rc" "sync --check ignores an uncommitted runtime write to settings.json"
+out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
+rc=$?
+assert_equals 0 "$rc" "settings-drift ignores an uncommitted runtime write"
+
+# Committing the edit without regenerating the container variant makes the
+# committed pair inconsistent; both checks must fail again.
+HOME="$tmp/home" GIT_CONFIG_NOSYSTEM=1 git -C "$tmp" \
+    -c user.email=test@example.com -c user.name=test commit -qam adopt
+out=$(DOTFILES_DIR="$tmp" "$SYNC" --check 2>&1)
+rc=$?
+assert_equals 1 "$rc" "sync --check fails once the unsynced edit is committed"
+assert_contains "$out" "stale" "the committed inconsistency names the fix"
+out=$(DOTFILES_DIR="$tmp" "$DRIFT" 2>&1)
+rc=$?
+assert_equals 1 "$rc" "settings-drift fails on the committed inconsistency"
+rm -rf "$tmp"
+
+# ---------------------------------------------------------------------------
+
 print_test_summary

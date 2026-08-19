@@ -28,6 +28,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# A login shell may export a DOTFILES_DIR that no longer names a checkout
+# (moved repo, stale profile). Honouring it would source and lint the wrong
+# tree, so fall back to the checkout this script lives in. Test fixtures
+# that pass DOTFILES_DIR explicitly carry bootstrap/logging.sh and pass.
+[[ -f "$DOTFILES_DIR/bootstrap/logging.sh" ]] || DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=../bootstrap/logging.sh
 source "$DOTFILES_DIR/bootstrap/logging.sh"
@@ -35,6 +40,7 @@ source "$DOTFILES_DIR/bootstrap/logging.sh"
 QUIET=false
 JSON_OUTPUT=false
 ERRORS=0
+WORKDIR=""
 
 # Paths deliberately denied for Edit but NOT for Read. Each entry
 # needs a reason -- an undocumented asymmetry is indistinguishable from a
@@ -304,10 +310,32 @@ emit_parity_drift() {
     fi
 }
 
+# Resolve a repo-relative settings path to the content drift is judged on.
+# The deployed ~/.claude/settings.json is deliberately a symlink into this
+# checkout, so runtime writes (/model, /config theme) appear here as
+# uncommitted dogfood diffs awaiting triage. Drift is therefore judged on
+# the committed file -- HEAD is what CI will see, and a committed edit that
+# forgot its counterpart still fails locally. Outside a git checkout (test
+# fixtures point DOTFILES_DIR at a bare tree), or for a path not in HEAD,
+# the file on disk is used as-is, which also keeps a deleted-but-committed
+# half reporting as missing.
+checked_path() {
+    local rel="$1"
+    if [[ -n "$WORKDIR" ]] && git -C "$DOTFILES_DIR" show "HEAD:$rel" > "$WORKDIR/${rel//\//_}" 2>/dev/null; then
+        printf '%s\n' "$WORKDIR/${rel//\//_}"
+    else
+        printf '%s\n' "$DOTFILES_DIR/$rel"
+    fi
+}
+
 main() {
     parse_args "$@"
 
     command -v jq >/dev/null 2>&1 || log_and_return error 2 "jq is required"
+
+    WORKDIR="$(mktemp -d 2>/dev/null || true)"
+    # shellcheck disable=SC2064  # expand WORKDIR now; it is set once
+    trap "rm -rf '$WORKDIR'" EXIT
 
     if [[ "$JSON_OUTPUT" != true ]]; then
         log_section "settings-drift: comparing host vs container variants"
@@ -315,21 +343,21 @@ main() {
 
     check_json_drift \
         "claude-code" \
-        "$DOTFILES_DIR/claude-code/settings.json" \
-        "$DOTFILES_DIR/claude-code/settings.container.json" \
+        "$(checked_path claude-code/settings.json)" \
+        "$(checked_path claude-code/settings.container.json)" \
         ".sandbox, .env"
 
     check_toml_drift \
         "codex" \
-        "$DOTFILES_DIR/codex/config.toml" \
-        "$DOTFILES_DIR/codex/config.container.toml" \
+        "$(checked_path codex/config.toml)" \
+        "$(checked_path codex/config.container.toml)" \
         ".sandbox_mode"
 
     # Only the host variant is checked: the container variant is generated from
     # it by bin/sync-settings.sh, so it inherits the deny list verbatim.
     check_deny_parity \
         "claude-code" \
-        "$DOTFILES_DIR/claude-code/settings.json"
+        "$(checked_path claude-code/settings.json)"
 
     if [[ "$JSON_OUTPUT" != true ]]; then
         if (( ERRORS > 0 )); then
