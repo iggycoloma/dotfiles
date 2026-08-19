@@ -33,6 +33,16 @@ export GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL="$TMP_ROOT/gitconfig-global"
 : > "$GIT_CONFIG_GLOBAL"
 
+# The pre-push and post-checkout dispatchers chain `git lfs <hook>` when
+# git-lfs is on PATH. CI runners ship it and it exits 2 against the test
+# repos (no origin remote); developer machines may not have it at all. A
+# no-op stub makes both environments identical -- this suite tests the
+# dispatchers' project-hook chaining, not LFS.
+mkdir -p "$TMP_ROOT/stub-bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP_ROOT/stub-bin/git-lfs"
+chmod +x "$TMP_ROOT/stub-bin/git-lfs"
+export PATH="$TMP_ROOT/stub-bin:$PATH"
+
 # Fresh repo with a tracked-style .githooks/<hook> that records its
 # invocation (arguments included) in marker. Prints the repo path.
 make_repo() {
