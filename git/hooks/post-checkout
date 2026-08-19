@@ -32,10 +32,13 @@ fi
 
 # Opt-in project hooks (`git config dotfiles.projectHooks true`): chain the
 # repo's tracked .githooks/post-checkout, resolved per-worktree via
-# --show-toplevel so each checkout runs its own revision.
-if [[ "$(git config --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
-    project_hook="$(git rev-parse --show-toplevel 2>/dev/null)/.githooks/post-checkout"
-    if [[ -x "$project_hook" ]]; then
+# --show-toplevel so each checkout runs its own revision. --local only:
+# the trust grant lives in the repository's own config, never global/system
+# scope (rationale in pre-commit).
+if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+    project_toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
+    project_hook="$project_toplevel/.githooks/post-checkout"
+    if [[ -n "$project_toplevel" && -x "$project_hook" ]]; then
         "$project_hook" "$@" || exit $?
     fi
 fi

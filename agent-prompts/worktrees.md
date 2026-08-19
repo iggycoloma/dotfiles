@@ -4,7 +4,7 @@ Operational rules for the `wt` worktree system, shared across tools.
 
 Two related rules deliberately live elsewhere.
 The prohibition on repo-local `core.hooksPath` sits in each tool's Guardrails: it silently disables global secret scanning, so it is inlined per tool rather than loaded from here.
-A project that ships tracked hooks in `.githooks/` opts in with `git config dotfiles.projectHooks true` instead; the global pre-commit, commit-msg, pre-push, and post-checkout dispatchers then chain the current worktree's copy ahead of their own checks.
+A project that ships tracked hooks in `.githooks/` opts in with `git config dotfiles.projectHooks true` instead; the global pre-commit, commit-msg, pre-push, and post-checkout dispatchers then chain the current worktree's copy ahead of their own checks. The flag is honored only in the repository's own config -- never set it with `--global`.
 Publication policy is per-tool, because what an agent may push or open without asking differs between them.
 
 - One agent per worktree, never two agents editing one checkout.

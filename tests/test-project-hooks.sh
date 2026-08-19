@@ -5,7 +5,9 @@
 # A repo opts in with `git config dotfiles.projectHooks true`; each global
 # dispatcher then chains the repo's tracked .githooks/<hook>. This is the
 # supported alternative to repo-local core.hooksPath, which would replace
-# the dispatchers entirely and silently disable secret scanning.
+# the dispatchers entirely and silently disable secret scanning. The flag
+# is read with --local only: the trust grant must live in the repository's
+# own config, which a clone cannot ship.
 #
 # Strategy: build a throwaway repo per suite, point the dispatcher at a
 # .githooks hook that drops a marker file, and flip the config bit.
@@ -20,6 +22,16 @@ source "$SCRIPT_DIR/test-framework.sh"
 
 TMP_ROOT=$(mktemp -d)
 trap 'rm -rf "$TMP_ROOT"' EXIT
+
+# Isolate from the developer's real git config at file scope (as
+# test-signing.sh and test-wt.sh do): the user's core.hooksPath, commit
+# signing, or a stray dotfiles.projectHooks must not leak into repo setup
+# or the dispatchers under test. The scope tests below write into this
+# throwaway global config deliberately.
+export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL="$TMP_ROOT/gitconfig-global"
+: > "$GIT_CONFIG_GLOBAL"
 
 # Fresh repo with a tracked-style .githooks/<hook> that records its
 # invocation (arguments included) in marker. Prints the repo path.
@@ -40,12 +52,12 @@ EOF
 }
 
 # Run a dispatcher from inside the repo with a clean recursion guard and
-# stdin closed (pre-push reads stdin; the others ignore it).
+# stdin closed (pre-push reads stdin; the others ignore it). Config
+# isolation comes from the file-scope exports above.
 run_dispatcher() {
     local repo="$1" hook="$2"
     shift 2
     (cd "$repo" && env -u DOTFILES_GLOBAL_HOOK_RUNNING \
-        GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
         bash "$HOOKS_DIR/$hook" "$@" < /dev/null)
 }
 
@@ -70,6 +82,19 @@ for hook in pre-commit commit-msg pre-push post-checkout; do
         test_fail "$hook does not run .githooks/$hook without the opt-in"
     else
         test_pass "$hook does not run .githooks/$hook without the opt-in"
+    fi
+
+    # The trust grant is per-repository: a global-scope flag would make
+    # every cloned repo's .githooks run, so the dispatchers must ignore it.
+    git config --file "$GIT_CONFIG_GLOBAL" dotfiles.projectHooks true
+    run_dispatcher "$repo" "$hook" ${args[@]+"${args[@]}"} >/dev/null 2>&1
+    rc=$?
+    git config --file "$GIT_CONFIG_GLOBAL" --unset dotfiles.projectHooks
+    assert_equals 0 "$rc" "$hook exits 0 with only a global-scope flag"
+    if [[ -f "$repo/marker" ]]; then
+        test_fail "$hook ignores a global-scope dotfiles.projectHooks"
+    else
+        test_pass "$hook ignores a global-scope dotfiles.projectHooks"
     fi
 
     git -C "$repo" config dotfiles.projectHooks true
