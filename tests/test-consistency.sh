@@ -550,10 +550,13 @@ test_command_frontmatter_present() {
 
 test_shared_skill_frontmatter_present() {
     local expected=(
-        assess-release audit-security commit create-pr debug fix-issue forge
-        generate-changelog investigate-incident manage-dependencies
-        optimize-performance plan-migration review-design review-pr
+        assess-release audit-security build-prototype commit create-pr debug
+        draft-adr draft-tickets evaluate-technology exec-brief fix-issue forge
+        generate-changelog grill-plan implement-tdd investigate-incident
+        manage-dependencies optimize-performance plan-migration
+        plan-workstream resolve-conflicts review-design review-pr
         review-system run-pipeline specify-feature teach-socratically
+        write-agent-docs write-handoff write-postmortem
     )
     local missing=() invalid=() skill file frontmatter
     for skill in "${expected[@]}"; do
@@ -570,7 +573,7 @@ test_shared_skill_frontmatter_present() {
     done
 
     if [[ ${#missing[@]} -eq 0 && ${#invalid[@]} -eq 0 ]]; then
-        test_pass "All 18 shared Agent Skills have portable frontmatter"
+        test_pass "All ${#expected[@]} shared Agent Skills have portable frontmatter"
     else
         [[ ${#missing[@]} -eq 0 ]] || test_fail "Missing shared Agent Skills: ${missing[*]}"
         [[ ${#invalid[@]} -eq 0 ]] || test_fail "Invalid shared Agent Skill frontmatter: ${invalid[*]}"
