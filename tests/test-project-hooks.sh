@@ -112,6 +112,18 @@ for hook in pre-commit commit-msg pre-push post-checkout; do
     rc=$?
     assert_equals 7 "$rc" "$hook propagates a failing project hook's exit code"
 
+    # Opted in with the hook present but not executable: the one state where
+    # the owner believes project checks run and they do not. Git warns for
+    # its own non-executable hooks; the dispatchers match that -- skip, warn
+    # on stderr, and keep going.
+    chmod -x "$repo/.githooks/$hook"
+    stderr=$(run_dispatcher "$repo" "$hook" ${args[@]+"${args[@]}"} 2>&1 >/dev/null)
+    rc=$?
+    assert_equals 0 "$rc" "$hook exits 0 when the project hook is not executable"
+    assert_contains "$stderr" "not executable" \
+        "$hook warns about a present but non-executable project hook"
+    chmod +x "$repo/.githooks/$hook"
+
     git -C "$repo" config dotfiles.projectHooks false
     run_dispatcher "$repo" "$hook" ${args[@]+"${args[@]}"} >/dev/null 2>&1
     rc=$?

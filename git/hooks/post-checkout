@@ -40,6 +40,8 @@ if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "
     project_hook="$project_toplevel/.githooks/post-checkout"
     if [[ -n "$project_toplevel" && -x "$project_hook" ]]; then
         "$project_hook" "$@" || exit $?
+    elif [[ -n "$project_toplevel" && -e "$project_hook" ]]; then
+        echo "warning: $project_hook was ignored because it is not executable (chmod +x to run it)" >&2
     fi
 fi
 

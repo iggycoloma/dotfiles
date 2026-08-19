@@ -49,6 +49,8 @@ if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "
   PROJECT_HOOK="${TOPLEVEL}/.githooks/commit-msg"
   if [[ -n "${TOPLEVEL}" && -x "${PROJECT_HOOK}" ]]; then
     "${PROJECT_HOOK}" "${MSG_FILE}" || exit $?
+  elif [[ -n "${TOPLEVEL}" && -e "${PROJECT_HOOK}" ]]; then
+    echo "warning: ${PROJECT_HOOK} was ignored because it is not executable (chmod +x to run it)" >&2
   fi
 fi
 

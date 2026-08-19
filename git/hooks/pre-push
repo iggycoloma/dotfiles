@@ -27,6 +27,8 @@ if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "
     project_hook="$toplevel/.githooks/pre-push"
     if [[ -n "$toplevel" && -x "$project_hook" ]]; then
         "$project_hook" "$@" < "$input_file" || exit $?
+    elif [[ -n "$toplevel" && -e "$project_hook" ]]; then
+        echo "warning: $project_hook was ignored because it is not executable (chmod +x to run it)" >&2
     fi
 fi
 
