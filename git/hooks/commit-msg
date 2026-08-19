@@ -38,6 +38,22 @@ if [[ -n "${LOCAL_HOOKS_DIR:-}" ]]; then
   fi
 fi
 
+# Opt-in project hooks (`git config dotfiles.projectHooks true`): chain the
+# repo's tracked .githooks/commit-msg, resolved per-worktree via
+# --show-toplevel so each checkout runs its own revision. Runs before the
+# checks below so a message the project hook rewrites is still validated.
+# --local only: the trust grant lives in the repository's own config, never
+# global/system scope (rationale in pre-commit).
+if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+  TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  PROJECT_HOOK="${TOPLEVEL}/.githooks/commit-msg"
+  if [[ -n "${TOPLEVEL}" && -x "${PROJECT_HOOK}" ]]; then
+    "${PROJECT_HOOK}" "${MSG_FILE}" || exit $?
+  elif [[ -n "${TOPLEVEL}" && -e "${PROJECT_HOOK}" ]]; then
+    echo "warning: ${PROJECT_HOOK} was ignored because it is not executable (chmod +x to run it)" >&2
+  fi
+fi
+
 # Read full message after any repo hook modifications (strip comment lines)
 FULL_MSG=$(sed '/^#/d' "${MSG_FILE}")
 SUBJECT=$(printf '%s\n' "${FULL_MSG}" | sed -n '1p')

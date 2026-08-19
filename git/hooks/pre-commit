@@ -16,6 +16,25 @@ if [[ -x "$repo_hook" ]]; then
     "$repo_hook" "$@" || exit $?
 fi
 
+# Opt-in project hooks: a repo runs `git config dotfiles.projectHooks true`
+# once and its tracked .githooks/<hook> chains here, instead of setting
+# core.hooksPath, which would replace this dispatcher and silently disable
+# secret scanning. --local only: .githooks/ arrives with the clone, so the
+# trust grant must live in the one file a clone cannot ship -- this
+# repository's own config (shared across its worktrees). A global or
+# system-level setting is deliberately ignored; honoring it would make
+# every cloned repo's hooks run on the next commit. Resolved via
+# --show-toplevel so each worktree runs its own checked-out revision.
+if [[ "$(git config --local --type=bool dotfiles.projectHooks 2>/dev/null)" == "true" ]]; then
+    toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
+    project_hook="$toplevel/.githooks/pre-commit"
+    if [[ -n "$toplevel" && -x "$project_hook" ]]; then
+        "$project_hook" "$@" || exit $?
+    elif [[ -n "$toplevel" && -e "$project_hook" ]]; then
+        echo "warning: $project_hook was ignored because it is not executable (chmod +x to run it)" >&2
+    fi
+fi
+
 # Gitleaks secret scanning.
 if command -v gitleaks &>/dev/null; then
     gitleaks git --staged --no-banner --redact .

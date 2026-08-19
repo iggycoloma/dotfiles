@@ -31,6 +31,14 @@
       "fixable": false
     },
     {
+      "id": "git-feature-below-minimum",
+      "profile": "all",
+      "severity": "warn",
+      "message": "`git` feature resolves to a git older than {{MIN_GIT}}: no `version` (defaults to os-provided), explicit `os-provided`/`system`, or a pinned version below the floor. `extensions.relativeWorktrees` needs {{MIN_GIT}}, so per-worktree containers fail postCreate with `fatal: not in a git directory`. Set `\"version\": \"latest\"` (or pin >= {{MIN_GIT}}).",
+      "check": "def vnorm: split(\".\") | map(tonumber) | . + [0, 0, 0] | .[:3]; (.features // {}) | to_entries | map(select((.key | test(\"/git:\")) and ((.value | if type == \"object\" then (.version // \"os-provided\") else tostring end) as $v | ($v | IN(\"os-provided\", \"system\")) or (($v | test(\"^[0-9]+(\\\\.[0-9]+)*$\")) and (($v | vnorm) < ($min_git | vnorm)))))) | length > 0",
+      "fixable": false
+    },
+    {
       "id": "shutdown-action",
       "profile": "all",
       "severity": "info",

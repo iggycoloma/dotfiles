@@ -5,6 +5,7 @@ DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 source "$DOTFILES_DIR/bootstrap/detect.sh"
 
 source "$DOTFILES_DIR/bootstrap/logging.sh"
+source "$DOTFILES_DIR/bootstrap/versions.sh"
 
 _sha256() {
     if has_tool sha256sum; then
@@ -470,18 +471,15 @@ _find_missing_packages() {
     done
 }
 
-# Upgrade git via ppa:git-core/ppa when stock apt git < 2.48. Two features
-# set the floor: `user.signingkey = key::<literal-pubkey>` needs 2.35, and
-# `git worktree add --relative-paths` / worktree.useRelativePaths -- which
-# per-worktree dev containers depend on (bin/wt, --mount-git-worktree-
-# common-dir) -- landed in 2.48. No supported LTS ships 2.48 stock
-# (Ubuntu 24.04: 2.43, Debian bookworm: 2.39), so the PPA is the primary
-# path on Ubuntu; other distros get a loud warning and wt degrades to
-# absolute worktree pointers. Idempotent: a no-op at >= 2.48.
+# Upgrade git via ppa:git-core/ppa when stock apt git is older than the
+# tracked floor (DOTFILES_MIN_GIT in bootstrap/versions.sh -- the rationale
+# for the floor lives there too). The PPA is the primary path on Ubuntu;
+# other distros get a loud warning and wt degrades to absolute worktree
+# pointers. Idempotent: a no-op at or above the floor.
 _ensure_modern_git_apt() {
     has_tool git || return 0
 
-    local current minimum="2.48"
+    local current minimum="$DOTFILES_MIN_GIT"
     current=$(git --version 2>/dev/null | awk '{print $3}')
     [[ -n "$current" ]] || return 0
     if dpkg --compare-versions "$current" ge "$minimum"; then
@@ -495,7 +493,7 @@ _ensure_modern_git_apt() {
         codename="${VERSION_CODENAME:-}"
     fi
     if [[ "$distro_id" != "ubuntu" && "$distro_id" != "pop" ]]; then
-        log_warn "git ${current} < ${minimum} (worktree --relative-paths needs 2.48, key:: signingkey needs 2.35); upgrade git manually on this distro -- wt falls back to absolute worktree pointers until then"
+        log_warn "git ${current} < ${minimum} (worktree --relative-paths needs ${minimum}, key:: signingkey needs 2.35); upgrade git manually on this distro -- wt falls back to absolute worktree pointers until then"
         return 0
     fi
 

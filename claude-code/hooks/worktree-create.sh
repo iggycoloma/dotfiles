@@ -24,9 +24,12 @@ wt_bin="${WT_BIN:-$HOME/.local/bin/dotfiles-bin/wt}"
 fallback_add() {
     local dest="${base_path:-$cwd/.claude/worktrees}/$name"
     mkdir -p "$(dirname "$dest")" 2>/dev/null || true
-    # --relative-paths needs git >= 2.48; older git errors on the flag.
-    local rel=""
-    if [[ "$(printf '%s\n2.48.0\n' "$(git --version | awk '{print $3}')" | sort -V | head -1)" == "2.48.0" ]]; then
+    # --relative-paths needs git >= min_git; older git errors on the flag.
+    # Canonical floor: bootstrap/versions.sh (DOTFILES_MIN_GIT); inlined
+    # because this hook deploys standalone. tests/test-consistency.sh keeps
+    # the copies in sync.
+    local rel="" min_git="2.48.0"
+    if [[ "$(printf '%s\n%s\n' "$(git --version | awk '{print $3}')" "$min_git" | sort -V | head -1)" == "$min_git" ]]; then
         rel="--relative-paths"
     fi
     # A branch left over from an earlier worktree (removed without

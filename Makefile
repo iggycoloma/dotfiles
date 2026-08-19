@@ -85,6 +85,7 @@ test-hooks:
 	bash tests/test-commit-msg-hook.sh
 	bash tests/test-agent-observability-hooks.sh
 	bash tests/test-pre-push-hook.sh
+	bash tests/test-project-hooks.sh
 
 # Verify each hook matcher in claude-code/settings.json and codex/hooks.json
 # names a tool its platform actually emits, and that the wired hook dispatches

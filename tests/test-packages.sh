@@ -161,11 +161,13 @@ assert_contains "$(declare -f install_devcontainer_cli)" "devcontainers/cli/main
 # ============================================================
 test_suite "git version floor"
 
-# 2.48 is the worktree --relative-paths floor that per-worktree dev
-# containers depend on; no supported LTS ships it stock, so the PPA
-# upgrade path must target it.
-assert_contains "$(declare -f _ensure_modern_git_apt)" 'minimum="2.48"' \
-    "git upgrade floor is 2.48 (worktree relative paths)"
+# The PPA upgrade path must target the tracked floor (DOTFILES_MIN_GIT in
+# bootstrap/versions.sh), not a literal that can drift from it.
+# shellcheck disable=SC2016  # matching the literal variable reference
+assert_contains "$(declare -f _ensure_modern_git_apt)" 'minimum="$DOTFILES_MIN_GIT"' \
+    "git upgrade floor comes from bootstrap/versions.sh"
+assert_equals "2.48.0" "${DOTFILES_MIN_GIT:-}" \
+    "tracked minimum git is 2.48.0 (worktree relative paths)"
 assert_contains "$(declare -f _ensure_modern_git_apt)" "relative-paths" \
     "non-Ubuntu warning names the worktree feature"
 
