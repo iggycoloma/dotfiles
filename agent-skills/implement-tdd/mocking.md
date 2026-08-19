@@ -1,5 +1,7 @@
 # When to Mock
 
+Source: [mattpocock/skills](https://github.com/mattpocock/skills) `skills/engineering/tdd/mocking.md`. Copyright (c) 2026 Matt Pocock, MIT License.
+
 Mock at **system boundaries** only:
 
 - External APIs (payment, email, etc.)

@@ -548,19 +548,15 @@ test_command_frontmatter_present() {
     fi
 }
 
+# The skill inventory is the directory itself: deployment (symlinks.sh) and
+# drift checking (prompt-drift.sh) both glob agent-skills/*, so validating a
+# hand-maintained name list here is a cache of the filesystem that drifts.
 test_shared_skill_frontmatter_present() {
-    local expected=(
-        assess-release audit-security build-prototype commit create-pr debug
-        draft-adr draft-tickets evaluate-technology exec-brief fix-issue forge
-        generate-changelog grill-plan implement-tdd investigate-incident
-        manage-dependencies optimize-performance plan-migration
-        plan-workstream resolve-conflicts review-design review-pr route-work
-        review-system run-pipeline specify-feature teach-socratically
-        write-agent-docs write-handoff write-postmortem
-    )
-    local missing=() invalid=() skill file frontmatter
-    for skill in "${expected[@]}"; do
-        file="$DOTFILES_DIR/agent-skills/$skill/SKILL.md"
+    local missing=() invalid=() skill_dir skill file frontmatter count=0
+    for skill_dir in "$DOTFILES_DIR"/agent-skills/*/; do
+        skill=$(basename "$skill_dir")
+        file="$skill_dir/SKILL.md"
+        count=$((count + 1))
         if [[ ! -f "$file" ]]; then
             missing+=("$skill")
             continue
@@ -572,11 +568,30 @@ test_shared_skill_frontmatter_present() {
         fi
     done
 
-    if [[ ${#missing[@]} -eq 0 && ${#invalid[@]} -eq 0 ]]; then
-        test_pass "All ${#expected[@]} shared Agent Skills have portable frontmatter"
+    if [[ $count -eq 0 ]]; then
+        test_fail "No shared Agent Skills found under agent-skills/"
+    elif [[ ${#missing[@]} -eq 0 && ${#invalid[@]} -eq 0 ]]; then
+        test_pass "All $count shared Agent Skills have portable frontmatter"
     else
-        [[ ${#missing[@]} -eq 0 ]] || test_fail "Missing shared Agent Skills: ${missing[*]}"
+        [[ ${#missing[@]} -eq 0 ]] || test_fail "Shared Agent Skill directories without SKILL.md: ${missing[*]}"
         [[ ${#invalid[@]} -eq 0 ]] || test_fail "Invalid shared Agent Skill frontmatter: ${invalid[*]}"
+    fi
+}
+
+# The skill counts in README.md and docs/agentic-tooling.md are hand-edited
+# table cells with nothing else tying them to the directory they describe.
+test_shared_skill_count_documented() {
+    local actual readme docs stale=()
+    actual=$(find "$DOTFILES_DIR/agent-skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)
+    readme=$(sed -n 's/^| Shared Agent Skills *| *\([0-9][0-9]*\) .*/\1/p' "$DOTFILES_DIR/README.md")
+    docs=$(sed -n 's/^| Shared skills *| *\([0-9][0-9]*\) .*/\1/p' "$DOTFILES_DIR/docs/agentic-tooling.md")
+
+    [[ "$readme" == "$actual" ]] || stale+=("README.md says '${readme:-nothing}'")
+    [[ "$docs" == "$actual" ]] || stale+=("docs/agentic-tooling.md says '${docs:-nothing}'")
+    if [[ ${#stale[@]} -eq 0 ]]; then
+        test_pass "Documented shared skill counts match the $actual skill directories"
+    else
+        test_fail "Shared skill count is $actual but ${stale[*]}"
     fi
 }
 
@@ -711,6 +726,7 @@ main() {
 
     test_suite "Shared Agent Skills"
     test_shared_skill_frontmatter_present
+    test_shared_skill_count_documented
     test_shared_skills_are_platform_neutral
 
     test_suite "Dotfiles State Self-Heal Link List"

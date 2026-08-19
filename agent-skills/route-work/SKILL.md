@@ -3,9 +3,9 @@ name: route-work
 description: |
   Route the current situation to the right skill or chain of skills. TRIGGER
   when the user asks which skill fits, how to approach a piece of work, or
-  what to do next in a workflow; also when a request clearly matches another
-  skill's territory but names none. SKIP when the user already named a skill
-  or the request is trivial enough to need none.
+  what to do next in a workflow. SKIP when the user already named a skill,
+  when another skill's TRIGGER already matches the request directly, or when
+  the request is trivial enough to need none.
 ---
 
 # Route work

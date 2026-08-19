@@ -1,5 +1,7 @@
 # Good and Bad Tests
 
+Source: [mattpocock/skills](https://github.com/mattpocock/skills) `skills/engineering/tdd/tests.md`. Copyright (c) 2026 Matt Pocock, MIT License.
+
 ## Good Tests
 
 **Integration-style**: Test through real interfaces, not mocks of internal parts.
