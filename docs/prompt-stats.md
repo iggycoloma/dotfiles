@@ -30,7 +30,7 @@ The Codex-budget column shows the inclusive size against the 32 KiB `project_doc
 | Codex | global AGENTS.md + session-start fragments + root AGENTS.md | 8403 |
 | Copilot | global instructions + session-start fragments + repo instructions | 5517 |
 
-Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (2666 tokens, explicit trigger), the forge fragment (940 tokens, forge tasks only, all tools), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
+Conditional context on top of these: the deny-list rule (2044 tokens, path-scoped), the wt runbook (2666 tokens, explicit trigger), the forge fragment (940 tokens, forge tasks only, all tools), each `claude-code/model-adjustments/` fragment for every Claude session on its model (`opus-5` at 223 tokens), and for Codex/Copilot the worktrees fragment counts only when a task involves worktrees.
 
 ## Reading the numbers
 

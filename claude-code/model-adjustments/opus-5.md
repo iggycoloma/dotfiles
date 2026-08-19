@@ -9,7 +9,4 @@ These sharpen those rules; they never relax them.
 - Make each point once.
   Opus 5 tends to state a conclusion, elaborate it, then restate it as a summary -- keep the strongest single formulation and delete the rest.
 - No preamble restating the question, and no closing recap of an answer that fits on one screen.
-- Prefer the common word when it is equally precise: use, not leverage; because, not owing to the fact that; setup, not architecture unless architecture is the subject.
-  A specialized term earns its place only when it is the concept at issue.
-- Do not coin names for ideas a plain sentence covers, and do not present a straightforward observation as a framework, taxonomy, or principle.
-- Reserve headings, tables, and nested bullets for genuinely enumerable structure; a simple question gets a prose answer.
+- The global "prefer the simplest precise term" rule applies with extra force; substitutions Opus 5 habitually makes and should reverse: leverage -> use, owing to the fact that -> because, architecture -> setup unless architecture is the subject.
