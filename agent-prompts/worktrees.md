@@ -7,6 +7,7 @@ The prohibition on repo-local `core.hooksPath` sits in each tool's Guardrails: i
 Publication policy is per-tool, because what an agent may push or open without asking differs between them.
 
 - One agent per worktree, never two agents editing one checkout.
+- Worktrees are managed exclusively by `wt`, which resolves the repo by walking up from the working directory, never down -- from a workspace root, run it from inside the target repo (`(cd <repo> && wt add <name>)`), then work in the printed path via absolute paths. Never re-root the session with a harness's built-in worktree isolation tool (Claude Code's EnterWorktree, or equivalents); where the WorktreeCreate shim is deployed it reroutes such calls through `wt` as a safety net, but the subshell-plus-absolute-paths flow is the supported path.
 - Create with `wt add <name>` (prints the path); tear down with `wt remove <name>` -- it kills the worktree's containers, releases its ports, and refuses dirty trees. Never `rm -rf` a worktree.
 - A nonzero exit from `add` does not mean nothing was created: a failing `post-add` hook keeps the worktree and reports the failure, so read the printed path and fix forward rather than retrying into `already exists`.
 - The command surface documents itself -- `wt --help` and `wt <command> --help` are generated from one table, so read them rather than working from memory. `add`, `list`, `doctor` and `version` take `--json` when you want structured output instead of log lines.
