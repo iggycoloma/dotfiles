@@ -151,25 +151,28 @@ instead of a draft.
 ### Voice for a draft
 
 A comment is a message to a colleague, not a section of the report. Lowercase and contractions
-are fine. Roughly 150 words: one paragraph of mechanism with the `file:line`, one of honest
-impact, one of the fix.
+are fine. Aim for 60-90 words in one paragraph: mechanism and impact compressed together, with
+the `file:line`. Only spell out the fix when it isn't obvious from the question.
 
-- **If you open with a question, ask a real one.** "quick q" followed by an assertion is a throat
-  clear. The question should be answerable and worth answering -- usually "was this deliberate, or
-  aimed at <the case it clearly gets right>?" -- because the author normally did have a reason and
-  you want it before you argue with the choice.
+- **Frame the whole comment as a verification request, not a verdict.** Hedge the reading
+  ("if I'm reading it right"), and end by asking whether there's a path you missed rather than
+  stating there isn't. The question should be answerable and worth answering -- usually "was this
+  deliberate, or aimed at <the case it clearly gets right>?" -- because the author normally did
+  have a reason and you want it before you argue with the choice.
 - **Assume competence.** Name the case their choice gets right before the case it misses. You are
   asking about a tradeoff they made, not catching them out.
-- **Plain words for impact.** Drop the protocol shorthand -- "can't quietly fire off actions on the
-  operator's behalf" over "nothing POST-shaped can be ridden". The impact paragraph has to land
-  for someone who doesn't hold the spec in their head; jargon there reads as showing work rather
-  than explaining risk.
-- **Say the merge timing in words.** "the kind of thing I'd rather close before it ships" or
-  "happy for this to be a follow-up" -- never the blocking / non-blocking label, and never a softer
-  verdict than the one in the report.
+- **Plain words for impact, no dramatization.** Drop the protocol shorthand -- "can't quietly fire
+  off actions on the operator's behalf" over "nothing POST-shaped can be ridden". The impact has
+  to land for someone who doesn't hold the spec in their head; jargon there reads as showing work
+  rather than explaining risk. No "the nasty part is..." framing -- state the consequence once and
+  move on.
+- **Merge timing in words, only when it isn't already clear.** "happy for this to be a follow-up"
+  when severity is ambiguous -- never the blocking / non-blocking label, and never a softer verdict
+  than the one in the report. Skip it when the severity is already unambiguous from the comment.
 - **Don't narrate your own diligence.** The research keeps you from posting something already
   settled; it is not content for the comment. If you did miss prior art, the author will say so in
   their reply, and that costs nothing.
-- Offer the fix, don't prescribe it. "if you want it, ..." leaves the call where it belongs.
+- **Never use "if you want it" or similar permission-granting phrasing.** Either name the fix
+  plainly in one clause or leave it out.
 
 Drafts are handed over, never posted. Publishing stays a separate, explicit ask.
