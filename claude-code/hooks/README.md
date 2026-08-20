@@ -12,6 +12,7 @@ for Claude-specific events, notifications, transcript parsing, and worktrees.
 | pre-security.sh | PreToolUse: Read/Write/Edit | Protects sensitive files (.env, credentials, keys). Bash is not scanned -- `sandbox.credentials` covers it; see docs/sandbox.md "Why there is no Bash scan" |
 | pre-code-no-emoji.sh | PreToolUse: Write/Edit | Blocks emoji characters in code files |
 | `~/.agent-hooks/pre-hookspath-guard.sh` | PreToolUse: Bash (`if: git *`) | Denies `git config` writes to `core.hooksPath`; reads and unsets pass |
+| `~/.agent-hooks/pre-leading-token-guard.sh` | PreToolUse: Bash | Denies commands that bury a sandbox-excluded tool (`glab`, `gh`, `wt`, `docker`, `devcontainer`) behind another leading token, where it would run sandboxed and die on its denied config dir |
 | `~/.agent-hooks/post-scope-audit.sh` | PostToolUse: Write/Edit | Logs out-of-scope writes as structured events (audit-only) |
 | `~/.agent-hooks/post-dep-audit.sh` | PostToolUse: Bash | Audits dependency graphs after install commands; `AGENT_DEP_AUDIT_FEEDBACK=1` feeds failures back via exit 2 |
 | `~/.agent-hooks/tool-telemetry.sh` | PostToolUse + PostToolUseFailure: Bash | Logs executable class, outcome, exit code, interruption, and duration; never command arguments or output |

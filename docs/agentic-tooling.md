@@ -113,6 +113,7 @@ Summary:
 | `pre-security.sh`         | Structured file tools | Blocks sensitive file patterns and credential directories       |
 | `pre-code-no-emoji.sh`    | File edits       | Blocks decorative emoji in added content                            |
 | `pre-hookspath-guard.sh`  | Bash             | Blocks writes to `core.hooksPath`                                   |
+| `pre-leading-token-guard.sh` | Bash          | Denies a sandbox-excluded tool placed after a leading token          |
 | `post-scope-audit.sh`     | File edits       | Audits writes outside the project                                   |
 | `post-dep-audit.sh`       | Bash             | Audits resolved dependencies after installs                         |
 | `tool-telemetry.sh`       | Shell result     | Records metadata-only reliability events                            |
