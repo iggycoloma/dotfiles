@@ -6,6 +6,14 @@
 # config directory. Session telemetry showed ~50 such failures before this
 # guard existed; prose rules in CLAUDE.md did not stop them.
 
+# Containers are their own isolation boundary and run with sandbox.enabled
+# false (bin/sync-settings.sh), so no command shape can die sandboxed there
+# and a deny would cite a rationale that is untrue in that environment. Same
+# sentinels as bootstrap/detect.sh.
+if [[ -n "${CODESPACES:-}" || -n "${REMOTE_CONTAINERS:-}" || -f /.dockerenv ]]; then
+    exit 0
+fi
+
 if ! command -v jq &>/dev/null; then
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"jq is required for the leading-token guard"}}'
     exit 0
@@ -19,6 +27,7 @@ command_text=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
 # Must mirror sandbox.excludedCommands in claude-code/settings.json
 # (single-token entries; `git worktree` and `git checkout` are handled by the
 # leading `git` never being sandbox-fatal in the same way).
+# tests/test-consistency.sh asserts the mirror, so drift fails the suite.
 TOOLS='glab|gh|wt|docker|devcontainer'
 
 # Leading token is an excluded tool: the whole invocation runs unsandboxed.
