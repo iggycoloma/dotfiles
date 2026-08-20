@@ -628,5 +628,10 @@
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
-  "theme": "dark"
+  "theme": "dark",
+  "voiceEnabled": true,
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  }
 }
