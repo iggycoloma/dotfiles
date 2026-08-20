@@ -2,9 +2,9 @@
 
 Operational rules for the `wt` worktree system, shared across tools.
 
-In agent command execution, `wt` means the personal executable at `~/.local/bin/dotfiles-bin/wt`.
-Always invoke that home-relative path with the leading `~` unquoted so the shell expands it; never resolve bare `wt` from `PATH` or rely on the interactive shell function, because agent shells may select an unrelated executable.
-The commands below retain the shorter `wt` spelling for readability.
+In agent command execution, invoke bare `wt` and keep it the command's first token.
+`bootstrap/symlinks.sh` links the personal executable straight into `~/.local/bin/wt`, which shell init prepends to `PATH`, so bare `wt` resolves to the right executable even in shells that source no functions.
+Never invoke it through an absolute or `~`-prefixed path: sandbox exclusion lists and hook guards match the command's first token literally, so a pathed spelling silently sends the command back into the sandbox, where `wt remove` dies partway (see below).
 When `wt add` prints the new worktree path, use that path as the working directory for subsequent tool calls; the interactive function's `cd` convenience cannot change later agent command sessions.
 
 Two related rules deliberately live elsewhere.
@@ -13,7 +13,7 @@ A project that ships tracked hooks in `.githooks/` opts in with `git config dotf
 Publication policy is per-tool, because what an agent may push or open without asking differs between them.
 
 - One agent per worktree, never two agents editing one checkout.
-- Worktrees are managed exclusively by `wt`, which resolves the repo by walking up from the working directory, never down -- from a workspace root, run it from inside the target repo (`(cd <repo> && wt add <name>)`), then work in the printed path via absolute paths. Never re-root the session with a harness's built-in worktree isolation tool (Claude Code's EnterWorktree, or equivalents); where the WorktreeCreate shim is deployed it reroutes such calls through `wt` as a safety net, but the subshell-plus-absolute-paths flow is the supported path.
+- Worktrees are managed exclusively by `wt`, which resolves the repo by walking up from the working directory, never down -- from a workspace root, change into the target repo in its own command first, then run `wt add <name>` as a separate call, and work in the printed path via absolute paths. Never fold the two into one command (`cd <repo> && wt add <name>`): `cd` becomes the leading token, so the sandbox exclusion stops matching and the leading-token guard denies the call. Never re-root the session with a harness's built-in worktree isolation tool (Claude Code's EnterWorktree, or equivalents); where the WorktreeCreate shim is deployed it reroutes such calls through `wt` as a safety net, but the two-call-plus-absolute-paths flow is the supported path.
 - Create with `wt add <name>` (prints the path); tear down with `wt remove <name>` -- it kills the worktree's containers, releases its ports, and refuses dirty trees. Never `rm -rf` a worktree.
 - A nonzero exit from `add` does not mean nothing was created: a failing `post-add` hook keeps the worktree and reports the failure, so read the printed path and fix forward rather than retrying into `already exists`.
 - `wt` mutates worktrees, dev containers, and provisioned local dev files, so it must run outside any command sandbox: sandboxed, `wt remove` dies partway through deleting the checkout, because the provisioned `.env.local` and `.env.staging` files it must unlink are the same paths credential rules deny. Where the harness has a sandbox-exclusion list, `wt *` belongs on it beside `git worktree *`, `docker *`, and `devcontainer *`.
