@@ -412,10 +412,17 @@ assert_equals 'false' "$(jq -r '.sandbox.enabled' "$tmp/claude-code/settings.con
     "generated variant disables the sandbox"
 assert_equals '1' "$(jq -r '.sandbox | keys | length' "$tmp/claude-code/settings.container.json")" \
     "generated variant carries no other sandbox keys"
+GUARD_EXCLUDE='.sandbox, .env, (.hooks.PreToolUse[]?.hooks[]? | select(.command == "~/.agent-hooks/pre-leading-token-guard.sh"))'
 assert_equals \
-    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.json")" \
-    "$(jq -cS 'del(.sandbox, .env)' "$tmp/claude-code/settings.container.json")" \
-    "generated variant matches the host on every key outside .sandbox and .env"
+    "$(jq -cS "del($GUARD_EXCLUDE)" "$tmp/claude-code/settings.json")" \
+    "$(jq -cS "del($GUARD_EXCLUDE)" "$tmp/claude-code/settings.container.json")" \
+    "generated variant matches the host outside .sandbox, .env, and the leading-token guard"
+if jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "~/.agent-hooks/pre-leading-token-guard.sh")' \
+    "$tmp/claude-code/settings.container.json" >/dev/null 2>&1; then
+    test_fail "generated variant strips the leading-token guard (sandbox-specific)"
+else
+    test_pass "generated variant strips the leading-token guard (sandbox-specific)"
+fi
 assert_equals "null" \
     "$(jq -c '.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' "$tmp/claude-code/settings.container.json")" \
     "generated variant strips CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (it forces filesystem isolation on)"

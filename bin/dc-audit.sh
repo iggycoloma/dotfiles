@@ -146,11 +146,14 @@ parse_args() {
 
 # Conservative by design: not matching quoted strings may leave a `//` inside
 # a URL intact, which is fine because jq parses that too.
+# ERE with POSIX classes rather than \s and \+: both are GNU extensions.
+# Under BSD sed the comment patterns silently fail to match, handing jq the
+# comments it cannot parse.
 strip_jsonc() {
     local path="$1"
-    sed -e 's|/\*[^*]*\*\+\([^/*][^*]*\*\+\)*/||g' \
-        -e 's|^\s*//.*$||' \
-        -e 's|\s\+//.*$||' \
+    sed -E -e 's|/\*[^*]*\*+([^/*][^*]*\*+)*/||g' \
+        -e 's|^[[:space:]]*//.*$||' \
+        -e 's|[[:space:]]+//.*$||' \
         "$path"
 }
 

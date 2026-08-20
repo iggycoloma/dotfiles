@@ -673,7 +673,7 @@ install_brew() {
     local minimal=$1
 
     log_info "Installing core tools..."
-    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi" "mise" "carapace" "flock")
+    local packages=("fzf" "ripgrep" "fd" "bat" "jq" "shellcheck" "gitleaks" "git" "eza" "zoxide" "starship" "git-delta" "sd" "scc" "yq" "watchexec" "duf" "dust" "procs" "hyperfine" "yazi" "mise" "carapace" "flock")
 
     # Enhanced tools (opt-out via DOTFILES_NO_ATUIN=1)
     if [[ "${DOTFILES_NO_ATUIN:-}" != "1" ]]; then

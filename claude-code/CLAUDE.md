@@ -64,6 +64,8 @@ Security: MCP servers run as child processes with full filesystem and network ac
 - Use Bash for CLI tools with no built-in equivalent (`sg`, `scc`, `yq`, `shellcheck`) regardless of what else is available.
 - Do not wrap searches in Bash `for`/`while` loops -- one glob pattern in a single Grep/Glob call, or one `rg`/`fd` invocation. A loop's command string starts with `for`, not the inner tool, so `Bash(rg:*)` never matches and every iteration prompts.
 - Keep Bash commands literal so the permission matcher and the session log both see what actually runs. Do NOT hide paths, filenames, or credentials behind variables, `base64`/`xxd`, `eval`, command substitution `$(...)`, or a pipe into a shell (`... | sh`). Length is fine; indirection is not -- the realtime gate and the audit trail share the same blind spot.
+- The same leading-token rule governs `sandbox.excludedCommands`, and there the failure is fatal rather than a prompt: `glab *` matches only when `glab` is the command's first token, so `glab ... | jq` runs unsandboxed and works while `out=$(glab ...)`, a shell function, or a loop body runs sandboxed and dies on `failed to read configuration: ... mkdir .../glab-cli: operation not permitted` -- sandboxed, glab cannot read its real config dir at the denied `~/.config/glab-cli` and falls back to a macOS path it may not create. Keep the excluded tool first: extract fields with `-F json --jq` rather than capturing into a variable, post-process through a pipeline, and repeat explicit invocations instead of looping. Every entry in that list behaves this way, `gh` and `docker` included.
+- The same applies to cd <dir> && glab ... — cd is the leading token, so glab runs sandboxed and dies. Change directory in its own Bash call (the working directory persists between calls), or skip cd entirely with glab -R <group>/<repo> ....
 
 ## Shared conventions
 
@@ -72,7 +74,8 @@ Cross-tool conventions (preferred CLI tools, code-comment policy, markdown forma
 @~/.claude/prompts/engineering-conventions.md
 
 Forge interaction is deliberately NOT imported, to keep it out of sessions that never touch a forge:
-before drafting or editing a PR/MR description, issue, or forge comment, or reaching for `gh api` / `glab api`, read `~/.claude/prompts/forge.md`.
+before drafting or editing a PR/MR description, issue, or forge comment, read `~/.claude/prompts/forge.md`.
+Read-path CLI rules (subcommands over `api`, and when `api` is justified) are always-on in the workspace `AGENTS.md`.
 The `forge`, `review-pr`, and `create-pr` skills load it themselves.
 
 ## Communication style

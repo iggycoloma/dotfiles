@@ -356,6 +356,47 @@ test_path_no_duplicates() {
     assert_equals "1" "$output" "PATH contains .local/bin exactly once after double source"
 }
 
+# The guard in exports.sh must stay macOS-gated and must not re-add a key the
+# agent already holds -- dropping either condition runs ssh-add on every shell.
+# Every export below is deliberately subshell-local; which of SC2030/SC2031
+# fires where depends on whether shellcheck resolves the sourced files, so the
+# directive is function-scoped rather than per-line.
+# shellcheck disable=SC2030,SC2031
+test_ssh_agent_guard_gated_and_conditional() {
+    local tmp calls output
+    tmp=$(mktemp -d)
+    calls="$tmp/calls"
+    : > "$calls"
+    # $* and $1 belong to the generated stub, not to this scope.
+    # shellcheck disable=SC2016
+    printf '#!/usr/bin/env bash\necho "$*" >> "%s"\n[ "$1" = "-l" ] && exit 1\nexit 0\n' \
+        "$calls" > "$tmp/ssh-add"
+    chmod +x "$tmp/ssh-add"
+
+    output=$(
+        export PATH="$tmp:$PATH"
+        export SSH_AUTH_SOCK="$tmp/agent.sock"
+        source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
+        grep -c 'apple-load-keychain' "$calls"
+    )
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        assert_equals "1" "$output" "empty agent triggers exactly one keychain load"
+    else
+        assert_equals "0" "$output" "guard is macOS-gated, no ssh-add off Darwin"
+    fi
+
+    : > "$calls"
+    output=$(
+        export PATH="$tmp:$PATH"
+        unset SSH_AUTH_SOCK
+        source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
+        grep -c 'apple-load-keychain' "$calls"
+    )
+    assert_equals "0" "$output" "no keychain load without SSH_AUTH_SOCK"
+
+    rm -rf "$tmp"
+}
+
 test_completion_no_local_at_file_scope() {
     # Verify that completion.sh does not use 'local' outside of a function
     # The zsh_config line should not have 'local' keyword
@@ -832,6 +873,7 @@ main() {
     # Shell config tests
     test_suite "Shell Config"
     test_path_no_duplicates
+    test_ssh_agent_guard_gated_and_conditional
     test_completion_no_local_at_file_scope
 
     # State persistence tier tests

@@ -279,6 +279,11 @@
             "if": "Bash(git *)",
             "command": "~/.agent-hooks/pre-hookspath-guard.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/pre-leading-token-guard.sh",
+            "timeout": 10
           }
         ]
       }
@@ -490,7 +495,9 @@
       ],
       "allowRead": [
         "~/.ssh/known_hosts",
-        "~/.ssh/config"
+        "~/.ssh/config",
+        "**/.env.example",
+        "**/*.env.example"
       ]
     },
     "credentials": {
@@ -615,10 +622,16 @@
       "docker *",
       "git worktree *",
       "git checkout *",
-      "devcontainer *"
+      "devcontainer *",
+      "wt *"
     ]
   },
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
-  "theme": "dark"
+  "theme": "dark",
+  "voiceEnabled": true,
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  }
 }

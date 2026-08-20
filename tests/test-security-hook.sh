@@ -94,8 +94,11 @@ test_hook_syntax() {
 
 test_hook_requires_jq() {
     # jq is needed; if missing, hook should fail closed with a deny decision.
-    local result
-    result=$(echo '{}' | PATH=/nonexistent /usr/bin/bash "$HOOK" 2>&1)
+    local result bash_bin
+    # Resolve bash before PATH is gutted; /usr/bin/bash does not exist on macOS,
+    # so a hardcoded path fails on the interpreter instead of testing the hook.
+    bash_bin=$(command -v bash)
+    result=$(echo '{}' | PATH=/nonexistent "$bash_bin" "$HOOK" 2>&1)
     local rc=$?
     if [[ $rc -eq 0 ]] && echo "$result" | grep -q '"permissionDecision":"deny"'; then
         test_pass "Hook denies when jq is missing"

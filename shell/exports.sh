@@ -20,6 +20,15 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     fi
 fi
 
+# Repopulate ssh-agent from the keychain (macOS)
+# Agent-based commit signing (bootstrap/signing.sh writes user.signingkey =
+# key::<pubkey>) needs a populated agent, but `ssh-keygen -Y sign` only talks to
+# the agent -- it never reads ssh_config, so AddKeysToAgent cannot rescue a fresh
+# login, and macOS stopped auto-loading keychain keys in 10.12.2.
+if [[ "$(uname -s)" == "Darwin" && -n "${SSH_AUTH_SOCK:-}" ]]; then
+    ssh-add -l &> /dev/null || ssh-add --apple-load-keychain &> /dev/null
+fi
+
 # XDG Base Directory Specification
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
