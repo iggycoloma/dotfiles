@@ -30,6 +30,10 @@ Thumbs.db
 # Zsh compiled files
 *.zwc
 
+# Python bytecode from hooks
+__pycache__/
+*.pyc
+
 # Any private or sensitive data
 secrets/
 private/
