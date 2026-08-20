@@ -23,7 +23,7 @@ if [[ "${1:-}" == "--check" ]]; then
 fi
 
 bytes() { wc -c < "$DOTFILES_DIR/$1"; }
-lines() { wc -l < "$DOTFILES_DIR/$1"; }
+lines() { wc -l < "$DOTFILES_DIR/$1" | tr -d '[:space:]'; }
 tok() { echo $(( $1 / 4 )); }
 
 B_CLAUDE_GLOBAL=$(bytes claude-code/CLAUDE.md)

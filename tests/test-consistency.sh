@@ -582,7 +582,7 @@ test_shared_skill_frontmatter_present() {
 # table cells with nothing else tying them to the directory they describe.
 test_shared_skill_count_documented() {
     local actual readme docs stale=()
-    actual=$(find "$DOTFILES_DIR/agent-skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)
+    actual=$(find "$DOTFILES_DIR/agent-skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d '[:space:]')
     readme=$(sed -n 's/^| Shared Agent Skills *| *\([0-9][0-9]*\) .*/\1/p' "$DOTFILES_DIR/README.md")
     docs=$(sed -n 's/^| Shared skills *| *\([0-9][0-9]*\) .*/\1/p' "$DOTFILES_DIR/docs/agentic-tooling.md")
 
