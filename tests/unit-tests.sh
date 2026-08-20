@@ -358,6 +358,10 @@ test_path_no_duplicates() {
 
 # The guard in exports.sh must stay macOS-gated and must not re-add a key the
 # agent already holds -- dropping either condition runs ssh-add on every shell.
+# Every export below is deliberately subshell-local; which of SC2030/SC2031
+# fires where depends on whether shellcheck resolves the sourced files, so the
+# directive is function-scoped rather than per-line.
+# shellcheck disable=SC2030,SC2031
 test_ssh_agent_guard_gated_and_conditional() {
     local tmp calls output
     tmp=$(mktemp -d)
@@ -370,8 +374,6 @@ test_ssh_agent_guard_gated_and_conditional() {
     chmod +x "$tmp/ssh-add"
 
     output=$(
-        # Deliberately subshell-local: the stub only shadows ssh-add here.
-        # shellcheck disable=SC2030
         export PATH="$tmp:$PATH"
         export SSH_AUTH_SOCK="$tmp/agent.sock"
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
@@ -385,8 +387,6 @@ test_ssh_agent_guard_gated_and_conditional() {
 
     : > "$calls"
     output=$(
-        # Deliberately subshell-local: the stub only shadows ssh-add here.
-        # shellcheck disable=SC2031
         export PATH="$tmp:$PATH"
         unset SSH_AUTH_SOCK
         source "$REAL_DOTFILES_DIR/shell/exports.sh" 2>/dev/null
