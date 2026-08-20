@@ -408,6 +408,49 @@ test_attribution_regex_shared_vs_commit_msg() {
 }
 
 # ============================================================================
+# Test Suite: Sandbox Exclusion Mirror
+# ============================================================================
+
+# pre-leading-token-guard.sh hardcodes the sandbox-excluded tools it protects;
+# its comment says the list must mirror sandbox.excludedCommands in
+# claude-code/settings.json. Nothing else enforces that, so assert it here.
+test_leading_token_guard_mirrors_sandbox_exclusions() {
+    local guard="$DOTFILES_DIR/agent-hooks/pre-leading-token-guard.sh"
+    local settings="$DOTFILES_DIR/claude-code/settings.json"
+
+    if ! command -v jq &>/dev/null; then
+        test_info "jq not available, skipping sandbox exclusion mirror check"
+        return
+    fi
+
+    local guard_tools
+    guard_tools=$(grep -E "^TOOLS=" "$guard" | sed "s/^TOOLS='//;s/'$//" | tr '|' '\n' | sort)
+
+    # Single-token entries only: multi-token exclusions like `git worktree *`
+    # have a leading token that is never sandbox-fatal on its own.
+    local excluded
+    excluded=$(jq -r '.sandbox.excludedCommands[]' "$settings" \
+        | sed 's/ \*$//' | grep -v ' ' | sort)
+
+    if [[ -z "$guard_tools" ]]; then
+        test_fail "Could not extract TOOLS from pre-leading-token-guard.sh"
+        return
+    fi
+    if [[ -z "$excluded" ]]; then
+        test_fail "Could not extract sandbox.excludedCommands from settings.json"
+        return
+    fi
+
+    if [[ "$guard_tools" == "$excluded" ]]; then
+        test_pass "Guard TOOLS list mirrors single-token sandbox.excludedCommands"
+    else
+        test_fail "Guard TOOLS and sandbox.excludedCommands have drifted"
+        test_info "guard TOOLS:      $(echo "$guard_tools" | tr '\n' ' ')"
+        test_info "excludedCommands: $(echo "$excluded" | tr '\n' ' ')"
+    fi
+}
+
+# ============================================================================
 # Test Suite: Shared Agent Hook Wrappers
 # ============================================================================
 
@@ -736,6 +779,9 @@ main() {
 
     test_suite "Attribution Regex Patterns"
     test_attribution_regex_shared_vs_commit_msg
+
+    test_suite "Sandbox Exclusion Mirror"
+    test_leading_token_guard_mirrors_sandbox_exclusions
 
     test_suite "Shared Agent Hook Wrappers"
     test_agent_hook_wrappers_point_to_shared_dir
