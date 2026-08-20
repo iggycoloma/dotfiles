@@ -114,6 +114,23 @@ claude.com/code review")" "Blocks claude.com URL"
 assert_accepted "$(run_msg "fix(claude-code): handle empty input")" "Allows tool name in scope"
 assert_accepted "$(run_msg "docs: update copilot integration notes")" "Allows tool name in body"
 
+# A tool name in a path plus an unrelated participle elsewhere is not
+# attribution. `.*` between them used to reject this.
+assert_accepted "$(run_msg "feat(claude-code): persist voice mode
+
+The harness writes the voice block into ~/.claude/settings.json, and the
+container variant is regenerated from it.")" "Allows a path reference plus a distant participle"
+
+# `ai` must be bounded by non-letters: it appears inside ordinary words.
+assert_accepted "$(run_msg "chore: maintenance pass
+
+The chain of available fixtures was created by hand.")" "Allows ai inside words like maintenance"
+
+# One intervening word must still be caught, or the common form slips through.
+assert_rejected "$(run_msg "feat: add thing
+
+Claude Code generated this patch")" "Blocks 'Claude Code generated'"
+
 # ---------------------------------------------------------------------------
 
 test_suite "commit-msg: conventional format"
