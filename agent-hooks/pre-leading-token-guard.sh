@@ -7,9 +7,11 @@
 # guard existed; prose rules in CLAUDE.md did not stop them.
 
 # Containers are their own isolation boundary and run with sandbox.enabled
-# false (bin/sync-settings.sh), so no command shape can die sandboxed there
-# and a deny would cite a rationale that is untrue in that environment. Same
-# sentinels as bootstrap/detect.sh.
+# false, so no command shape can die sandboxed there and a deny would cite a
+# rationale that is untrue in that environment. bin/sync-settings.sh strips
+# this hook from the container settings variant; this check (same sentinels
+# as bootstrap/detect.sh) is defense-in-depth for a container the host
+# variant reached anyway.
 if [[ -n "${CODESPACES:-}" || -n "${REMOTE_CONTAINERS:-}" || -f /.dockerenv ]]; then
     exit 0
 fi

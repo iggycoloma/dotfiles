@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # sync-settings.sh -- Generate claude-code/settings.container.json from settings.json.
 #
-# The two files differ in exactly one key: `.sandbox`. Hosts run the bwrap /
-# Seatbelt sandbox; containers are their own boundary and set
-# `sandbox.enabled: false` with nothing else under the key (docs/sandbox.md).
-# Every other key -- permissions, hooks, statusLine, attribution -- is identical
-# by design.
+# The two files differ in exactly two ways, both sandbox-tier policy: the
+# `.sandbox` key (hosts run the bwrap / Seatbelt sandbox; containers are their
+# own boundary and set `sandbox.enabled: false` with nothing else under the
+# key, docs/sandbox.md), and the leading-token guard hook, which exists only
+# to keep sandbox-excluded tools matchable and so is stripped where no sandbox
+# runs. Every other key -- permissions, other hooks, statusLine, attribution --
+# is identical by design.
 #
 # Generating the container variant rather than hand-maintaining it makes the
 # "added a permission to one file and forgot the other" bug impossible instead
@@ -44,6 +46,16 @@ CONTAINER_SANDBOX='{"enabled": false}'
 # (docs/sandbox.md "Why CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is not set"); this
 # strip stays as a backstop in case it is ever reintroduced on hosts.
 CONTAINER_ENV_STRIP='CLAUDE_CODE_SUBPROCESS_ENV_SCRUB'
+
+# The leading-token guard exists only because sandbox.excludedCommands matches
+# the command's first token; with sandbox.enabled false there is nothing for
+# it to protect, so the container variant does not register it. The guard also
+# self-disarms on container sentinels as defense-in-depth for deployments this
+# strip never reached.
+# The tilde is matched literally against the text in settings.json -- Claude
+# Code expands it, this script never touches the filesystem here.
+# shellcheck disable=SC2088
+CONTAINER_HOOK_STRIP='~/.agent-hooks/pre-leading-token-guard.sh'
 
 usage() {
     cat <<'HELP'
@@ -86,9 +98,16 @@ main() {
     local generated
     if ! generated=$(jq --argjson sandbox "$CONTAINER_SANDBOX" \
         --arg strip "$CONTAINER_ENV_STRIP" \
+        --arg guard "$CONTAINER_HOOK_STRIP" \
         '.sandbox = $sandbox
          | if has("env") then .env |= del(.[$strip]) else . end
-         | if has("env") and (.env | length) == 0 then del(.env) else . end' \
+         | if has("env") and (.env | length) == 0 then del(.env) else . end
+         | if (.hooks.PreToolUse? | type) == "array" then
+               .hooks.PreToolUse |= map(
+                   if (.hooks? | type) == "array"
+                   then .hooks |= map(select(.command != $guard))
+                   else . end)
+           else . end' \
         "$host" 2>&1); then
         log_and_return error 2 "host variant is not valid JSON: $generated"
         return 2
