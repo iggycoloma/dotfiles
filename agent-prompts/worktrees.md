@@ -2,6 +2,11 @@
 
 Operational rules for the `wt` worktree system, shared across tools.
 
+In agent command execution, `wt` means the personal executable at `~/.local/bin/dotfiles-bin/wt`.
+Always invoke that home-relative path with the leading `~` unquoted so the shell expands it; never resolve bare `wt` from `PATH` or rely on the interactive shell function, because agent shells may select an unrelated executable.
+The commands below retain the shorter `wt` spelling for readability.
+When `wt add` prints the new worktree path, use that path as the working directory for subsequent tool calls; the interactive function's `cd` convenience cannot change later agent command sessions.
+
 Two related rules deliberately live elsewhere.
 The prohibition on repo-local `core.hooksPath` sits in each tool's Guardrails: it silently disables global secret scanning, so it is inlined per tool rather than loaded from here.
 A project that ships tracked hooks in `.githooks/` opts in with `git config dotfiles.projectHooks true` instead; the global pre-commit, commit-msg, pre-push, and post-checkout dispatchers then chain the current worktree's copy ahead of their own checks. The flag is honored only in the repository's own config -- never set it with `--global`.
