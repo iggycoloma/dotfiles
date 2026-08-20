@@ -172,6 +172,58 @@ assert_contains "$(declare -f _ensure_modern_git_apt)" "relative-paths" \
     "non-Ubuntu warning names the worktree feature"
 
 # ============================================================
+# Test Suite: brew / GitHub-release install parity
+# ============================================================
+test_suite "brew/GitHub install parity"
+
+# The GitHub-release block runs only when the package manager is not brew, so a
+# tool listed there and absent from install_brew's formula list is never
+# installed on macOS at all. That is how gitleaks shipped missing: the
+# pre-commit hook soft-passes when it is not on PATH, so nothing surfaced it.
+_brew_formula_for() {
+    case "$1" in
+        delta) echo "git-delta" ;;
+        difft) echo "difftastic" ;;
+        sg)    echo "ast-grep" ;;
+        *)     echo "$1" ;;
+    esac
+}
+
+# Bounded by the block's own guard and the comment that closes it, so tools
+# installed on brew hosts too (codex and friends) stay out of scope.
+_github_tools=$(awk '
+    /pkg_mgr" != "brew"/       { inblock = 1 }
+    /# Hosts included, unlike/ { inblock = 0 }
+    inblock && /install_from_github "/ {
+        line = $0
+        sub(/.*install_from_github "/, "", line)
+        sub(/".*/, "", line)
+        print line
+    }
+' "$DOTFILES_DIR/bootstrap/packages.sh")
+
+_brew_formulas=$(declare -f install_brew | grep -E 'packages\+?=\(' \
+    | grep -oE '"[a-z0-9-]+"' | tr -d '"')
+
+# Guard against a refactor that breaks extraction and makes the loop vacuous.
+_tool_count=$(printf '%s\n' "$_github_tools" | grep -c .)
+if [ "$_tool_count" -ge 15 ]; then _extracted=yes; else _extracted=no; fi
+assert_equals "yes" "$_extracted" \
+    "GitHub-release block extraction found tools (got $_tool_count)"
+
+_missing=""
+while IFS= read -r _tool; do
+    [ -n "$_tool" ] || continue
+    _formula=$(_brew_formula_for "$_tool")
+    if ! printf '%s\n' "$_brew_formulas" | grep -qx "$_formula"; then
+        _missing="$_missing $_tool"
+    fi
+done <<< "$_github_tools"
+
+assert_equals "" "$_missing" \
+    "every GitHub-release tool has a brew formula in install_brew"
+
+# ============================================================
 # Summary
 # ============================================================
 print_test_summary
