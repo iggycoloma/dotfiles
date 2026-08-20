@@ -68,7 +68,7 @@ if type has_ai_attribution &>/dev/null; then
   _check_attribution() { has_ai_attribution "$1"; }
 else
   _check_attribution() {
-    printf '%s' "$1" | grep -qiE '(generated (with|by)|powered by|created (with|by)|written (with|by)|assisted by|produced by|authored by|built with|made with).*(^|[^[:alpha:]])(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai)([^[:alpha:]]|$)' ||
+    printf '%s' "$1" | grep -qiE '(generated (with|by)|powered by|created (with|by)|written (with|by)|assisted by|produced by|authored by|built with|made with)[ _-]+([[:alpha:]]+[ _-]+)?(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai)([^[:alpha:]]|$)' ||
     printf '%s' "$1" | grep -qiE '(^|[^[:alpha:]])(claude|anthropic|gpt|openai|copilot|gemini|cursor|windsurf|ai)[ _-]*([[:alpha:]]+[ _-]+)?(generated|powered|created|wrote|assisted|produced|authored|built)([^[:alpha:]]|$)' ||
     printf '%s' "$1" | grep -qiE '(claude\.com|anthropic\.com|ai-generated|ai generated)'
   }
