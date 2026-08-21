@@ -1,6 +1,6 @@
 ---
 name: cto
-description: Collapse the last answer into a decision -- the call, what dominates it, and what would reverse it. Manual only.
+description: Collapse the last answer into a decision -- the call, what dominates it, and what would reverse it. Fires only when the user types /cto.
 disable-model-invocation: true
 ---
 

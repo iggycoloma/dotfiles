@@ -1,6 +1,6 @@
 ---
 name: bro
-description: Re-pitch the last answer as mechanism -- what is actually going on, and what I was missing. Manual only.
+description: Re-pitch the last answer as mechanism -- what is actually going on, and what I was missing. Fires only when the user types /bro.
 disable-model-invocation: true
 ---
 
