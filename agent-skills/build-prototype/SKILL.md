@@ -6,6 +6,7 @@ description: |
   when the user wants to sanity-check a design idea with something runnable
   before committing to it. SKIP when the question is which technology to
   adopt (use evaluate-technology) or when production code is being requested.
+disable-model-invocation: true
 ---
 
 # Build a prototype

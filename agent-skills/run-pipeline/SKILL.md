@@ -1,6 +1,7 @@
 ---
 name: run-pipeline
 description: Run the staged feature-development workflow from specification through design review, implementation, and release assessment, pausing for user approval between stages. Use when the user explicitly asks for the full pipeline.
+disable-model-invocation: true
 ---
 
 You are orchestrating the 4-stage feature development pipeline.

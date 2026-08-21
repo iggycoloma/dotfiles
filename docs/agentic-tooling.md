@@ -95,16 +95,19 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
 Implementation + Tests -> QA Review, with user checkpoints between stages.
 
-Two skills are manual-only: `bro` re-pitches the last answer as mechanism,
-`cto` collapses it into a decision. Both harnesses load the same
-`agent-skills/` directory, and each expresses the manual-only policy its own
-way, so both are set. Claude Code reads `disable-model-invocation: true` from
-SKILL.md frontmatter. Codex ignores that field and reads
-`agents/openai.yaml` with `policy.allow_implicit_invocation: false`, the
-Agent Skills format's slot for product-specific config, which keeps the skill
-body harness-neutral. Verified with `codex debug prompt-input`: with the
-sidecar present both skills drop out of Codex's `<skills_instructions>` list,
-while a control skill stays.
+Several skills are manual-only, gated on whether the model gains anything by
+reaching for them itself. `bro` and `cto` re-pitch the previous answer;
+`route-work` routes among skills whose descriptions the model already holds;
+`build-prototype`, `grill-plan`, `plan-workstream`, `run-pipeline`, and
+`teach-socratically` take over the shape of a session or write to a tracker
+when they fire unasked. Both harnesses load the same `agent-skills/` directory
+but spell the policy differently, so each of those skills sets both:
+`disable-model-invocation: true` in SKILL.md frontmatter for Claude Code, and
+`agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex,
+which ignores the frontmatter field. `tests/test-consistency.sh` asserts the
+pairing and the root `AGENTS.md` carries the full field reference. Verified
+with `codex debug prompt-input`: with the sidecar present a skill drops out of
+Codex's `<skills_instructions>` list while the others stay.
 
 Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35
 credential patterns, `pre-security.sh` hook validates every file

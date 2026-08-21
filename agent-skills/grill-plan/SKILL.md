@@ -7,6 +7,7 @@ description: |
   every assumption in a proposal made explicit before committing. SKIP when the
   user wants a written critique of an existing design document (use
   review-design) or a spec produced from a settled idea (use specify-feature).
+disable-model-invocation: true
 ---
 
 Interview the user until you reach a shared understanding of the plan.
