@@ -3,10 +3,11 @@
 #
 # wt used to live in this repo as bin/wt; it is now a standalone tool at
 # https://github.com/iggycoloma/worktree-orchestrator so it can be shared
-# beyond dotfiles. This step keeps a managed clone under XDG data and links
-# the executable to ~/.local/bin/wt, where shell init, the wt shell
-# function, and the worktree hooks all expect it. Completions come from the
-# same clone, linked by bootstrap/completions.sh.
+# beyond dotfiles. This step keeps a managed clone under XDG data and runs
+# the repo's own install.sh from it, which owns the ~/.local/bin/wt symlink
+# that shell init, the wt shell function, and the worktree hooks all
+# expect. Zsh completions for dotfiles' own fpath dir are linked separately
+# by bootstrap/completions.sh.
 
 set -e
 
@@ -31,14 +32,18 @@ install_wt() {
         fi
     fi
 
-    if [[ ! -x "$WT_ORCH_DIR/bin/wt" ]]; then
-        log_error "wt: $WT_ORCH_DIR/bin/wt missing or not executable"
+    if [[ ! -f "$WT_ORCH_DIR/install.sh" ]]; then
+        log_error "wt: $WT_ORCH_DIR/install.sh missing (checkout too old or broken)"
         return 1
     fi
 
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$WT_ORCH_DIR/bin/wt" "$HOME/.local/bin/wt"
-    log_success "wt linked: ~/.local/bin/wt -> $WT_ORCH_DIR/bin/wt"
+    # The repo's installer owns the symlink layout; run from the checkout it
+    # installs from that checkout without cloning again.
+    if ! bash "$WT_ORCH_DIR/install.sh"; then
+        log_error "wt: install.sh failed"
+        return 1
+    fi
+    log_success "wt installed from $WT_ORCH_DIR"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

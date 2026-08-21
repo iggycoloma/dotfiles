@@ -530,6 +530,13 @@ test_wt_resolves_on_path_without_shell_functions() {
     mkdir -p "$TEST_TEMP_DIR/wtclone/.git" "$TEST_TEMP_DIR/wtclone/bin"
     echo '#!/bin/sh' > "$TEST_TEMP_DIR/wtclone/bin/wt"
     chmod +x "$TEST_TEMP_DIR/wtclone/bin/wt"
+    # Stand-in for the repo's real installer (tested in worktree-orchestrator
+    # itself); here the contract under test is that install_wt runs it.
+    cat > "$TEST_TEMP_DIR/wtclone/install.sh" <<'STUB'
+#!/usr/bin/env bash
+mkdir -p "$HOME/.local/bin"
+ln -sf "$(cd "$(dirname "$0")" && pwd)/bin/wt" "$HOME/.local/bin/wt"
+STUB
 
     # Subshell: wt.sh sets -e and resolves WT_ORCH_DIR when sourced, and
     # neither may leak into the suite. The fake .git makes install_wt treat
