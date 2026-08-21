@@ -89,11 +89,15 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 12    | Shared guardrails, dependency/scope audits, lifecycle telemetry, notifications |
 | Agents          | 2     | code-reviewer (fresh-context diff review), verify (adversarial claim check) |
-| Shared skills   | 31    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
+| Shared skills   | 33    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
 The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
 Implementation + Tests -> QA Review, with user checkpoints between stages.
+
+Two skills are manual-only (`disable-model-invocation`), so they never load a
+description into context and only fire when typed: `/bro` re-pitches the last
+answer as mechanism, `/cto` collapses it into a decision.
 
 Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35
 credential patterns, `pre-security.sh` hook validates every file

@@ -190,7 +190,7 @@ architecture (project-scope `AGENTS.md` + `CLAUDE.md` +
 | Settings variants per tool      | 2     | Host (`settings.json` / `config.toml`) and container (`settings.container.json` / `config.container.toml`) flavors |
 | Hooks (Claude Code)             | 4     | Credential blocking, conventional commits enforcement, no-emoji blocker, Pushover idle notification   |
 | Agents (Claude Code)            | 2     | code-reviewer (fresh-context diff review via the review-pr rubric), verify (adversarial claim check)  |
-| Shared Agent Skills             | 31    | Portable Claude/Codex workflows including `/commit`, `/review-pr`, `/plan-migration`, and `/draft-adr` |
+| Shared Agent Skills             | 33    | Portable Claude/Codex workflows including `/commit`, `/review-pr`, `/plan-migration`, and `/draft-adr` |
 
 The **4-stage pipeline** (`/run-pipeline`) runs PM spec -> architecture review
 -> implementation + tests -> QA review, with user checkpoints between
