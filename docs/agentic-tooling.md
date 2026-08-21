@@ -95,15 +95,16 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
 Implementation + Tests -> QA Review, with user checkpoints between stages.
 
-Two skills are manual-only in Claude Code via `disable-model-invocation`:
-`/bro` re-pitches the last answer as mechanism, `/cto` collapses it into a
-decision. Codex 0.148.0 parses the field without acting on it -- both skills
-still appear in its `<skills_instructions>` list, verified with
-`codex debug prompt-input` -- so on Codex they cost their description in
-context and remain model-invocable. Their descriptions name the typed command
-as the trigger to compensate. Codex's own manual-only mechanism is
-`~/.codex/prompts/`, which carries no context and is where these would move if
-manual-only skills multiply.
+Two skills are manual-only: `bro` re-pitches the last answer as mechanism,
+`cto` collapses it into a decision. Both harnesses load the same
+`agent-skills/` directory, and each expresses the manual-only policy its own
+way, so both are set. Claude Code reads `disable-model-invocation: true` from
+SKILL.md frontmatter. Codex ignores that field and reads
+`agents/openai.yaml` with `policy.allow_implicit_invocation: false`, the
+Agent Skills format's slot for product-specific config, which keeps the skill
+body harness-neutral. Verified with `codex debug prompt-input`: with the
+sidecar present both skills drop out of Codex's `<skills_instructions>` list,
+while a control skill stays.
 
 Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35
 credential patterns, `pre-security.sh` hook validates every file
