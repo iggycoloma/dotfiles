@@ -124,7 +124,8 @@ Local devcontainers add one mount line to `devcontainer.json`:
 Codespaces handles persistence at the platform layer; no mount line is needed.
 
 If no volume is present in a local devcontainer, the installer logs the exact
-line to copy into `devcontainer.json`. `.devcontainer/example/devcontainer.json`
+line to copy into `devcontainer.json`. The reference template in the
+worktree-orchestrator repo (`examples/devcontainer/devcontainer.json`)
 includes the line already.
 
 ### Ownership normalization

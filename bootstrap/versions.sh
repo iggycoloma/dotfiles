@@ -3,10 +3,11 @@
 # "what is our minimum git".
 #
 # Sourced by bootstrap/packages.sh (PPA upgrade floor) and bin/dc-audit.sh
-# (devcontainer rubric floor). bin/wt and claude-code/hooks/worktree-create.sh
-# deploy as standalone scripts that cannot source a checkout file at runtime,
-# so they inline the same value; tests/test-consistency.sh asserts the copies
-# match, which is how a floor bump propagates safely.
+# (devcontainer rubric floor). claude-code/hooks/worktree-create.sh deploys
+# as a standalone script that cannot source a checkout file at runtime, and
+# wt (worktree-orchestrator) is a separate repo entirely, so both inline the
+# same value; tests/test-consistency.sh asserts the copies match, which is
+# how a floor bump propagates safely.
 
 # Minimum git. Two features set it: `git worktree add --relative-paths` /
 # worktree.useRelativePaths -- which per-worktree dev containers depend on --

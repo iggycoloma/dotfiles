@@ -180,7 +180,8 @@ those environments:
 
 ## Worktree system (wt)
 
-Before editing `bin/wt`, `git/hooks/post-checkout`, `shell/completions/wt.bash`, `shell/completions/_wt`, or `tests/test-wt.sh`, read [docs/wt-maintenance.md](docs/wt-maintenance.md) first.
+wt itself lives in <https://github.com/iggycoloma/worktree-orchestrator>; this repo installs it (`bootstrap/wt.sh`) and integrates with it.
+Before editing `git/hooks/post-checkout`, `claude-code/hooks/worktree-create.sh`/`worktree-remove.sh`, or `tests/test-wt.sh`, read [docs/wt-maintenance.md](docs/wt-maintenance.md) first.
 It carries the invariants and completion-system gotchas that are expensive to rediscover, and changes made without it have broken them before.
 
 ## Working Style

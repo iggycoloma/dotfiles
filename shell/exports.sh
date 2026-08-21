@@ -143,7 +143,7 @@ fi=0:\
 export RIPGREP_CONFIG_PATH="$XDG_CONFIG_HOME/ripgrep/config"
 
 # Repo-shipped completions own their command names where carapace collides.
-# Carapace's `wt` spec is Windows Terminal (wt.exe), unrelated to bin/wt, and
+# Carapace's `wt` spec is Windows Terminal (wt.exe), unrelated to our wt, and
 # its init mass-registers every spec after completion.sh has already bound
 # ours -- so last-writer-wins silently replaced `wt` completion. Excluding the
 # spec states the ownership rule once instead of re-asserting compdef/complete

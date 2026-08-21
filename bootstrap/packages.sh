@@ -860,7 +860,8 @@ install_claude_code() {
 }
 
 # Dev Containers CLI: launches per-worktree containers from the host
-# (docs/agentic-worktree-dev-environment.md). Host-only by design --
+# (worktree-orchestrator's docs/agentic-worktree-dev-environment.md).
+# Host-only by design --
 # containers never launch containers, so inside one it is dead weight.
 # Homebrew ships a formula; apt/apk have no package, so Linux hosts use
 # the upstream installer, which bundles its own Node.js runtime into
