@@ -651,6 +651,44 @@ test_shared_skills_are_platform_neutral() {
     fi
 }
 
+# Manual-only invocation has no shared spelling. Claude Code honors only
+# disable-model-invocation in SKILL.md frontmatter; Codex honors only
+# policy.allow_implicit_invocation in agents/openai.yaml and ignores the
+# frontmatter field. Setting one without the other leaves the skill silently
+# model-invocable in the other harness, which no other check would surface.
+test_manual_only_skills_agree_across_harnesses() {
+    local mismatched=() skill_dir skill claude_manual codex_manual yaml
+    for skill_dir in "$DOTFILES_DIR"/agent-skills/*/; do
+        skill=$(basename "$skill_dir")
+        [[ -f "$skill_dir/SKILL.md" ]] || continue
+
+        claude_manual=no
+        if extract_frontmatter "$skill_dir/SKILL.md" \
+            | grep -Eq '^disable-model-invocation:[[:space:]]*true[[:space:]]*$'; then
+            claude_manual=yes
+        fi
+
+        codex_manual=no
+        yaml="$skill_dir/agents/openai.yaml"
+        if [[ -f "$yaml" ]] \
+            && grep -Eq '^[[:space:]]*allow_implicit_invocation:[[:space:]]*false[[:space:]]*$' "$yaml"; then
+            codex_manual=yes
+        fi
+
+        if [[ "$claude_manual" != "$codex_manual" ]]; then
+            mismatched+=("$skill (claude-manual=$claude_manual codex-manual=$codex_manual)")
+        fi
+    done
+
+    if [[ ${#mismatched[@]} -eq 0 ]]; then
+        test_pass "Manual-only shared Agent Skills set both harnesses' invocation policy"
+    else
+        test_fail "Manual-only policy set for one harness only: ${mismatched[*]}"
+        test_info "Claude Code needs 'disable-model-invocation: true' in SKILL.md frontmatter"
+        test_info "Codex needs 'policy.allow_implicit_invocation: false' in agents/openai.yaml"
+    fi
+}
+
 # A permission rule's parenthesised content is one prefix pattern, not a list.
 # Bash(git log:*, git tag:*) therefore matches nothing and every prefix in the
 # group is denied; each one needs its own Bash(...) entry. Verified against a
@@ -801,6 +839,7 @@ main() {
     test_shared_skill_frontmatter_present
     test_shared_skill_count_documented
     test_shared_skills_are_platform_neutral
+    test_manual_only_skills_agree_across_harnesses
 
     test_suite "Dotfiles State Self-Heal Link List"
     test_state_heal_links_match
