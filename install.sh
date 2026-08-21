@@ -97,6 +97,13 @@ else
     exit 1
 fi
 
+log_section "Installing wt"
+if source "$DOTFILES_DIR/bootstrap/wt.sh" && install_wt; then
+    log_success "wt installed"
+else
+    log_warn "wt install failed; worktree commands will be unavailable until bootstrap/wt.sh succeeds"
+fi
+
 log_section "Creating Symlinks"
 if source "$DOTFILES_DIR/bootstrap/symlinks.sh" && create_symlinks; then
     log_success "Symlinks created successfully"
