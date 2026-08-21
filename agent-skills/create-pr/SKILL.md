@@ -2,14 +2,17 @@
 name: create-pr
 description: |
   Draft a pull request (GitHub) or merge request (GitLab) with proper
-  formatting. Detects the forge from the git remote, composes the title and
-  body, and hands them over -- creation runs only with explicit approval.
+  formatting, or revise an existing one's title and body after the branch
+  changes. Detects the forge from the git remote, composes the title and
+  body, and hands them over -- creation and edits run only with explicit
+  approval.
   PRECEDENCE: a repo-provided skill covering PR or MR creation for the
   current repository outranks this skill -- invoke that one, and use this
   only for what it does not cover.
 ---
 
-You are drafting a pull request or merge request.
+You are drafting a pull request or merge request, or revising the title
+and body of one that already exists for the branch.
 
 Before composing, check for repo-specific conventions and defer to them on
 any point they specify: a PR/MR template (`.github/PULL_REQUEST_TEMPLATE.md`,
@@ -28,7 +31,17 @@ shape below; this skill fills only the gaps the repo leaves.
    - GitLab host (gitlab.com or self-hosted) -> `glab`, "merge request", `glab mr create`
    - Anything else -> compose the title and body anyway and say no forge CLI is configured for that host
 
-2. **Verify state**. Use the base named by the user; otherwise determine the
+2. **Detect an existing PR or MR** for the current branch:
+   ```bash
+   gh pr view --json number,title,body
+   glab mr view
+   ```
+   If one exists, this run revises it: regenerate the title and body from
+   the full current diff so the description stays true of the final state
+   (per `prompts/forge.md` -- never append a changelog of revisions), and
+   emit the edit command in the Output step instead of create.
+
+3. **Verify state**. Use the base named by the user; otherwise determine the
    default branch with `git symbolic-ref refs/remotes/origin/HEAD` rather
    than assuming `main`. Then:
    ```bash
@@ -39,7 +52,7 @@ shape below; this skill fills only the gaps the repo leaves.
    - On a feature branch
    - Up to date with the base branch
 
-3. **Analyze changes**:
+4. **Analyze changes**:
    ```bash
    git diff origin/<base>...HEAD
    ```
@@ -47,7 +60,7 @@ shape below; this skill fills only the gaps the repo leaves.
    - Why was it changed?
    - Are there breaking changes?
 
-4. **Generate the description**:
+5. **Generate the description**:
 
    **Title**:
    - Start with conventional commit type
@@ -66,7 +79,7 @@ shape below; this skill fills only the gaps the repo leaves.
    Add a Screenshots section for UI changes; it is outside that shape because
    it applies to a minority of changes.
 
-5. **Link issues**:
+6. **Link issues**:
    - `Closes #123` / `Fixes #456` work on both forges
    - `Relates to #789` for context without auto-close
    - If the branch or task carries an external ticket key (e.g. a Linear
@@ -77,8 +90,10 @@ shape below; this skill fills only the gaps the repo leaves.
 Show:
 1. The title
 2. The body
-3. The exact create command for the detected forge, ready to run
+3. The exact command for the detected forge, ready to run: `gh pr create`
+   / `glab mr create`, or for an existing PR/MR `gh pr edit --body-file`
+   / `glab mr update --description`
 
-Then stop. Do not run `gh pr create` or `glab mr create` yourself -- per the
+Then stop. Do not run the create or edit command yourself -- per the
 outward-facing-writes policy the human runs the command or grants it
 explicitly for the task.
