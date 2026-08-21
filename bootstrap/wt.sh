@@ -18,7 +18,10 @@ WT_ORCH_REPO="${WT_ORCH_REPO:-https://github.com/iggycoloma/worktree-orchestrato
 WT_ORCH_DIR="${WT_ORCH_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/worktree-orchestrator}"
 
 install_wt() {
-    if [[ -d "$WT_ORCH_DIR/.git" ]]; then
+    # -e, not -d: a worktree-style checkout (an orchestration main/ made by
+    # wt convert included) has a .git pointer file, not a directory, and a
+    # -d probe would fall through to cloning into a non-empty directory.
+    if [[ -e "$WT_ORCH_DIR/.git" ]]; then
         # Re-runnable like the rest of install.sh: refresh the clone, but a
         # dirty or diverged tree (local development) is kept, not clobbered.
         if ! git -C "$WT_ORCH_DIR" pull --ff-only -q 2>/dev/null; then
