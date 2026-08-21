@@ -9,6 +9,7 @@ disable-model-invocation: true
 That did not land.
 Unless I say otherwise, the gap is situational rather than conceptual: I know the technology, I do not yet know what it is doing *here*.
 Start from what is specific to this system.
+If I say the concept itself is the gap, invert that: teach it from first principles and drop the situational framing.
 
 Arguments after the command name the part that failed; re-pitch that part.
 
