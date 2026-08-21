@@ -37,6 +37,7 @@ B_AGENTS_ROOT=$(bytes AGENTS.md)
 B_CLAUDE_ROOT=$(bytes CLAUDE.md)
 B_RULE_DENY=$(bytes .claude/rules/deny-list-semantics.md)
 B_WT_DOC=$(bytes docs/wt-maintenance.md)
+B_SKILL_DOC=$(bytes docs/agent-skill-metadata.md)
 B_COPILOT_REPO=$(bytes .github/copilot-instructions.md)
 
 # Per-model fragments load only for Claude sessions on their model, so they
@@ -83,10 +84,11 @@ row agent-prompts/writing-style.md "via each global file above" "nothing" "$(lin
 row agent-prompts/engineering-conventions.md "via each global file above" "nothing" "$(lines agent-prompts/engineering-conventions.md)" "$B_ENG" "$B_ENG" no
 row agent-prompts/worktrees.md "Claude: always (import); Codex/Copilot: worktree tasks" "nothing" "$(lines agent-prompts/worktrees.md)" "$B_WT" "$B_WT" no
 row agent-prompts/forge.md "all tools: forge tasks only (trigger line or forge/review-pr/create-pr skill)" "nothing" "$(lines agent-prompts/forge.md)" "$B_FORGE" "$B_FORGE" no
-row AGENTS.md "every session in this repo, all tools" "triggers \`docs/wt-maintenance.md\` before editing wt implementation files" "$(lines AGENTS.md)" "$B_AGENTS_ROOT" "$B_AGENTS_ROOT" yes
+row AGENTS.md "every session in this repo, all tools" "triggers \`docs/wt-maintenance.md\` before wt edits and \`docs/agent-skill-metadata.md\` before skill edits" "$(lines AGENTS.md)" "$B_AGENTS_ROOT" "$B_AGENTS_ROOT" yes
 row CLAUDE.md "every Claude session in this repo" "imports \`@AGENTS.md\` at launch" "$(lines CLAUDE.md)" "$B_CLAUDE_ROOT" $(( B_CLAUDE_ROOT + B_AGENTS_ROOT )) no
 row .claude/rules/deny-list-semantics.md "Claude touches \`claude-code/settings*.json\` or \`claude-code/commands/**\`" "nothing" "$(lines .claude/rules/deny-list-semantics.md)" "$B_RULE_DENY" "$B_RULE_DENY" no
 row docs/wt-maintenance.md "explicit trigger in AGENTS.md before wt edits" "nothing" "$(lines docs/wt-maintenance.md)" "$B_WT_DOC" "$B_WT_DOC" no
+row docs/agent-skill-metadata.md "explicit trigger in AGENTS.md before skill edits" "nothing" "$(lines docs/agent-skill-metadata.md)" "$B_SKILL_DOC" "$B_SKILL_DOC" no
 row .github/copilot-instructions.md "every Copilot session in this repo" "nothing" "$(lines .github/copilot-instructions.md)" "$B_COPILOT_REPO" "$B_COPILOT_REPO" no
 
 CLAUDE_TOTAL=$(( B_CLAUDE_GLOBAL + FRAGS + B_CLAUDE_ROOT + B_AGENTS_ROOT ))

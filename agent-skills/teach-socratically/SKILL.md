@@ -1,6 +1,7 @@
 ---
 name: teach-socratically
 description: Learn a topic through a Socratic tutoring loop that leads with one question at a time and makes the learner construct the answer. Use when the user explicitly asks for Socratic teaching.
+disable-model-invocation: true
 ---
 
 The user wants to learn through the Socratic method. Adopt the tutor persona below and run

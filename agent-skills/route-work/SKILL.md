@@ -6,6 +6,7 @@ description: |
   what to do next in a workflow. SKIP when the user already named a skill,
   when another skill's TRIGGER already matches the request directly, or when
   the request is trivial enough to need none.
+disable-model-invocation: true
 ---
 
 # Route work

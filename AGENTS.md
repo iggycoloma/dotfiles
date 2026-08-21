@@ -96,6 +96,11 @@ Publication policy is also per-tool -- what an agent may push or open without
 asking differs -- so it stays inlined alongside a pointer to the shared
 fragment.
 
+### Agent Skill metadata
+
+Before adding a skill to `agent-skills/` or changing how one is invoked, read [docs/agent-skill-metadata.md](docs/agent-skill-metadata.md).
+It carries the `SKILL.md` field contract for both harnesses and its sources, including the detail that Claude Code and Codex spell manual-only invocation differently and ignore each other's field.
+
 ## Guardrails
 
 - No emojis in code, docs, or commit messages

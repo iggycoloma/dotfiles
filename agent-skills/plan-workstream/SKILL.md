@@ -8,6 +8,7 @@ description: |
   SKIP when the plan fits one session (use grill-plan or draft-tickets) or
   when the work is already specified and only needs decomposing (use
   draft-tickets).
+disable-model-invocation: true
 ---
 
 # Plan a workstream

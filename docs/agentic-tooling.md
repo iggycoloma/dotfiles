@@ -89,11 +89,25 @@ Lives at `claude-code/`. Deployed to `~/.claude/`.
 | Settings files  | 2     | `settings.json` (host) and `settings.container.json` (container variant)|
 | Hooks           | 12    | Shared guardrails, dependency/scope audits, lifecycle telemetry, notifications |
 | Agents          | 2     | code-reviewer (fresh-context diff review), verify (adversarial claim check) |
-| Shared skills   | 31    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
+| Shared skills   | 33    | commit, create-pr, forge, review-pr, plan-migration, draft-adr, ...     |
 | Status line     | 1     | Git branch/status, context usage bar, model info                       |
 
 The **4-stage pipeline** (`/run-pipeline`) runs PM Spec -> Architecture Review ->
 Implementation + Tests -> QA Review, with user checkpoints between stages.
+
+Several skills are manual-only, gated on whether the model gains anything by
+reaching for them itself. `bro` and `cto` re-pitch the previous answer;
+`route-work` routes among skills whose descriptions the model already holds;
+`build-prototype`, `grill-plan`, `plan-workstream`, `run-pipeline`, and
+`teach-socratically` take over the shape of a session or write to a tracker
+when they fire unasked. Both harnesses load the same `agent-skills/` directory
+but spell the policy differently, so each of those skills sets both:
+`disable-model-invocation: true` in SKILL.md frontmatter for Claude Code, and
+`agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex,
+which ignores the frontmatter field. `tests/test-consistency.sh` asserts the
+pairing and the root `AGENTS.md` carries the full field reference. Verified
+with `codex debug prompt-input`: with the sidecar present a skill drops out of
+Codex's `<skills_instructions>` list while the others stay.
 
 Permission model: explicit allow-list of ~70 bash commands, deny-list of ~35
 credential patterns, `pre-security.sh` hook validates every file
