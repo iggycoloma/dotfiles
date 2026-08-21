@@ -10,7 +10,9 @@ description: |
   is a subsystem rather than a change (use review-system). PRECEDENCE: when this
   and audit-security both match, prefer this; escalate to audit-security only on
   explicit request or when the whole change is security-focused. A diff always
-  outranks review-system.
+  outranks review-system. A repo-provided skill covering change review for
+  the current repository outranks this skill -- invoke that one, and use
+  this only for what it does not cover.
 ---
 
 Review a change against the applicable project instructions.

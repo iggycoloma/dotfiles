@@ -4,9 +4,19 @@ description: |
   Draft a pull request (GitHub) or merge request (GitLab) with proper
   formatting. Detects the forge from the git remote, composes the title and
   body, and hands them over -- creation runs only with explicit approval.
+  PRECEDENCE: a repo-provided skill covering PR or MR creation for the
+  current repository outranks this skill -- invoke that one, and use this
+  only for what it does not cover.
 ---
 
 You are drafting a pull request or merge request.
+
+Before composing, check for repo-specific conventions and defer to them on
+any point they specify: a PR/MR template (`.github/PULL_REQUEST_TEMPLATE.md`,
+`.github/PULL_REQUEST_TEMPLATE/`, `.gitlab/merge_request_templates/`),
+contribution rules in `CONTRIBUTING.md`, and the project's agent
+instructions (CLAUDE.md / AGENTS.md). A repo template overrides the body
+shape below; this skill fills only the gaps the repo leaves.
 
 ## Process
 
