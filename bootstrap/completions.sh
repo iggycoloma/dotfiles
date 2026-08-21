@@ -53,11 +53,16 @@ setup_bash_completions() {
         fi
     done
 
-    # Repo-shipped completions are symlinked, not generated: editing the
-    # file in shell/completions/ takes effect in the next shell without
-    # re-running the installer.
-    ln -sf "$DOTFILES_DIR/shell/completions/wt.bash" "$completion_dir/wt"
-    log_success "Linked completion for wt"
+    # wt's completions ship with its own repo (see bootstrap/wt.sh) and are
+    # symlinked, not copied: a pull in the clone takes effect in the next
+    # shell without re-running the installer.
+    local wt_orch_dir="${WT_ORCH_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/worktree-orchestrator}"
+    if [[ -f "$wt_orch_dir/completions/wt.bash" ]]; then
+        ln -sf "$wt_orch_dir/completions/wt.bash" "$completion_dir/wt"
+        log_success "Linked completion for wt"
+    else
+        log_warn "wt completions not found (run bootstrap/wt.sh first)"
+    fi
 
     log_success "Bash completions configured"
 }
@@ -89,9 +94,14 @@ setup_zsh_completions() {
     fi
 
     # Not zcompiled, unlike the generated completions above: a .zwc beside a
-    # symlink into the repo goes stale the moment the source file is edited.
-    ln -sf "$DOTFILES_DIR/shell/completions/_wt" "$zsh_dir/completions/_wt"
-    log_success "Linked wt completion"
+    # symlink into the clone goes stale the moment the source file is edited.
+    local wt_orch_dir="${WT_ORCH_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/worktree-orchestrator}"
+    if [[ -f "$wt_orch_dir/completions/_wt" ]]; then
+        ln -sf "$wt_orch_dir/completions/_wt" "$zsh_dir/completions/_wt"
+        log_success "Linked wt completion"
+    else
+        log_warn "wt completions not found (run bootstrap/wt.sh first)"
+    fi
 
     if has_tool kubectl; then
         kubectl completion zsh > "$zsh_dir/completions/_kubectl" 2>/dev/null || true

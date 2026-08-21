@@ -446,7 +446,7 @@ function ccwclean {
     echo "Worktree cleanup complete"
 }
 
-# Thin wrapper over bin/wt (worktree operations for the agentic dev
+# Thin wrapper over the installed wt (worktree operations for the agentic dev
 # environment -- orchestration and clone layouts, provisioning, doctor).
 # A subprocess cannot change the parent shell's directory, so `add` and `go`
 # capture the path from stdout and cd into it; everything else passes
@@ -454,9 +454,9 @@ function ccwclean {
 # nested repositories); Node's upward module resolution was the real
 # nesting hazard, which the sibling/orchestration layouts avoid.
 function wt {
-    local wt_bin="$HOME/.local/bin/dotfiles-bin/wt"
+    local wt_bin="$HOME/.local/bin/wt"
     if [[ ! -x "$wt_bin" ]]; then
-        echo "wt: bin/wt not deployed (run install.sh)" >&2
+        echo "wt: not installed (run install.sh, or bootstrap/wt.sh)" >&2
         return 1
     fi
     case "${1:-}" in

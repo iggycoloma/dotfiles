@@ -3,7 +3,7 @@
 Operational rules for the `wt` worktree system, shared across tools.
 
 In agent command execution, invoke bare `wt` and keep it the command's first token.
-`bootstrap/symlinks.sh` links the personal executable straight into `~/.local/bin/wt`, which shell init prepends to `PATH`, so bare `wt` resolves to the right executable even in shells that source no functions.
+`bootstrap/wt.sh` links the installed executable straight into `~/.local/bin/wt`, which shell init prepends to `PATH`, so bare `wt` resolves to the right executable even in shells that source no functions.
 Never invoke it through an absolute or `~`-prefixed path: sandbox exclusion lists and hook guards match the command's first token literally, so a pathed spelling silently sends the command back into the sandbox, where `wt remove` dies partway (see below).
 When `wt add` prints the new worktree path, use that path as the working directory for subsequent tool calls; the interactive function's `cd` convenience cannot change later agent command sessions.
 

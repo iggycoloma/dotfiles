@@ -521,19 +521,39 @@ test_toggle_default_installs_all() {
     teardown_test_env
 }
 
-# Regression: wt lived only in dotfiles-bin/, which PATH does not recurse into,
-# so it resolved through the shell function alone. Subprocesses do not inherit
-# functions, so agents following agent-prompts/worktrees.md got command-not-found.
+# Regression: wt once resolved through the shell function alone, which
+# subprocesses do not inherit, so agents following agent-prompts/worktrees.md
+# got command-not-found. bootstrap/wt.sh owns the ~/.local/bin/wt link now,
+# pointing at the worktree-orchestrator clone rather than this repo.
 test_wt_resolves_on_path_without_shell_functions() {
     _setup_toggle_env
-    mkdir -p "$TEST_TEMP_DIR/dotfiles/bin"
-    echo '#!/bin/sh' > "$TEST_TEMP_DIR/dotfiles/bin/wt"
-    chmod +x "$TEST_TEMP_DIR/dotfiles/bin/wt"
+    mkdir -p "$TEST_TEMP_DIR/wtclone/.git" "$TEST_TEMP_DIR/wtclone/bin"
+    echo '#!/bin/sh' > "$TEST_TEMP_DIR/wtclone/bin/wt"
+    chmod +x "$TEST_TEMP_DIR/wtclone/bin/wt"
+    # Stand-in for the repo's real installer (tested in worktree-orchestrator
+    # itself); here the contract under test is that install_wt runs it.
+    cat > "$TEST_TEMP_DIR/wtclone/install.sh" <<'STUB'
+#!/usr/bin/env bash
+mkdir -p "$HOME/.local/bin"
+ln -sf "$(cd "$(dirname "$0")" && pwd)/bin/wt" "$HOME/.local/bin/wt"
+STUB
 
-    create_symlinks &>/dev/null
+    # Subshell: wt.sh sets -e and resolves WT_ORCH_DIR when sourced, and
+    # neither may leak into the suite. The fake .git makes install_wt treat
+    # the dir as an existing checkout (its failed pull warns and keeps it).
+    # shellcheck disable=SC2030,SC2031  # subshell-local HOME is the point
+    (
+        export HOME="$TEST_TEMP_DIR/home"
+        export WT_ORCH_DIR="$TEST_TEMP_DIR/wtclone"
+        # The toggle env points DOTFILES_DIR at the mock tree, which has no
+        # bootstrap/; wt.sh needs the real one for logging.sh.
+        export DOTFILES_DIR="$REAL_DOTFILES_DIR"
+        source "$REAL_DOTFILES_DIR/bootstrap/wt.sh"
+        install_wt
+    ) &>/dev/null
 
-    assert_symlink "$TEST_TEMP_DIR/home/.local/bin/wt" "$TEST_TEMP_DIR/dotfiles/bin/wt" \
-        "wt should be linked directly into ~/.local/bin, not only dotfiles-bin/"
+    assert_symlink "$TEST_TEMP_DIR/home/.local/bin/wt" "$TEST_TEMP_DIR/wtclone/bin/wt" \
+        "wt should be linked into ~/.local/bin from the worktree-orchestrator clone"
 
     # The property that actually broke: resolvable with no shell init at all.
     if env "PATH=$TEST_TEMP_DIR/home/.local/bin" \

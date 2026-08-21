@@ -595,11 +595,8 @@ create_symlinks() {
 
     _link_if_present "$DOTFILES_DIR/bin" "$HOME/.local/bin/dotfiles-bin"
 
-    # PATH does not recurse into dotfiles-bin/, so wt resolved only through the
-    # shell function -- which subprocesses do not inherit, breaking the `wt add`
-    # that agent-prompts/worktrees.md tells agents to run. The function still
-    # shadows this interactively, keeping add/go able to cd the calling shell.
-    _link_if_present "$DOTFILES_DIR/bin/wt" "$HOME/.local/bin/wt"
+    # ~/.local/bin/wt is owned by bootstrap/wt.sh: it points into the
+    # worktree-orchestrator clone, not this repo.
 
     log_success "Symlinks created successfully!"
     if [[ -d "$BACKUP_DIR" ]]; then

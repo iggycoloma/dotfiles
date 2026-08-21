@@ -1,7 +1,7 @@
 # Worktree project template
 
 Files a project adopts to work with the `wt` orchestration layout
-(see `docs/agentic-worktree-dev-environment.md` and `bin/wt`).
+(see the worktree-orchestrator repo's `docs/agentic-worktree-dev-environment.md`).
 
 | File | Copy to | Purpose |
 |------|---------|---------|

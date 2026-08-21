@@ -62,7 +62,7 @@ common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
 project_root="$(dirname "$common_dir")"
 [[ -d "$project_root/local" ]] || exit 0
 
-wt_bin="${WT_BIN:-$HOME/.local/bin/dotfiles-bin/wt}"
+wt_bin="${WT_BIN:-$HOME/.local/bin/wt}"
 [[ -x "$wt_bin" ]] || exit 0
 
 # Pass the path, not the basename: an externally created worktree may

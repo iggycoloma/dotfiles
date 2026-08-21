@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WorktreeCreate shim: route Claude Code worktree creation through wt so
 # worktrees land in the orchestration/clone layout with provisioning,
-# runtime identity, and relative paths (see bin/wt).
+# runtime identity, and relative paths (see wt, from worktree-orchestrator).
 #
 # Failure policy: degrade, never break. If wt is missing or unsuitable,
 # fall back to plain `git worktree add --relative-paths` at Claude's
@@ -19,7 +19,7 @@ cwd="$(json_field '.cwd')"
 
 [[ -n "$cwd" && -d "$cwd" ]] || cwd="$PWD"
 name="${suffix:-claude-$$}"
-wt_bin="${WT_BIN:-$HOME/.local/bin/dotfiles-bin/wt}"
+wt_bin="${WT_BIN:-$HOME/.local/bin/wt}"
 
 fallback_add() {
     local dest="${base_path:-$cwd/.claude/worktrees}/$name"

@@ -124,8 +124,10 @@ log_section "Local Bin Symlinks"
 if [[ -d "$DOTFILES_DIR/bin" ]]; then
     check_symlink "$HOME/.local/bin/dotfiles-bin" "$DOTFILES_DIR/bin" "Dotfiles bin directory"
 fi
-if [[ -x "$DOTFILES_DIR/bin/wt" ]]; then
-    check_symlink "$HOME/.local/bin/wt" "$DOTFILES_DIR/bin/wt" "wt on PATH (agents run it without shell functions)"
+# wt is installed from its own repo by bootstrap/wt.sh, not from this one.
+wt_orch_dir="${WT_ORCH_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/worktree-orchestrator}"
+if [[ -x "$wt_orch_dir/bin/wt" ]]; then
+    check_symlink "$HOME/.local/bin/wt" "$wt_orch_dir/bin/wt" "wt on PATH (agents run it without shell functions)"
 fi
 
 log_section "Broken Symlinks Check"

@@ -71,7 +71,7 @@ format = "[$symbol$shlvl]($style) "
 description = "wt orchestration project name, which truncate_to_repo hides"
 when = true
 shell = ["sh"]
-# Orchestration root = bare repo.git (matches find_orchestration_root in bin/wt).
+# Orchestration root = bare repo.git (matches find_orchestration_root in wt).
 # The checkout test keeps transit dirs (the root itself, wt/) unannotated --
 # $directory already spells those out in full.
 command = '''
