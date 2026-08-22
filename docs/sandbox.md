@@ -208,14 +208,15 @@ around the friction:
   needs. Workaround: `--security-opt=seccomp=unconfined` in runArgs.
 - The kernel additionally gates `CLONE_NEWNS` on `CAP_SYS_ADMIN`. Workaround:
   `--cap-add=SYS_ADMIN`.
-- Claude Code's optional Linux seccomp filter blocks `socket(AF_UNIX, ...)`,
-  breaking ssh-agent reachability for signed git commits when it is installed.
-  No setting bypasses it on Linux (issue [#44180](https://github.com/anthropics/claude-code/issues/44180)
-  is the open feature request; `excludedCommands "git *"` does *not* work per
+- Claude Code's Linux seccomp filter blocks `socket(AF_UNIX, ...)`, breaking
+  ssh-agent reachability for signed git commits. No setting bypasses it on
+  Linux (issue [#44180](https://github.com/anthropics/claude-code/issues/44180)
+  is the open feature request; a wholesale `git` exclusion does *not* work per
   [#10767](https://github.com/anthropics/claude-code/issues/10767),
   [#29274](https://github.com/anthropics/claude-code/issues/29274)).
-  See "SSH agent and signed commits" below for when the filter is actually
-  present -- this repo does not install it.
+  See "SSH agent and signed commits" below for how to tell whether the block
+  is in force on a given host -- probe it, do not infer it from what is
+  installed.
 
 Each workaround was correct in isolation, but the pattern was that container
 config kept encoding *host-OS* knowledge. That dependency direction is wrong:
@@ -283,11 +284,14 @@ macOS, Seatbelt enforces a similar boundary.
 Commands excluded from the sandbox
 ----------------------------------
 
-`sandbox.excludedCommands` in `claude-code/settings.json` runs three commands
-outside the sandbox entirely:
+`sandbox.excludedCommands` in `claude-code/settings.json` runs these outside
+the sandbox entirely:
 
 ```json
-"excludedCommands": ["glab *", "gh *", "docker *"]
+"excludedCommands": [
+  "glab *", "gh *", "docker *",
+  "git worktree *", "git checkout *", "devcontainer *", "wt *"
+]
 ```
 
 This is a real hole, not a tuning knob. An excluded command gets no
@@ -306,6 +310,25 @@ narrower fix:
   work sandboxed, since `github.com`, `api.github.com`, and `gitlab.com` are
   already in `allowedDomains`. Splitting the file per platform to recover that
   would cost more than the exclusion does.
+- **`wt *` / `git worktree *` / `git checkout *` / `devcontainer *`** -- all
+  four reach the provisioned local-development files. `wt` mutates worktrees,
+  dev containers, and the `.env.local` / `.env.staging` files it provisions,
+  which are exactly the paths the credential rules deny; sandboxed, a `wt`
+  removal dies partway through deleting a checkout and leaves a state it
+  cannot repair. `git worktree` reaches that state directly, and
+  `git checkout` reaches it through the global `git/hooks/post-checkout`
+  provisioning safety net, which calls into the same tool.
+
+  Note the form: these are `<subcommand> *`, never `git *`. Those two are the
+  only git subcommands on the provisioning path -- everything else git does
+  touches the repository, which is inside the writable sandbox -- so the
+  exclusion names the invocations that are sandbox-fatal rather than the tool
+  they belong to. Excluding git wholesale would drag every `git config`,
+  arbitrary remote, and hook-executed script outside the sandbox, and it
+  stacks badly with the dozen-plus `Bash(git ...)` entries in
+  `permissions.allow`. It would not buy anything for signing either: a
+  wholesale git exclusion does not lift the AF_UNIX block (see "SSH agent and
+  signed commits").
 
 What still applies to an excluded command: `permissions.deny[]` rules and the
 `pre-security.sh` PreToolUse hook, which are evaluated before the command runs
@@ -334,48 +357,60 @@ SSH agent and signed commits
 ----------------------------
 
 Signing over ssh-agent needs `socket(AF_UNIX, ...)`, which the sandbox may or
-may not permit. On Linux the answer depends on a component this repo does not
-install, so establish which case you are in before debugging anything else.
+may not permit. Establish which case this host is in before debugging anything
+else, and establish it by probing the behavior rather than by reasoning about
+what is installed.
 
 ### Whether AF_UNIX is blocked on Linux at all
 
-bwrap alone does **not** block AF_UNIX. The blocking comes from Claude Code's
-seccomp BPF filter, which upstream ships as a **separate, optional** package:
-`npm install -g @anthropic-ai/sandbox-runtime`. When it is installed the filter
-is absolute -- every `socket(AF_UNIX, ...)` returns `EPERM`, with no path-scoped
-escape ([#44180](https://github.com/anthropics/claude-code/issues/44180) is the
-open request for one). When it is absent, nothing blocks AF_UNIX and ssh-agent
-is reachable from sandboxed commands.
+bwrap alone does **not** block AF_UNIX. The blocking is Claude Code's seccomp
+BPF filter, and where it applies it is absolute -- every
+`socket(AF_UNIX, ...)` returns `EPERM`, with no path-scoped escape
+([#44180](https://github.com/anthropics/claude-code/issues/44180) is the open
+request for one).
 
-`bootstrap/packages.sh` installs `bubblewrap` and `socat` and **not**
-`@anthropic-ai/sandbox-runtime`. So on a host provisioned by these dotfiles the
-filter is absent by default and agent-based signing works in-sandbox.
+This section used to say that filter shipped only as a separate, optional
+`npm install -g @anthropic-ai/sandbox-runtime`, and concluded that because
+`bootstrap/packages.sh` installs `bubblewrap` and `socat` and **not** that
+package, a host provisioned by these dotfiles had AF_UNIX open and could sign
+in-sandbox. That conclusion no longer holds, and the discrepancy is recorded
+rather than quietly edited away because it is the kind of thing that gets
+re-derived from first principles otherwise. On a WSL2 host provisioned by this
+repo, with the package verifiably absent, the block is still in force:
 
-Check your own host rather than trusting that default -- the filter may have
-arrived via an unrelated global npm install:
-
-```sh
-npm ls -g --depth=0 2>/dev/null | grep sandbox-runtime   # installed?
-claude   # then run /sandbox and look for a Dependencies tab listing it
+```
+$ npm ls -g --depth=0 | grep sandbox-runtime    # no match
+$ ssh-add -l
+Error connecting to agent: Operation not permitted
 ```
 
-That cuts both ways, and the tradeoff is a real choice rather than an oversight:
+The likeliest reading is that the filter moved into Claude Code proper, but
+that is inference; the `EPERM` is the observation. Do not build on any
+particular mechanism, and do not treat the absence of the npm package as
+evidence that sockets are reachable.
 
-| Filter | Unix-socket isolation | Agent-based signing |
-|--------|-----------------------|---------------------|
-| Absent (this repo's default) | none -- a sandboxed command can reach any socket it can see, including `docker.sock` | works |
-| Installed | complete | broken, no per-path exemption |
+**Probe the behavior, not the package list.** One command settles it, and it
+is the same command whether or not the filter has a package:
 
-This repo leaves it absent. Signed commits are a daily workflow; the sockets a
-sandboxed command could reach on a developer host are the same ones any other
-process running as that user could reach anyway, so the filter buys less than
-it costs here. Installing it is a supported choice if your threat model differs
--- expect to switch signing to file-based (below) at the same time. Note also
-that installing it has been unreliable in practice
+```sh
+ssh-add -l   # "Operation not permitted" means AF_UNIX is blocked here
+```
+
+The tradeoff below is still real, but this repo no longer selects a row by
+declining to install something:
+
+| `ssh-add -l` says | Unix-socket isolation | Agent-based signing |
+|-------------------|-----------------------|---------------------|
+| lists your keys | none -- a sandboxed command can reach any socket it can see, including `docker.sock` | works |
+| `Operation not permitted` | complete | broken, no per-path exemption |
+
+Where the block is in force, sign outside the sandbox; the per-variant detail
+is below. Installing the package on a host that somehow lacks the block has
+also been unreliable in practice
 ([#37916](https://github.com/anthropics/claude-code/issues/37916),
 [#24238](https://github.com/anthropics/claude-code/issues/24238)).
 
-### If the filter is installed
+### If the block is in force
 
 - **macOS**: not applicable -- Seatbelt is the enforcement layer, and
   `sandbox.network.allowUnixSockets` takes path globs. The dotfiles config
@@ -417,22 +452,33 @@ that installing it has been unreliable in practice
 
   There is no path-scoped Linux equivalent
   ([#44180](https://github.com/anthropics/claude-code/issues/44180) is the open
-  request), but `allowAllUnixSockets: true` does exist and disables seccomp
-  blocking wholesale on Linux. That is all-or-nothing: it removes Unix-socket
-  isolation entirely rather than admitting one agent, so prefer leaving the
-  filter uninstalled over enabling it.
-- **Linux + WSL2**: the two SSH-signing variants diverge.
+  request), so a Linux-shaped entry such as `/tmp/ssh-*/agent.*` is expected
+  to be a dead line rather than a fix -- which is why this list stays at one
+  macOS entry. `allowAllUnixSockets: true` does exist and disables seccomp
+  blocking wholesale on Linux, but it is all-or-nothing: it removes
+  Unix-socket isolation entirely rather than admitting one agent. Signing in
+  a separate terminal costs less.
+- **Linux + WSL2**: both SSH-signing variants are blocked in-sandbox under
+  this repo's config, but by two independent walls -- which matters, because
+  switching variants moves you from one wall to the other rather than past
+  either.
+  - **Agent-based** (`user.signingkey` = `"key::<literal-pubkey>"`): blocked
+    by seccomp. `ssh-keygen` must contact `SSH_AUTH_SOCK`, and that socket
+    connection is what returns `EPERM`. `install.sh` prefers this form when
+    an agent is loaded at install time, so it is the common case here.
   - **File-based** (`user.signingkey` = path to `~/.ssh/id_ed25519.pub`):
-    works. `ssh-keygen` derives the private key path by stripping `.pub`
-    and reads the file directly -- no AF_UNIX socket, so the filter is
-    irrelevant. `install.sh` falls back to this when no agent is reachable
-    at install time.
-  - **Agent-based** (`user.signingkey` = `"key::<literal-pubkey>"`):
-    broken. `ssh-keygen` must contact `SSH_AUTH_SOCK`. `install.sh` prefers
-    this form when an agent is loaded at install time, so signing breaks for
-    those users in-sandbox. Workaround: re-run `git config --global
-    user.signingkey ~/.ssh/id_ed25519.pub` to switch to file-based, or run
-    `git commit` in a separate terminal.
+    blocked by the filesystem policy, not by seccomp. `ssh-keygen` derives
+    the private key path by stripping `.pub` and reads the file directly, so
+    the AF_UNIX filter genuinely is irrelevant to it -- but
+    `sandbox.filesystem.denyRead` covers `~/.ssh` while `allowRead` lists
+    only `known_hosts` and `config`, so the read of `~/.ssh/id_ed25519` is
+    denied instead. `install.sh` falls back to this form when no agent is
+    reachable at install time.
+
+  So the workaround is **not** to switch variants; that trades a blocked
+  socket for a blocked file read. Run `git commit` in a separate terminal, or
+  make a deliberate posture change (narrow the `~/.ssh` deny, or accept
+  `allowAllUnixSockets`) knowing what it gives up.
 
 Settings precedence (managed > CLI > local > project > user) means an
 organization can enforce sandboxing for every developer via managed settings;
@@ -913,7 +959,8 @@ so denying them is the entry most likely to break a private-registry install --
 drop those two lines first if `npm ci` or `pip install` starts failing. Extension
 patterns (`*.pem`, `*.tfvars`, `*.p12`) cannot be expressed here at all and stay
 with the deny globs. And none of this constrains `excludedCommands` (`gh`,
-`glab`, `docker`), which run outside the sandbox entirely.
+`glab`, `docker`, and the four worktree-provisioning entries), which run
+outside the sandbox entirely.
 
 The `Bash` matcher was removed from `claude-code/settings.json`,
 `codex/hooks.json`, and `copilot/hooks.json` at the same time, so the hook is no
@@ -926,24 +973,27 @@ Two things this genuinely gives up, stated plainly. Codex loses its only
 read-side mitigation, since its `read_file` and `grep` handlers fire no
 `PreToolUse` hook and it has no `sandbox.credentials` equivalent -- its host
 `workspace-write` mode with network off by default is what remains. And
-`excludedCommands` (`gh`, `glab`, `docker`) run outside the sandbox entirely, so
-`sandbox.credentials` does not constrain them either.
+`excludedCommands` (`gh`, `glab`, `docker`, and the four worktree-provisioning
+entries) run outside the sandbox entirely, so `sandbox.credentials` does not
+constrain them either.
 
 Limitations and known gaps
 ==========================
 
-- **No Unix-socket isolation on Linux by default**: the seccomp filter that
-  blocks AF_UNIX is an optional upstream package this repo does not install,
-  so sandboxed commands can reach any Unix socket visible to the user. The
-  same gap is what keeps agent-based signed commits working. Installing
-  `@anthropic-ai/sandbox-runtime` closes it and breaks agent-based signing,
-  with no per-path exemption on Linux
-  ([#44180](https://github.com/anthropics/claude-code/issues/44180)).
-  See "SSH agent and signed commits" above for the tradeoff and how to
-  switch signing to file-based.
+- **No signed commits from inside the sandbox on Linux**: this entry used to
+  read the other way round, claiming AF_UNIX was open by default and that
+  signing therefore worked. On a WSL2 host provisioned by this repo the
+  seccomp filter blocks AF_UNIX regardless of what is installed, so
+  agent-based signing fails, and file-based signing fails separately on the
+  `~/.ssh` read deny. There is no per-path Unix-socket exemption on Linux
+  ([#44180](https://github.com/anthropics/claude-code/issues/44180)). Sign in
+  a separate terminal, or change the posture deliberately. See "SSH agent and
+  signed commits" above, and probe with `ssh-add -l` rather than assuming
+  either state.
 - **`excludedCommands` is an unsandboxed hole by construction**: `gh`, `glab`,
-  and `docker` run outside the sandbox entirely -- no `allowedDomains`, no
-  filesystem confinement. See "Commands excluded from the sandbox" above.
+  `docker`, and the four worktree-provisioning entries run outside the sandbox
+  entirely -- no `allowedDomains`, no filesystem confinement. See "Commands
+  excluded from the sandbox" above.
 - **Host network proxy and TLS**: the built-in proxy enforces by hostname
   without TLS termination. Broad allowedDomains entries (e.g. `github.com`)
   can be domain-fronted by attacker code running inside the sandbox. Threat

@@ -10,7 +10,6 @@ HOOK="$DOTFILES_DIR/git/hooks/pre-push"
 test_suite "pre-push hook structure"
 bash -n "$HOOK"
 assert_return_code 0 $? "pre-push passes bash -n"
-if [[ -x "$HOOK" ]]; then test_pass "pre-push is executable"; else test_fail "pre-push is executable"; fi
 assert_contains "$(cat "$HOOK")" "git lfs pre-push" "pre-push preserves Git LFS"
 assert_contains "$(cat "$HOOK")" "pre-push.local" "pre-push delegates repository policy"
 assert_contains "$(cat "$HOOK")" "gitleaks git" "pre-push scans outgoing commits"

@@ -64,7 +64,7 @@ dotfiles/
 |-- copilot/
 |   +-- copilot-instructions.md # Global Copilot CLI instructions
 |-- config/                    # Starship, ripgrep, bat, bottom, lazygit, yazi
-|-- bin/                       # User-facing CLI tools (dc-audit, settings-drift, gh-repo-policy)
+|-- bin/                       # User-facing CLI tools (dc-audit, settings-drift, exec-modes, gh-repo-policy)
 |-- unattended/                # Opt-in unattended coding harness (separate product)
 |-- tests/                     # 9 test suites, 389 tests total
 +-- .devcontainer/             # Example + reference devcontainer configurations
@@ -148,7 +148,7 @@ configs in sync with what you've committed to the repo. The user's own
 
 ## Devcontainer linting
 
-Two complementary linters live in `bin/`:
+Complementary linters live in `bin/`:
 
 - [`bin/dc-audit.sh`](../bin/dc-audit.sh) -- security-focused linter for
   `devcontainer.json` files. Rubric-driven (`unattended/devcontainer-rubric.json`):
@@ -163,6 +163,16 @@ Two complementary linters live in `bin/`:
   `make lint` runs `--check` and fails when the committed copy is stale.
   Generating rather than mirroring makes host/container drift unrepresentable
   for the Claude pair.
+- [`bin/exec-modes.sh`](../bin/exec-modes.sh) -- executable-bit gate. A file
+  must carry `+x` iff it has a `#!` shebang and is not on the script's
+  `NON_EXEC` list (`shell/`, `bootstrap/`, `templates/`, the test suites, and
+  `agent-hooks/shared-patterns.sh` are sourced, never executed). Modes are read
+  from the git index rather than `stat(2)`, so a working-tree `chmod` cannot
+  mask a mismatch and the result does not depend on `core.fileMode`. `--fix`
+  corrects both the index and the file. Wired into `make lint`; its own suite
+  is `make test-exec-modes`. This matters because `claude-code/settings.json`
+  invokes hooks by bare path with no interpreter -- a `pre-security.sh` that
+  loses `+x` does not block a credential read, it never runs at all.
 - [`bin/settings-drift.sh`](../bin/settings-drift.sh) -- drift linter, two
   classes. Host vs container: `claude-code/settings.json` vs
   `settings.container.json` outside `.sandbox`, and `codex/config.toml` vs

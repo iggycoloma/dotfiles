@@ -20,11 +20,6 @@ test_suite "dc-audit: Syntax validation"
 bash -n "$DC_AUDIT" 2>/dev/null
 assert_return_code 0 $? "dc-audit.sh passes bash -n syntax check"
 assert_file_exists "$DC_AUDIT" "dc-audit.sh exists"
-if [[ -x "$DC_AUDIT" ]]; then
-    test_pass "dc-audit.sh is executable"
-else
-    test_fail "dc-audit.sh is executable"
-fi
 
 assert_file_exists "$RUBRIC" "devcontainer-rubric.json exists"
 jq empty "$RUBRIC" 2>/dev/null

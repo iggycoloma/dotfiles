@@ -19,12 +19,6 @@ assert_return_code 0 $? "Script passes bash -n syntax check"
 
 assert_file_exists "$POLICY_SCRIPT" "Script file exists"
 
-if [[ -x "$POLICY_SCRIPT" ]]; then
-    test_pass "Script is executable"
-else
-    test_fail "Script is executable"
-fi
-
 # --- Help ---
 
 test_suite "Help output"
