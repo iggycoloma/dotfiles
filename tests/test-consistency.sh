@@ -457,16 +457,12 @@ test_leading_token_guard_mirrors_sandbox_exclusions() {
 test_agent_hook_wrappers_point_to_shared_dir() {
     local hook tool wrapper
     for hook in pre-security.sh pre-code-no-emoji.sh; do
-        if [[ -x "$DOTFILES_DIR/agent-hooks/$hook" ]]; then
-            test_pass "Shared hook is executable: $hook"
-        else
-            test_fail "Shared hook missing or not executable: $hook"
-        fi
+        assert_file_exists "$DOTFILES_DIR/agent-hooks/$hook" "Shared hook exists: $hook"
 
         for tool in claude-code codex; do
             wrapper="$DOTFILES_DIR/$tool/hooks/$hook"
-            if [[ ! -x "$wrapper" ]]; then
-                test_fail "$tool wrapper missing or not executable: $hook"
+            if [[ ! -f "$wrapper" ]]; then
+                test_fail "$tool wrapper missing: $hook"
             elif grep -q '\.agent-hooks' "$wrapper" && grep -q '../../agent-hooks' "$wrapper"; then
                 test_pass "$tool wrapper resolves shared hook: $hook"
             else

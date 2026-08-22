@@ -61,11 +61,6 @@ test_suite "commit-msg: prerequisites"
 
 bash -n "$HOOK" 2>/dev/null
 assert_return_code 0 $? "commit-msg passes bash -n"
-if [[ -x "$HOOK" ]]; then
-    test_pass "commit-msg is executable"
-else
-    test_fail "commit-msg is executable"
-fi
 
 # ---------------------------------------------------------------------------
 

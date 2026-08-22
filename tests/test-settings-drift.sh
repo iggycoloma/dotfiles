@@ -22,15 +22,10 @@ setup_fixture() {
 
 # ---------------------------------------------------------------------------
 
-test_suite "settings-drift: syntax + executable"
+test_suite "settings-drift: syntax"
 
 bash -n "$DRIFT" 2>/dev/null
 assert_return_code 0 $? "settings-drift.sh passes bash -n"
-if [[ -x "$DRIFT" ]]; then
-    test_pass "settings-drift.sh is executable"
-else
-    test_fail "settings-drift.sh is executable"
-fi
 
 # ---------------------------------------------------------------------------
 
@@ -380,11 +375,6 @@ SYNC="$DOTFILES_DIR_REAL/bin/sync-settings.sh"
 
 bash -n "$SYNC" 2>/dev/null
 assert_return_code 0 $? "sync-settings.sh passes bash -n"
-if [[ -x "$SYNC" ]]; then
-    test_pass "sync-settings.sh is executable"
-else
-    test_fail "sync-settings.sh is executable"
-fi
 
 # The committed container variant must already match what the generator emits.
 out=$("$SYNC" --check 2>&1)

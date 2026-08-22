@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Tests for bin/exec-modes.sh.
 #
+# This suite is the single owner of executable-bit assertions for tracked files.
+# Per-suite `[[ -x ]]` checks used to be scattered across seven test files, each
+# pinning one script; bin/exec-modes.sh covers every tracked file at once, so
+# they were folded in here. Checks on *installed* artifacts (the wt binary, a
+# deployed hook) are a different question and stay where they are.
+#
 # The script resolves its repo from its own location rather than DOTFILES_DIR,
 # so a fixture cannot just point an env var at a temp tree: each case builds a
 # throwaway git repo, copies the script (and the logging.sh it sources) into
@@ -35,15 +41,10 @@ setup_fixture() {
 
 # ---------------------------------------------------------------------------
 
-test_suite "exec-modes: syntax + executable"
+test_suite "exec-modes: syntax"
 
 bash -n "$CHECKER" 2>/dev/null
 assert_return_code 0 $? "exec-modes.sh passes bash -n"
-if [[ -x "$CHECKER" ]]; then
-    test_pass "exec-modes.sh is executable"
-else
-    test_fail "exec-modes.sh is executable"
-fi
 
 # ---------------------------------------------------------------------------
 

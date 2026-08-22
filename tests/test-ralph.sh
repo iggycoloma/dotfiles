@@ -21,12 +21,6 @@ bash -n "$RALPH_SCRIPT" 2>/dev/null
 assert_return_code 0 $? "ralph.sh passes bash -n syntax check"
 assert_file_exists "$RALPH_SCRIPT" "ralph.sh exists"
 
-if [[ -x "$RALPH_SCRIPT" ]]; then
-    test_pass "ralph.sh is executable"
-else
-    test_fail "ralph.sh is executable"
-fi
-
 # --- Help ---
 
 test_suite "ralph.sh: Help output"
@@ -452,12 +446,6 @@ test_suite "ralph-parallel.sh: Syntax validation"
 bash -n "$PARALLEL_SCRIPT" 2>/dev/null
 assert_return_code 0 $? "ralph-parallel.sh passes bash -n syntax check"
 assert_file_exists "$PARALLEL_SCRIPT" "ralph-parallel.sh exists"
-
-if [[ -x "$PARALLEL_SCRIPT" ]]; then
-    test_pass "ralph-parallel.sh is executable"
-else
-    test_fail "ralph-parallel.sh is executable"
-fi
 
 # --- Help ---
 
