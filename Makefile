@@ -1,4 +1,4 @@
-.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift prompt-stats lint-prompt-stats sync-settings
+.PHONY: lint test test-unit test-packages test-integration test-install test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt test-exec-modes lint-devcontainers lint-settings-drift lint-settings-sync lint-prompt-drift lint-exec-modes prompt-stats lint-prompt-stats sync-settings
 
 # Find all shell scripts in the repo (excluding hidden dirs like .git).
 # .claude is excluded because Claude Code nests worktrees at
@@ -6,7 +6,7 @@
 # stale scripts would otherwise be linted as if they were ours.
 SHELL_SCRIPTS := $(shell find . \( -name '*.sh' -o -name '*.bash' \) -not -path './.git/*' -not -path './.devcontainer/*' -not -path './.claude/*' -not -path './.worktrees/*')
 
-lint: lint-settings-sync lint-settings-drift lint-prompt-drift lint-prompt-stats lint-devcontainers
+lint: lint-settings-sync lint-settings-drift lint-prompt-drift lint-prompt-stats lint-devcontainers lint-exec-modes
 	shellcheck $(SHELL_SCRIPTS)
 
 # Regenerate claude-code/settings.container.json from settings.json. The two
@@ -28,6 +28,13 @@ lint-settings-sync:
 lint-settings-drift:
 	@bin/settings-drift.sh --quiet
 
+# Executable bits, read from the git index rather than the working tree so an
+# installer's chmod cannot mask a real mismatch. A hook that loses +x is not
+# invoked at all -- settings.json calls hooks by bare path -- and that failure
+# is silent, so it is gated here rather than left to review. `--fix` corrects.
+lint-exec-modes:
+	@bin/exec-modes.sh --quiet
+
 # Deployed instruction files (~/.claude, ~/.codex, ~/.copilot) are outputs of
 # bootstrap/symlinks.sh; tracked sources are authoritative. Symlinked deploys
 # cannot drift, but devcontainer managed copies go stale between a source edit
@@ -45,7 +52,7 @@ prompt-stats:
 lint-prompt-stats:
 	@bin/prompt-stats.sh --check
 
-test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt
+test: test-unit test-packages test-integration test-consistency test-policy test-ralph test-dc-audit test-drift test-hooks test-matchers test-signing test-wt test-exec-modes
 
 test-unit:
 	bash tests/unit-tests.sh
@@ -76,6 +83,12 @@ test-drift:
 # assertions covering the security guards never ran on a change.
 test-wt:
 	bash tests/test-wt.sh
+
+# The mode gate's own suite. Without it the checker is the one script in bin/
+# whose behavior nothing verifies, and a silently broken gate is worse than no
+# gate: it reports success over exactly the drift it was added to catch.
+test-exec-modes:
+	bash tests/test-exec-modes.sh
 
 test-hooks:
 	bash tests/test-security-hook.sh

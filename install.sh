@@ -83,8 +83,6 @@ elif is_devcontainer; then
     log_info "Unattended Harness: disabled (pass --with-unattended to opt in)"
 fi
 
-chmod +x "$DOTFILES_DIR"/bootstrap/*.sh
-
 log_section "Installing Packages"
 source "$DOTFILES_DIR/bootstrap/packages.sh"
 if install_packages; then
