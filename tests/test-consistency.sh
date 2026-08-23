@@ -791,6 +791,26 @@ test_min_git_floor_matches() {
 }
 
 # ============================================================================
+# Deploy must not mutate tracked sources
+# ============================================================================
+
+# bin/exec-modes.sh makes tracked executable bits a lint invariant, so deploy
+# scripts must not chmod files inside the checkout: doing so dirties the tree
+# on every install and re-marks sourced libraries executable (the
+# shared-patterns.sh regression). $DOTFILES_DIR and $source_dir are the two
+# spellings under which deploy code reaches tracked sources.
+test_deploy_does_not_chmod_tracked_sources() {
+    local offenders
+    offenders=$(grep -nE 'chmod[^#]*[$][{]?(DOTFILES_DIR|source_dir)' \
+        "$DOTFILES_DIR/install.sh" "$DOTFILES_DIR/bootstrap/"*.sh)
+    if [[ -z "$offenders" ]]; then
+        test_pass "no deploy script chmods tracked sources"
+    else
+        test_fail "deploy scripts chmod tracked sources: $offenders"
+    fi
+}
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -848,6 +868,9 @@ main() {
 
     test_suite "Minimum Git Version"
     test_min_git_floor_matches
+
+    test_suite "Deploy Leaves Tracked Sources Untouched"
+    test_deploy_does_not_chmod_tracked_sources
 
     print_test_summary
 }
