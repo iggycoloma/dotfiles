@@ -131,14 +131,26 @@ fi
 
 # 4) Enforce Conventional Commits on the subject line
 VALID_TYPES='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
-if ! printf '%s' "${SUBJECT}" | grep -qE "^(${VALID_TYPES})(\([a-z][a-z0-9-]*\))?:[[:space:]][a-z].+"; then
+# Optional ! after type/scope is the Conventional Commits breaking-change
+# marker; the semantic-pull-request action's parser accepts it, and the PR
+# title becomes the squash-commit subject, so this hook must agree with it.
+# Literal space, not [[:space:]]: the spec's rule 1 is "terminal colon and
+# space", so a tab separator is invalid. Scope allows dots and slashes
+# (fix(bin/wt):, ci(ci.yml):) and the description may open with a digit
+# (fix: 404 page); both are spec-valid and the PR-title action accepts
+# them, and the hook must never reject what the action lets into a squash
+# subject. Lowercase-only types are a deliberate tightening of the spec's
+# case-insensitive rule 15, matching the action's type list.
+if ! printf '%s' "${SUBJECT}" | grep -qE "^(${VALID_TYPES})(\([a-z][a-z0-9./-]*\))?!?: [a-z0-9].+"; then
   cat >&2 <<ERR
 ⚠️  Commit message doesn't follow Conventional Commits.
 
-Expected: <type>[optional scope]: <description>
-- Description must start with lowercase letter
+Expected: <type>[optional scope][!]: <description>
+- Colon is followed by a single space
+- Description must start with a lowercase letter or digit
 - Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-- Optional scope must start with letter, contain only lowercase letters, numbers, and hyphens
+- Optional scope starts with a letter; lowercase letters, numbers, dots, slashes, hyphens
+- Optional ! before the colon marks a breaking change
 
 Example: feat(auth): add user login functionality
 
