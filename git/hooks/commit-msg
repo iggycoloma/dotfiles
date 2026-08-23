@@ -131,14 +131,18 @@ fi
 
 # 4) Enforce Conventional Commits on the subject line
 VALID_TYPES='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
-if ! printf '%s' "${SUBJECT}" | grep -qE "^(${VALID_TYPES})(\([a-z][a-z0-9-]*\))?:[[:space:]][a-z].+"; then
+# Optional ! after type/scope is the Conventional Commits breaking-change
+# marker; the semantic-pull-request action's parser accepts it, and the PR
+# title becomes the squash-commit subject, so this hook must agree with it.
+if ! printf '%s' "${SUBJECT}" | grep -qE "^(${VALID_TYPES})(\([a-z][a-z0-9-]*\))?!?:[[:space:]][a-z].+"; then
   cat >&2 <<ERR
 ⚠️  Commit message doesn't follow Conventional Commits.
 
-Expected: <type>[optional scope]: <description>
+Expected: <type>[optional scope][!]: <description>
 - Description must start with lowercase letter
 - Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
 - Optional scope must start with letter, contain only lowercase letters, numbers, and hyphens
+- Optional ! before the colon marks a breaking change
 
 Example: feat(auth): add user login functionality
 

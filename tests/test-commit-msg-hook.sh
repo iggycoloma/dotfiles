@@ -135,6 +135,13 @@ assert_accepted "$(run_msg "fix(auth): handle missing token")" "Accepts fix(scop
 assert_accepted "$(run_msg "chore: bump deps")" "Accepts chore:"
 assert_accepted "$(run_msg "refactor(api): simplify error handling")" "Accepts refactor(scope):"
 
+# The ! breaking-change marker, per the Conventional Commits spec and the
+# semantic-pull-request action's parser.
+assert_accepted "$(run_msg "feat!: drop the legacy config path")" "Accepts feat!:"
+assert_accepted "$(run_msg "refactor(config)!: rename the tracked conf")" "Accepts type(scope)!:"
+assert_rejected "$(run_msg "feat!!: double marker")" "Rejects a doubled ! marker"
+assert_rejected "$(run_msg "feat!(config): marker before scope")" "Rejects ! before the scope"
+
 assert_rejected "$(run_msg "added user login")" "Rejects non-conventional subject"
 assert_rejected "$(run_msg "FEAT: shouting type")" "Rejects uppercase type"
 assert_rejected "$(run_msg "feat: Capitalized description")" "Rejects capitalized description"
