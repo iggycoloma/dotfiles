@@ -142,6 +142,16 @@ assert_accepted "$(run_msg "refactor(config)!: rename the tracked conf")" "Accep
 assert_rejected "$(run_msg "feat!!: double marker")" "Rejects a doubled ! marker"
 assert_rejected "$(run_msg "feat!(config): marker before scope")" "Rejects ! before the scope"
 
+# Spec rule 1 is "terminal colon and space": a tab separator is invalid.
+TAB=$(printf '\t')
+assert_rejected "$(run_msg "feat:${TAB}tab instead of space")" "Rejects a tab after the colon"
+
+# Spec-valid shapes the PR-title action accepts; the hook must not reject
+# what the action lets into a squash subject.
+assert_accepted "$(run_msg "fix: 404 page handling now works")" "Accepts a digit-start description"
+assert_accepted "$(run_msg "fix(bin/wt): guard the empty registry")" "Accepts a slash in the scope"
+assert_accepted "$(run_msg "ci(ci.yml): pin action versions")" "Accepts a dot in the scope"
+
 assert_rejected "$(run_msg "added user login")" "Rejects non-conventional subject"
 assert_rejected "$(run_msg "FEAT: shouting type")" "Rejects uppercase type"
 assert_rejected "$(run_msg "feat: Capitalized description")" "Rejects capitalized description"
