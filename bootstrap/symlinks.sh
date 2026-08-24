@@ -154,17 +154,6 @@ _wire_tool_dir() {
     fi
 }
 
-_chmod_hooks() {
-    local dir="$1"
-    for f in "$dir"/*.sh; do
-        [[ -f "$f" ]] && chmod +x "$f"
-    done
-    # Without this, a hooks dir with no .sh files makes the final loop
-    # iteration return 1, and set -e kills whichever caller ran this as the
-    # last command of an && list or function body.
-    return 0
-}
-
 # Containers get a copy so a rebuild always refreshes it; hosts get a symlink
 # so edits in the repo take effect live.
 _deploy_variant_file() {
@@ -222,24 +211,21 @@ _deploy_configs() {
         fi
     done
 
+    # No chmod on deploy: executable bits are a lint-enforced invariant of the
+    # tracked sources (bin/exec-modes.sh), so checkout and cp -rf already carry
+    # the right modes, and a deploy-time chmod +x on the repo's own files both
+    # dirtied the tree and flagged sourced libraries as executable.
     if is_devcontainer; then
         stomp_configs "$source_dir" "$target_dir" "${files[@]}" ${dirs[@]+"${dirs[@]}"}
-        # Plain `[[ -d ]] && cmd` returns 1 when the dir is absent, and set -e
-        # then kills the whole deploy for tools that ship no hooks dir (copilot).
-        if [[ -d "$target_dir/hooks" ]]; then
-            _chmod_hooks "$target_dir/hooks"
-        fi
     else
         mkdir -p "$target_dir"
         for f in "${files[@]}"; do
             if [[ -f "$source_dir/$f" ]]; then
-                [[ "$f" == *.sh ]] && chmod +x "$source_dir/$f"
                 create_symlink "$source_dir/$f" "$target_dir/$f"
             fi
         done
         for d in ${dirs[@]+"${dirs[@]}"}; do
             if [[ -d "$source_dir/$d" ]]; then
-                [[ "$d" == "hooks" ]] && _chmod_hooks "$source_dir/$d"
                 create_symlink "$source_dir/$d" "$target_dir/$d"
             fi
         done
@@ -306,10 +292,8 @@ _setup_agent_hooks() {
     if is_devcontainer; then
         rm -rf "$HOME/.agent-hooks"
         cp -rf "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
-        _chmod_hooks "$HOME/.agent-hooks"
         log_success "agent-hooks -> $HOME/.agent-hooks (container copy)"
     else
-        _chmod_hooks "$DOTFILES_DIR/agent-hooks"
         create_symlink "$DOTFILES_DIR/agent-hooks" "$HOME/.agent-hooks"
     fi
 }
@@ -529,10 +513,6 @@ create_symlinks() {
 
     # This path is what git/.gitconfig sets core.hooksPath to.
     if [[ "${DOTFILES_NO_GIT_HOOKS:-}" != "1" ]] && [[ -d "$DOTFILES_DIR/git/hooks" ]]; then
-        for file in "$DOTFILES_DIR/git/hooks"/*; do
-            [ -f "$file" ] || continue
-            chmod +x "$file" || true
-        done
         create_symlink "$DOTFILES_DIR/git/hooks" "$HOME/.config/git/hooks"
     fi
 
