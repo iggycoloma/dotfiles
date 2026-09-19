@@ -173,10 +173,11 @@ export GPG_TTY
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Claude Code: store global config inside ~/.claude dir (persists in devcontainers)
-if command -v claude &> /dev/null; then
-    export CLAUDE_CONFIG_DIR="$HOME/.claude"
-fi
+# Claude Code: store global config inside ~/.claude dir (persists in devcontainers).
+# Unconditional: gating on `command -v claude` makes this PATH-dependent, and PATH
+# differs by shell type, so some shells would read ~/.claude/.claude.json and others
+# ~/.claude.json.
+export CLAUDE_CONFIG_DIR="$HOME/.claude"
 
 if [[ -f "$HOME/.exports.local" ]]; then
     source "$HOME/.exports.local"

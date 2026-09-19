@@ -327,15 +327,52 @@ _deploy_variant_copy() {
     log_success "$(basename "$src") -> $target (managed copy)"
 }
 
+# Claude Code reads $CLAUDE_CONFIG_DIR/.claude.json when the variable is set and
+# ~/.claude.json when it is not. Invocations that read no rc file (cron, systemd
+# units, `wsl -e claude`, bare `bash -c`) never see the variable, so
+# ~/.claude.json is linked to the canonical file and both lookups share one
+# config. Migration runs before the link so a real config is moved, never
+# replaced; ~/.claude/config.json is a name an older version of this script
+# migrated to, which Claude Code never reads.
+_unify_claude_config() {
+    local canonical="$HOME/.claude/.claude.json"
+    local home_config="$HOME/.claude.json"
+    local legacy="$HOME/.claude/config.json"
+
+    mkdir -p "$HOME/.claude"
+
+    if [[ ! -e "$canonical" ]]; then
+        if [[ -f "$home_config" ]] && [[ ! -L "$home_config" ]]; then
+            mv "$home_config" "$canonical"
+            log_success "Migrated ~/.claude.json -> ~/.claude/.claude.json"
+        elif [[ -f "$legacy" ]]; then
+            mv "$legacy" "$canonical"
+            log_success "Migrated legacy ~/.claude/config.json -> ~/.claude/.claude.json"
+        fi
+    fi
+
+    if [[ -f "$legacy" ]]; then
+        log_warn "Orphaned ~/.claude/config.json left in place (Claude Code never reads it)"
+    fi
+
+    # create_symlink needs an existing source, and a dangling link risks being
+    # replaced by a real file on Claude Code's first write.
+    if [[ ! -e "$canonical" ]]; then
+        (umask 077 && echo '{}' > "$canonical")
+    fi
+
+    if [[ -f "$home_config" ]] && [[ ! -L "$home_config" ]]; then
+        log_warn "Both ~/.claude.json and ~/.claude/.claude.json exist; keeping the latter, the former goes to $BACKUP_DIR"
+    fi
+    create_symlink "$canonical" "$home_config"
+}
+
 _setup_claude_code() {
     log_info "Setting up Claude Code configuration..."
 
     _wire_tool_dir "claude" "$HOME/.claude"
 
-    if [[ -f "$HOME/.claude.json" ]] && [[ ! -L "$HOME/.claude.json" ]] && [[ ! -f "$HOME/.claude/config.json" ]]; then
-        mv "$HOME/.claude.json" "$HOME/.claude/config.json"
-        log_success "Migrated ~/.claude.json -> ~/.claude/config.json"
-    fi
+    _unify_claude_config
 
     # settings.json: host vs container variant. Hosts get the full Bash sandbox
     # (sandbox.enabled=true, allowedDomains, etc.); containers get
