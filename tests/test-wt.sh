@@ -37,6 +37,11 @@ export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 unset WT_DOTFILES_REPOSITORY
 export HOME="$TMP/home"
 mkdir -p "$HOME"
+# Redirecting HOME is not enough: with XDG_CONFIG_HOME exported, git still reads
+# the real ~/.config/git/config (where commit.gpgsign breaks the seed commits)
+# and `git config --global` below writes into it.
+export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
+: > "$GIT_CONFIG_GLOBAL"
 git config --global init.defaultBranch main
 git config --global worktree.useRelativePaths true
 
