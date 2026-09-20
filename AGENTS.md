@@ -116,6 +116,7 @@ It carries the `SKILL.md` field contract for both harnesses and its sources, inc
 - Run `make test` to execute the full test suite locally (unit + packages + integration)
 - `make test-unit` / `make test-packages` / `make test-integration` run suites individually
 - Run `shellcheck` on any new or modified `.sh` file before committing
+- `claude-code/settings.container.json` and `docs/prompt-stats.md` are generated and gated by `make lint`. Run `git config dotfiles.projectHooks true` once per clone and `.githooks/pre-commit` regenerates and stages them in the commit that changes their inputs; otherwise run `make sync-settings` / `make prompt-stats` yourself
 
 ## Preferred CLI Tools
 
