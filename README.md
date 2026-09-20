@@ -95,7 +95,7 @@ broken commits. Skip detection entirely with `DOTFILES_NO_SSH_SIGNING=1`.
 
 ### Supported platforms
 
-Tested in CI: Ubuntu 20.04/22.04/24.04, Debian 11/12, Alpine latest (musl),
+Tested in CI: Ubuntu 20.04/22.04/24.04, Debian 12, Alpine latest (musl),
 macOS 15/26 (bash and zsh on each), and GitHub Codespaces.
 
 WSL2 is covered by the Linux matrix.

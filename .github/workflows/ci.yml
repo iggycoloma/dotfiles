@@ -81,9 +81,6 @@ jobs:
             platform: ubuntu-24.04
 
           # Debian variants
-          - os: debian:bullseye
-            shell: bash
-            platform: debian-11
           - os: debian:bookworm
             shell: bash
             platform: debian-12

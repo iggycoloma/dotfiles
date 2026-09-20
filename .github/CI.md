@@ -16,7 +16,6 @@ The CI pipeline automatically tests the dotfiles installation on every push and 
 - Ubuntu 24.04 (bash + zsh)
 
 **Debian**:
-- Debian 11 Bullseye (bash)
 - Debian 12 Bookworm (bash + zsh)
 
 **Alpine**:
@@ -81,7 +80,6 @@ Each platform test includes:
 | Ubuntu 22.04 | zsh | Yes | Tests zsh + zinit |
 | Ubuntu 24.04 | bash | Yes | Latest, newer packages |
 | Ubuntu 24.04 | zsh | Yes | Latest + zsh |
-| Debian 11 | bash | Yes | Stable release |
 | Debian 12 | bash | Yes | Current stable |
 | Debian 12 | zsh | Yes | Current stable + zsh |
 | Alpine | bash | Yes | musl libc, apk |
@@ -95,7 +93,7 @@ Each platform test includes:
 ### Jobs
 
 1. **test-linux-containers**: Tests all Linux distributions using Docker containers
-   - Matrix build with 9 configurations
+   - Matrix build with 8 configurations
    - Runs in parallel for speed
    - Uses ubuntu-latest runner with container images
 
