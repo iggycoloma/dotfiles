@@ -177,4 +177,20 @@ the `file:line`. Only spell out the fix when it isn't obvious from the question.
 - **Never use "if you want it" or similar permission-granting phrasing.** Either name the fix
   plainly in one clause or leave it out.
 
+### Replies into an existing thread
+
+A follow-up or close-out is not a finding comment; the finding-comment voice above does not apply.
+
+- The thread already carries the context. Do not re-explain anything a message above already
+  says -- if your reply would still make sense with the earlier messages deleted, it is restating
+  them.
+- When the reply closes the thread out, lead with the resolution and the commit SHA. One clause on
+  what changed, at most one fact the thread does not already have (the surprising one, if any),
+  and credit where the question earned it ("good thing you asked"). A follow-up with nothing
+  resolved yet leads with its question instead.
+- Budget ~50 words. If it genuinely needs more, the overflow belongs in the PR/MR description or
+  the code, not the thread.
+- No formal framing ("to answer the original question directly") -- that is report voice leaking
+  into a message.
+
 Drafts are handed over, never posted. Publishing stays a separate, explicit ask.
