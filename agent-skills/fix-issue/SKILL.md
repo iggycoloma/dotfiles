@@ -40,24 +40,30 @@ You are analyzing and fixing a filed issue or ticket.
      `gh issue list --state closed --search "keywords"`, the glab equivalent,
      or the MCP search)
 
-4. **Reproduce** (if bug):
+4. **Set up the branch** before editing anything. The active agent's
+   branching policy owns the mechanics and the name: where it prescribes a
+   worktree flow or a branch namespace, use that. Absent such a policy,
+   derive a slug from the identifier -- if the tracker suggests a branch
+   name (Linear does), prefer it -- and branch as `fix/<identifier-slug>`.
+
+5. **Reproduce** (if bug):
    - Try to recreate the issue locally
    - Confirm the problem exists
 
-5. **Develop solution**:
+6. **Develop solution**:
    - Identify root cause
    - Implement minimal fix
    - Add tests to prevent regression
    - Verify the fix resolves the issue
 
-6. **Branch and commit**. Derive a slug from the identifier -- if the tracker
-   suggests a branch name (Linear does), prefer it:
+7. **Commit** conventionally, with the identifier in the subject:
    ```bash
-   git checkout -b fix/<identifier-slug>
    git commit -m "fix: <description> (<identifier>)"
    ```
 
-7. **Draft the PR/MR** following `create-pr`: compose the title and body,
+8. **Hand off the PR/MR**. If the repository or workspace provides its own
+   PR/MR-drafting skill, invoke it -- it owns the title and body contract;
+   otherwise follow `create-pr`. Either way: compose the title and body,
    reference the issue the way its tracker autolinks (`Fixes #NNN` on the
    forges; the ticket key, e.g. `Fixes ENG-123`, for Linear), show the create
    command, and stop. Tracker writes -- status changes, comments -- are
@@ -83,7 +89,7 @@ You are analyzing and fixing a filed issue or ticket.
 - [How to verify the fix works]
 
 ### Handoff
-- Branch: fix/<identifier-slug>
+- Branch: [name, as created under the active branching policy]
 - PR/MR: [drafted title and body, plus the command to create it]
 
 Follow the active agent's publication policy for branch creation, commits, pushes, tracker writes, and PR/MR creation.

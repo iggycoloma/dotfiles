@@ -13,6 +13,7 @@ for Claude-specific events, notifications, transcript parsing, and worktrees.
 | pre-code-no-emoji.sh | PreToolUse: Write/Edit | Blocks emoji characters in code files |
 | `~/.agent-hooks/pre-hookspath-guard.sh` | PreToolUse: Bash (`if: git *`) | Denies `git config` writes to `core.hooksPath`; reads and unsets pass |
 | `~/.agent-hooks/pre-leading-token-guard.sh` | PreToolUse: Bash | Denies commands that bury a sandbox-excluded tool (`glab`, `gh`, `wt`, `docker`, `devcontainer`) behind another leading token, where it would run sandboxed and die on its denied config dir |
+| `~/.agent-hooks/pre-forge-api-readonly.sh` | PreToolUse: Bash (`if: glab api *`, `if: gh api *`) | Approves non-sensitive Forge reads with supported filter options and local output files; writes, unsupported options and ambiguous commands retain the normal prompt. See the Forge API policy below |
 | `~/.agent-hooks/post-scope-audit.sh` | PostToolUse: Write/Edit | Logs out-of-scope writes as structured events (audit-only) |
 | `~/.agent-hooks/post-dep-audit.sh` | PostToolUse: Bash | Audits dependency graphs after install commands; `AGENT_DEP_AUDIT_FEEDBACK=1` feeds failures back via exit 2 |
 | `~/.agent-hooks/tool-telemetry.sh` | PostToolUse + PostToolUseFailure: Bash | Logs executable class, outcome, exit code, interruption, and duration; never command arguments or output |
@@ -38,6 +39,26 @@ emoji) is handled by git's `commit-msg` hook at `git/hooks/commit-msg`, wired
 globally via `core.hooksPath`. It runs against the resolved message file after
 git has handled every input form (`-m`, `-F`, `--file=`, `-t`, heredoc,
 editor), so coverage is uniform. There is no PreToolUse equivalent here.
+
+## Forge API policy
+
+`pre-forge-api-readonly.sh` reduces prompts for Forge reads while leaving Forge writes to the normal permission flow.
+It is registered only for Claude Code; Codex's permission handling is unchanged.
+Neither API command has a blanket allow or ask rule: an allow would admit writes, and an ask would override the hook's approval.
+
+REST fields imply POST unless GET is explicit; GraphQL approval requires an inline query with no mutation operation, including when `operationName` selects among operations.
+Duplicate query fields, request files, method-override headers, host overrides and unrecognized API flags retain the prompt.
+Sensitive reads have a separate gate for CI/CD variables, state, secure-file downloads, secret-scanning alerts and webhook configuration.
+
+Pipelines accept the options enumerated in `FILTER_OPTIONS` for `jq`, `rg`, `grep`, `head`, `tail`, `wc`, `sort`, `uniq` and `cut`.
+Common forms such as `jq -rc`, `rg -ni`, `head -25` and `sort -o output.json` remain promptless after an approved read.
+Options that launch programs (`rg --pre`, `rg --search-zip`, `sort --compress-program`), unknown options and shell expansions retain the prompt because they could introduce a Forge write after the inspected request.
+Quote filter expressions containing shell metacharacters; local output can use a filter's output option or one trailing literal redirect.
+
+Local file reads and writes are intentional: this hook neither checks destination scope nor prevents overwrites or symlink traversal.
+Filesystem and process containment belong to the execution environment; sandbox-excluded invocations do not gain containment from this classifier.
+The policy assumes trusted installed binaries and inherited configuration, including CLI aliases, pagers and filter configuration.
+It is not a boundary against replacing those executables or reconfiguring them to launch other commands.
 
 ## Configuration
 

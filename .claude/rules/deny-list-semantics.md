@@ -23,7 +23,10 @@ essential when editing the deny lists or slash commands, dead weight in every ot
 That ordering is the whole design -- a narrow `Bash(gh pr create:*)` in ask prompts even though the broad `Bash(gh pr:*)` allow remains, so read-only verbs stay promptless without enumerating them.
 Ask entries use the same prefix-match semantics (and the same blind spots) as Bash deny entries.
 Do not "simplify" narrow ask entries into the allow list during maintenance: they implement the outward-facing-writes policy in the deployed `claude-code/CLAUDE.md` (mechanics proceed; speech gets drafted).
-`gh api` / `glab api` are ask-gated on purpose -- they can POST anything and would otherwise bypass every verb rule.
+`gh api` / `glab api` deliberately have no rule in any list -- they can POST anything, so they must never be allowed, and a hook `allow` cannot override an ask entry, so they must not be asked either.
+With no rule, the `pre-forge-api-readonly.sh` hook allows non-sensitive Forge reads with supported output processing, and every other call reaches the default prompt.
+The classifier gates Forge writes, including downstream options that could launch another program; local redirects and filter output files are intentional and rely on the execution environment for filesystem containment.
+Do not add either command to allow or ask: an allow entry un-gates writes, and an ask entry silently disables the classifier.
 Keep `settings.json` and `settings.container.json` ask blocks identical; container sessions are where the most autonomous work happens.
 
 ### Command frontmatter allowed-tools

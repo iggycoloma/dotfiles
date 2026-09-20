@@ -166,7 +166,7 @@ FORGE_FRAGMENT="$DOTFILES_DIR/agent-prompts/forge.md"
 # describe the desired artifact, not the author's process, so the same
 # anchors must not appear in them.
 STYLE_ANCHOR='material gaps or risks'
-ENG_ANCHOR='Before handoff, sweep'
+ENG_ANCHOR='Before handoff, list every comment line'
 # shellcheck disable=SC2016  # backticks are literal markdown, not a subshell
 FORGE_CLI_ANCHOR='Prefer purpose-built `gh` and `glab` subcommands'
 FORGE_DESC_ANCHOR='Describe the change in its final form'

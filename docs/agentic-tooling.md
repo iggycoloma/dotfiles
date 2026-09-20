@@ -128,6 +128,7 @@ Summary:
 | `pre-code-no-emoji.sh`    | File edits       | Blocks decorative emoji in added content                            |
 | `pre-hookspath-guard.sh`  | Bash             | Blocks writes to `core.hooksPath`                                   |
 | `pre-leading-token-guard.sh` | Bash          | Denies a sandbox-excluded tool placed after a leading token          |
+| `pre-forge-api-readonly.sh` | `glab api`, `gh api` | Approves non-sensitive Forge reads with supported filter options and local output files; downstream program execution and unknown options keep the prompt. Local containment is separate; see `claude-code/hooks/README.md` |
 | `post-scope-audit.sh`     | File edits       | Audits writes outside the project                                   |
 | `post-dep-audit.sh`       | Bash             | Audits resolved dependencies after installs                         |
 | `tool-telemetry.sh`       | Shell result     | Records metadata-only reliability events                            |

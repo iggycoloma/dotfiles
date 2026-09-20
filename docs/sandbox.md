@@ -346,8 +346,13 @@ exactly this reason -- `gh api` is the arbitrary-request subcommand, so
 combining auto-approval with sandbox exclusion turns it into an unattended
 egress channel authenticated with your own token. The scoped subcommands
 (`gh pr`, `gh issue`, `gh run`, `glab mr`, `glab issue`, `glab ci`) stay
-auto-approved; `gh api` and `glab api` now prompt. When adding to
-`excludedCommands`, check what the same command matches in `permissions.allow`.
+auto-approved; `gh api` and `glab api` prompt unless the
+`pre-forge-api-readonly.sh` hook classifies a non-sensitive Forge read with supported output processing.
+Full-URL endpoints and `--hostname` retain the prompt, as do downstream filter options that launch programs and could perform a Forge write.
+Local redirects and filter output files remain allowed; the hook is a Forge-write gate, not a filesystem sandbox.
+Its approval does not restore isolation to an excluded invocation: local containment belongs to the execution environment.
+See `claude-code/hooks/README.md` for the classifier's contract and trusted-configuration assumptions.
+When adding to `excludedCommands`, check what the same command matches in `permissions.allow`.
 
 Self-hosted GitLab would be the one case worth revisiting: a private host is not
 in `allowedDomains`, so `glab` would need either the exclusion or an entry for
