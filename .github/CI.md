@@ -11,12 +11,13 @@ The CI pipeline automatically tests the dotfiles installation on every push and 
 ### Linux Containers (via Docker)
 
 **Ubuntu** (WSL2 proxy):
-- Ubuntu 20.04 (bash)
 - Ubuntu 22.04 (bash + zsh)
 - Ubuntu 24.04 (bash + zsh)
+- Ubuntu 26.04 (bash + zsh)
 
 **Debian**:
 - Debian 12 Bookworm (bash + zsh)
+- Debian 13 Trixie (bash + zsh)
 
 **Alpine**:
 - Alpine latest (bash)
@@ -25,8 +26,8 @@ The CI pipeline automatically tests the dotfiles installation on every push and 
 
 ### macOS (Native Runners)
 
-- macOS 13 Ventura (bash + zsh)
-- macOS 14 Sonoma (bash + zsh)
+- macOS 15 Sequoia (bash + zsh)
+- macOS 26 Tahoe (bash + zsh)
 
 **Note**: macOS uses native GitHub Actions runners, not Docker containers, as Docker doesn't support macOS containers on Linux hosts.
 
@@ -75,32 +76,35 @@ Each platform test includes:
 
 | Platform | Shell | Container | Notes |
 |----------|-------|-----------|-------|
-| Ubuntu 20.04 | bash | Yes | LTS, older packages |
-| Ubuntu 22.04 | bash | Yes | LTS, current stable |
+| Ubuntu 22.04 | bash | Yes | LTS, older packages |
 | Ubuntu 22.04 | zsh | Yes | Tests zsh + zinit |
-| Ubuntu 24.04 | bash | Yes | Latest, newer packages |
-| Ubuntu 24.04 | zsh | Yes | Latest + zsh |
-| Debian 12 | bash | Yes | Current stable |
-| Debian 12 | zsh | Yes | Current stable + zsh |
+| Ubuntu 24.04 | bash | Yes | LTS |
+| Ubuntu 24.04 | zsh | Yes | LTS + zsh |
+| Ubuntu 26.04 | bash | Yes | Latest LTS, Rust sudo and coreutils |
+| Ubuntu 26.04 | zsh | Yes | Latest LTS + zsh |
+| Debian 12 | bash | Yes | Previous stable |
+| Debian 12 | zsh | Yes | Previous stable + zsh |
+| Debian 13 | bash | Yes | Current stable |
+| Debian 13 | zsh | Yes | Current stable + zsh |
 | Alpine | bash | Yes | musl libc, apk |
-| macOS 13 | bash | No | Native runner |
-| macOS 13 | zsh | No | Native runner |
-| macOS 14 | bash | No | Native runner, Apple Silicon |
-| macOS 14 | zsh | No | Native runner, Apple Silicon |
+| macOS 15 | bash | No | Native runner, Apple Silicon |
+| macOS 15 | zsh | No | Native runner, Apple Silicon |
+| macOS 26 | bash | No | Native runner, Apple Silicon |
+| macOS 26 | zsh | No | Native runner, Apple Silicon |
 
 ## Workflow Structure
 
 ### Jobs
 
 1. **test-linux-containers**: Tests all Linux distributions using Docker containers
-   - Matrix build with 8 configurations
+   - Matrix build with 11 configurations
    - Runs in parallel for speed
    - Uses ubuntu-latest runner with container images
 
 2. **test-macos**: Tests macOS using native runners
    - Matrix build with 4 configurations
    - Runs in parallel
-   - Uses actual macOS VMs (macos-13, macos-14)
+   - Uses actual macOS VMs (macos-15, macos-26)
 
 3. **test-summary**: Aggregates results
    - Runs after all tests complete
