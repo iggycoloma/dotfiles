@@ -98,6 +98,7 @@ test-hooks:
 	bash tests/test-pre-push-hook.sh
 	bash tests/test-project-hooks.sh
 	bash tests/test-derived-files-hook.sh
+	bash tests/test-forge-api-readonly-hook.sh
 
 # Verify each hook matcher in claude-code/settings.json and codex/hooks.json
 # names a tool its platform actually emits, and that the wired hook dispatches

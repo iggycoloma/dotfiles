@@ -105,31 +105,6 @@
       "Bash(chmod:*)",
       "Bash(atuin:*)"
     ],
-    "ask": [
-      "Bash(gh pr create:*)",
-      "Bash(gh pr edit:*)",
-      "Bash(gh pr comment:*)",
-      "Bash(gh pr review:*)",
-      "Bash(gh pr merge:*)",
-      "Bash(gh pr close:*)",
-      "Bash(gh pr ready:*)",
-      "Bash(gh issue create:*)",
-      "Bash(gh issue comment:*)",
-      "Bash(gh issue edit:*)",
-      "Bash(gh issue close:*)",
-      "Bash(gh api:*)",
-      "Bash(glab mr create:*)",
-      "Bash(glab mr update:*)",
-      "Bash(glab mr note:*)",
-      "Bash(glab mr approve:*)",
-      "Bash(glab mr merge:*)",
-      "Bash(glab mr close:*)",
-      "Bash(glab issue create:*)",
-      "Bash(glab issue note:*)",
-      "Bash(glab issue update:*)",
-      "Bash(glab issue close:*)",
-      "Bash(glab api:*)"
-    ],
     "deny": [
       "Read(.env)",
       "Read(**/credentials)",
@@ -247,8 +222,32 @@
       "Edit(**/*.tfstate*)",
       "Read(~/.m2/settings*)",
       "Edit(~/.m2/settings*)"
+    ],
+    "ask": [
+      "Bash(gh pr create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh pr ready:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue close:*)",
+      "Bash(glab mr create:*)",
+      "Bash(glab mr update:*)",
+      "Bash(glab mr note:*)",
+      "Bash(glab mr approve:*)",
+      "Bash(glab mr merge:*)",
+      "Bash(glab mr close:*)",
+      "Bash(glab issue create:*)",
+      "Bash(glab issue note:*)",
+      "Bash(glab issue update:*)",
+      "Bash(glab issue close:*)"
     ]
   },
+  "model": "claude-fable-5-1[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -276,13 +275,25 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git *)",
             "command": "~/.agent-hooks/pre-hookspath-guard.sh",
+            "if": "Bash(git *)",
             "timeout": 10
           },
           {
             "type": "command",
             "command": "~/.agent-hooks/pre-leading-token-guard.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/pre-forge-api-readonly.sh",
+            "if": "Bash(glab api *)",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "~/.agent-hooks/pre-forge-api-readonly.sh",
+            "if": "Bash(gh api *)",
             "timeout": 10
           }
         ]
@@ -627,11 +638,22 @@
     ]
   },
   "alwaysThinkingEnabled": true,
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "medium"
+    }
+  },
   "tui": "fullscreen",
-  "theme": "dark",
-  "voiceEnabled": true,
   "voice": {
     "enabled": true,
     "mode": "hold"
-  }
+  },
+  "theme": "dark",
+  "voiceEnabled": true
 }

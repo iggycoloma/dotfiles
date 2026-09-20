@@ -14,7 +14,7 @@ TDD is the red to green loop.
 This skill is the reference that makes the loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop.
 Every section applies on every cycle.
 
-Before the first cycle, read whatever domain documentation the project keeps (glossary, ADRs, architecture notes) so test names and interface vocabulary match the project's language.
+Before the first cycle, read whatever domain documentation the project keeps (glossary, ADRs, architecture notes) so test names and interface vocabulary match the project's language, and set up the branch under the active agent's branching policy so no cycle edits an unbranched checkout.
 
 ## What a good test is
 
@@ -47,3 +47,9 @@ Ask: "What is the public interface, and which seams should we test?"
 - **Red before green.** Write the failing test first and watch it fail, then write only enough code to pass it. No speculative features.
 - **One slice at a time.** One seam, one test, one minimal implementation per cycle.
 - **Refactoring is a separate pass.** It belongs to review (see the review-pr skill), not inside the red-green cycle.
+
+## Closing out
+
+This skill ends at green: tested code on a branch.
+When it is a step inside another skill or a routed pipeline, stop there and return to the caller.
+When it is the whole task, hand off under the active agent's publication policy: commit, then draft the PR/MR through the repository's own PR/MR-drafting skill if one exists, otherwise `create-pr`, and stop for approval.

@@ -26,10 +26,18 @@ this machine -- it is whether the result becomes an utterance attributed to me.
 - Compose the full text, show it, stop. Do not run `gh pr create`, `glab mr create`,
   or their `comment` / `review` / `note` / `approve` equivalents.
 
-Enforcement: `settings.json` puts the `gh` / `glab` write verbs and `gh api` /
-`glab api` in `permissions.ask`, so they prompt even though the broader
-`Bash(gh pr:*)` and `Bash(glab mr:*)` allows remain. MCP writes (Slack, Linear,
-Notion) are deliberately not allowlisted, so they prompt by default.
+Enforcement: `settings.json` puts the `gh` / `glab` write verbs in
+`permissions.ask`, so they prompt even though the broader `Bash(gh pr:*)` and
+`Bash(glab mr:*)` allows remain. `glab api` and `gh api`
+have no rule at all: a hook `allow` cannot override an `ask` rule, so the shared
+`pre-forge-api-readonly.sh` classifier allows read-only, non-sensitive Forge
+requests with supported output processing and everything else falls through to the
+default prompt, including reads of CI/CD variables, OpenTofu state, secure-file
+contents, secret-scanning alerts, or webhook configuration.
+Pipelines and local output files remain supported; options that launch other programs keep the prompt.
+This is a Forge-write gate, not local filesystem containment, which belongs to the execution environment.
+MCP writes (Slack, Linear, Notion) are deliberately not allowlisted, so they
+prompt by default.
 
 ## Memory
 

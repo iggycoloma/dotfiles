@@ -58,7 +58,10 @@ Keep a comment only when it explains *why*, not *what*: non-obvious rationale or
 
 Drop as noise: restatements of the name, signature, or next line; narration of self-descriptive code or of the edit that produced it; prose gone stale against the code; redundant doc blocks on helpers whose name and body are already clear; section-divider banners; commented-out code.
 
-Before handoff, sweep the comments in your diff: remove any whose meaning is now expressed through names, types, validation, structure, control flow, or tests.
+Comments written while designing are drafts: at that point every decision feels worth recording, and most of it ends up expressed by a name, a type, or the MR description.
+Before handoff, list every comment line the diff adds (for example `git diff <base>...HEAD | grep -E '^\+\s*(//|/\*|\*)'`) and classify each one in the handoff report: the durable why it records, or the fold that removes it.
+A comment you cannot classify is deleted.
+The sweep is done when that list appears in the handoff, not when you believe you looked.
 Tradeoff analysis belongs in the handoff report and review discussion, where the reader can weigh it; encode it as a source comment only when it records a durable, non-obvious constraint that code and tests cannot express.
 
 Scope: applies to code you write and to files you are already substantively editing.
