@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Regenerate files derived from tracked sources in the commit that changes
+# their inputs, so the `make lint` --check gates stay a backstop instead of the
+# first place a stale copy is noticed.
+#
+# Chained by the global pre-commit dispatcher (git/hooks/pre-commit) once the
+# repository opts in with `git config dotfiles.projectHooks true`. It runs
+# before the dispatcher's secret scan, so whatever it stages is scanned too.
+#
+# Never blocks a commit: anything it cannot regenerate safely is left for the
+# lint gate to report.
+set -uo pipefail
+
+toplevel="$(git rev-parse --show-toplevel)" || exit 0
+
+# sync-settings.sh honors an inherited DOTFILES_DIR, which in a worktree names
+# a different checkout and would regenerate that one instead.
+export DOTFILES_DIR="$toplevel"
+
+# The generators read the working tree, not the index. Their output matches
+# what is being committed only when the two agree.
+index_matches_worktree() {
+    git -C "$toplevel" diff --quiet
+}
+
+regenerate_if_stale() {
+    local generator="$1" derived="$2" make_target="$3"
+
+    "$toplevel/$generator" --check >/dev/null 2>&1
+    case $? in
+        0) return 0 ;;
+        1) ;;
+        *)
+            echo "pre-commit: $generator --check could not run; $derived not verified" >&2
+            return 0
+            ;;
+    esac
+
+    if ! index_matches_worktree; then
+        echo "pre-commit: $derived is stale, but unstaged changes are present, so it was not regenerated." >&2
+        echo "pre-commit: stage or set aside those changes, or run 'make $make_target' and stage the result." >&2
+        return 0
+    fi
+
+    if "$toplevel/$generator" >/dev/null 2>&1 && git -C "$toplevel" add -- "$derived"; then
+        echo "pre-commit: regenerated and staged $derived" >&2
+    else
+        echo "pre-commit: failed to regenerate $derived; run 'make $make_target'" >&2
+    fi
+}
+
+regenerate_if_stale bin/sync-settings.sh claude-code/settings.container.json sync-settings
+regenerate_if_stale bin/prompt-stats.sh docs/prompt-stats.md prompt-stats
+
+exit 0
