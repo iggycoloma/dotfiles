@@ -21,7 +21,7 @@ When making changes, respect this boundary: don't add installation logic for too
 that belong to individual projects. Do add configuration, completions, and state
 persistence for tools developers commonly encounter.
 
-Tested platforms: Ubuntu (20.04/22.04/24.04), Debian (11/12), Alpine, macOS (15/26),
+Tested platforms: Ubuntu (22.04/24.04/26.04), Debian (12/13), Alpine, macOS (15/26),
 GitHub Codespaces. CI tests 13+ platform configurations; when changing bootstrap or
 shell scripts, consider cross-platform impact.
 

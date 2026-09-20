@@ -64,9 +64,6 @@ jobs:
       matrix:
         include:
           # Ubuntu variants (WSL2 proxy)
-          - os: ubuntu:20.04
-            shell: bash
-            platform: ubuntu-20.04
           - os: ubuntu:22.04
             shell: bash
             platform: ubuntu-22.04
@@ -79,17 +76,26 @@ jobs:
           - os: ubuntu:24.04
             shell: zsh
             platform: ubuntu-24.04
+          - os: ubuntu:26.04
+            shell: bash
+            platform: ubuntu-26.04
+          - os: ubuntu:26.04
+            shell: zsh
+            platform: ubuntu-26.04
 
           # Debian variants
-          - os: debian:bullseye
-            shell: bash
-            platform: debian-11
           - os: debian:bookworm
             shell: bash
             platform: debian-12
           - os: debian:bookworm
             shell: zsh
             platform: debian-12
+          - os: debian:trixie
+            shell: bash
+            platform: debian-13
+          - os: debian:trixie
+            shell: zsh
+            platform: debian-13
 
           # Alpine (musl libc, apk package manager)
           - os: alpine:latest
