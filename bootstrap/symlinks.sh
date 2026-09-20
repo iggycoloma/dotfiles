@@ -342,8 +342,12 @@ _unify_claude_config() {
     mkdir -p "$HOME/.claude"
 
     if [[ ! -e "$canonical" ]]; then
-        if [[ -f "$home_config" ]] && [[ ! -L "$home_config" ]]; then
-            mv "$home_config" "$canonical"
+        if [[ -f "$home_config" ]]; then
+            if [[ -L "$home_config" ]]; then
+                cp -pL "$home_config" "$canonical"
+            else
+                mv "$home_config" "$canonical"
+            fi
             log_success "Migrated ~/.claude.json -> ~/.claude/.claude.json"
         elif [[ -f "$legacy" ]]; then
             mv "$legacy" "$canonical"

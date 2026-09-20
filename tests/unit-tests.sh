@@ -552,6 +552,31 @@ test_claude_config_migrates_home_config() {
     teardown_test_env
 }
 
+test_claude_config_migrates_linked_home_config() {
+    local link_type
+    for link_type in absolute relative; do
+        setup_test_env
+        local home="$TEST_TEMP_DIR/home"
+        mock_file "$home/config-store/claude.json" '{"oauthAccount":"linked"}'
+        local link_target="$home/config-store/claude.json"
+        if [[ "$link_type" == relative ]]; then
+            link_target="config-store/claude.json"
+        fi
+        ln -s "$link_target" "$home/.claude.json"
+
+        _unify_claude_config &>/dev/null
+
+        assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"linked"' \
+            "Config behind a $link_type home symlink is preserved"
+        assert_file_contains "$home/config-store/claude.json" '"oauthAccount":"linked"' \
+            "Original $link_type symlink target is left intact"
+        assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+            "Existing $link_type home symlink is repointed to the canonical config"
+
+        teardown_test_env
+    done
+}
+
 test_claude_config_migrates_sole_legacy_config() {
     setup_test_env
     local home="$TEST_TEMP_DIR/home"
@@ -1019,6 +1044,7 @@ main() {
     test_suite "Claude Code Config Unification"
     test_claude_config_fresh_install
     test_claude_config_migrates_home_config
+    test_claude_config_migrates_linked_home_config
     test_claude_config_migrates_sole_legacy_config
     test_claude_config_leaves_orphaned_legacy_config
     test_claude_config_keeps_both_real_configs
