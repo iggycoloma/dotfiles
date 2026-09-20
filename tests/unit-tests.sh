@@ -521,6 +521,133 @@ test_toggle_default_installs_all() {
     teardown_test_env
 }
 
+test_claude_config_fresh_install() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+
+    _unify_claude_config &>/dev/null
+
+    assert_file_exists "$home/.claude/.claude.json" \
+        "Fresh install seeds the canonical Claude config"
+    assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+        "Fresh install links ~/.claude.json to the canonical config"
+
+    teardown_test_env
+}
+
+test_claude_config_migrates_home_config() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+    mock_file "$home/.claude.json" '{"oauthAccount":"home"}'
+
+    _unify_claude_config &>/dev/null
+
+    assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"home"' \
+        "Existing ~/.claude.json is migrated to ~/.claude/.claude.json"
+    assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+        "Migrated ~/.claude.json is replaced by a link to the canonical config"
+    assert_file_not_exists "$home/.claude/config.json" \
+        "Migration no longer writes the unread config.json"
+
+    teardown_test_env
+}
+
+test_claude_config_migrates_linked_home_config() {
+    local link_type
+    for link_type in absolute relative; do
+        setup_test_env
+        local home="$TEST_TEMP_DIR/home"
+        mock_file "$home/config-store/claude.json" '{"oauthAccount":"linked"}'
+        local link_target="$home/config-store/claude.json"
+        if [[ "$link_type" == relative ]]; then
+            link_target="config-store/claude.json"
+        fi
+        ln -s "$link_target" "$home/.claude.json"
+
+        _unify_claude_config &>/dev/null
+
+        assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"linked"' \
+            "Config behind a $link_type home symlink is preserved"
+        assert_file_contains "$home/config-store/claude.json" '"oauthAccount":"linked"' \
+            "Original $link_type symlink target is left intact"
+        assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+            "Existing $link_type home symlink is repointed to the canonical config"
+
+        teardown_test_env
+    done
+}
+
+test_claude_config_migrates_sole_legacy_config() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+    mock_file "$home/.claude/config.json" '{"oauthAccount":"legacy"}'
+
+    _unify_claude_config &>/dev/null
+
+    assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"legacy"' \
+        "Legacy config.json is migrated when it is the only config"
+    assert_file_not_exists "$home/.claude/config.json" \
+        "Migrated legacy config.json is gone"
+    assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+        "Legacy migration still links ~/.claude.json"
+
+    teardown_test_env
+}
+
+test_claude_config_leaves_orphaned_legacy_config() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+    mock_file "$home/.claude.json" '{"oauthAccount":"home"}'
+    mock_file "$home/.claude/config.json" '{"oauthAccount":"legacy"}'
+
+    local output
+    output=$(_unify_claude_config 2>&1)
+
+    assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"home"' \
+        "Existing ~/.claude.json wins over a legacy config.json"
+    assert_file_contains "$home/.claude/config.json" '"oauthAccount":"legacy"' \
+        "Legacy config.json is left untouched when another config exists"
+    assert_contains "$output" "Orphaned" \
+        "Orphaned legacy config.json is logged"
+
+    teardown_test_env
+}
+
+test_claude_config_keeps_both_real_configs() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+    mock_file "$home/.claude.json" '{"oauthAccount":"home"}'
+    mock_file "$home/.claude/.claude.json" '{"oauthAccount":"canonical"}'
+
+    local BACKUP_DIR="$TEST_TEMP_DIR/backup"
+    _unify_claude_config &>/dev/null
+
+    assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"canonical"' \
+        "Existing canonical config is not clobbered"
+    assert_file_contains "$TEST_TEMP_DIR/backup/.claude.json" '"oauthAccount":"home"' \
+        "Rival ~/.claude.json is moved to the backup dir, not deleted"
+    assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+        "Rival ~/.claude.json is replaced by the link"
+
+    teardown_test_env
+}
+
+test_claude_config_idempotent() {
+    setup_test_env
+    local home="$TEST_TEMP_DIR/home"
+    mock_file "$home/.claude.json" '{"oauthAccount":"home"}'
+
+    _unify_claude_config &>/dev/null
+    _unify_claude_config &>/dev/null
+
+    assert_file_contains "$home/.claude/.claude.json" '"oauthAccount":"home"' \
+        "Re-running keeps the canonical config intact"
+    assert_symlink "$home/.claude.json" "$home/.claude/.claude.json" \
+        "Re-running keeps the link in place"
+
+    teardown_test_env
+}
+
 # Regression: wt once resolved through the shell function alone, which
 # subprocesses do not inherit, so agents following agent-prompts/worktrees.md
 # got command-not-found. bootstrap/wt.sh owns the ~/.local/bin/wt link now,
@@ -912,6 +1039,16 @@ main() {
     test_heal_skips_target_outside_state
     test_heal_noop_without_state_dir
     test_heal_warns_on_unwritable_state
+
+    # Claude Code global config unification tests
+    test_suite "Claude Code Config Unification"
+    test_claude_config_fresh_install
+    test_claude_config_migrates_home_config
+    test_claude_config_migrates_linked_home_config
+    test_claude_config_migrates_sole_legacy_config
+    test_claude_config_leaves_orphaned_legacy_config
+    test_claude_config_keeps_both_real_configs
+    test_claude_config_idempotent
 
     # Installation toggle tests
     test_suite "Installation Toggles"
