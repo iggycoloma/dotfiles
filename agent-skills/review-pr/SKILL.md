@@ -153,16 +153,15 @@ instead of a draft.
 ### Voice for a draft
 
 A comment is a message to a colleague, not a section of the report. Lowercase and contractions
-are fine. Aim for 60-90 words in one paragraph: mechanism and impact compressed together, with
-the `file:line`. Only spell out the fix when it isn't obvious from the question.
+are fine. Keep the mechanism and impact clear, with the `file:line`. Only spell out the fix when
+it isn't obvious from the comment.
 
-- **Frame the whole comment as a verification request, not a verdict.** Hedge the reading
-  ("if I'm reading it right"), and end by asking whether there's a path you missed rather than
-  stating there isn't. The question should be answerable and worth answering -- usually "was this
-  deliberate, or aimed at <the case it clearly gets right>?" -- because the author normally did
-  have a reason and you want it before you argue with the choice.
-- **Assume competence.** Name the case their choice gets right before the case it misses. You are
-  asking about a tradeoff they made, not catching them out.
+- **Follow the evidence, not a script.** Lead with the specific behavior and its consequence.
+  Qualify an inference where the uncertainty is; state a verified concern directly. Ask a question
+  when the answer could change the finding, and put it where it fits naturally. Vary the shape of
+  comments instead of using a stock opening or an obligatory closing question.
+- **Assume competence.** Credit what the choice handles when it matters to the tradeoff, without
+  requiring that point to lead every comment. Ask about the missing case without implying carelessness.
 - **Plain words for impact, no dramatization.** Drop the protocol shorthand -- "can't quietly fire
   off actions on the operator's behalf" over "nothing POST-shaped can be ridden". The impact has
   to land for someone who doesn't hold the spec in their head; jargon there reads as showing work
